@@ -1,0 +1,36 @@
+# Gradle / Android 构建产物
+.gradle/
+build/
+.kotlin/
+.cxx/
+captures/
+.externalNativeBuild/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# 调试与性能抓取（体积大，可能含设备信息）
+*.hprof
+*.perfetto-trace
+*.trace
+*.log
+
+# 安装包
+*.apk
+*.aab
+app/release/
+app/debug/
+
+# 签名材料与口令：绝不入库
+keystore.properties
+*.jks
+*.keystore
+*.p12
+
+# 用户导入的音源脚本与真实源测试 fixture：绝不入库
+# （他人音源可能带 token、cookie 或平台接口，只放自己写的最小脚本与 mock 音源）
+app/src/main/assets/sources/
+tests/fixtures/real-sources/
