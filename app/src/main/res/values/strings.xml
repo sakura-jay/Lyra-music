@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lyra</string>
+
+    <string name="tab_home">首页</string>
+    <string name="tab_search">搜索</string>
+    <string name="tab_library">音乐库</string>
+
+    <string name="home_title">首页</string>
+    <string name="home_summary">榜单与推荐歌单将在这里落地（M5）。</string>
+    <string name="search_title">搜索</string>
+    <string name="search_summary">多音源聚合搜索与来源标签将在这里落地（M1、M6）。</string>
+    <string name="library_title">音乐库</string>
+    <string name="library_summary">收藏、歌单与本地音乐将在这里落地（M4、M7）。</string>
+
+    <string name="mini_player_idle">未在播放</string>
+    <string name="mini_player_idle_hint">导入音源后即可播放</string>
+</resources>

@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 三条频谱柱：M0 占位图标，M3 视觉收口时替换为正式标识 -->
+    <path
+        android:fillColor="#7FD4C4"
+        android:pathData="M39,44h8v20h-8z" />
+    <path
+        android:fillColor="#B8A1FF"
+        android:pathData="M50,36h8v36h-8z" />
+    <path
+        android:fillColor="#FF8FA3"
+        android:pathData="M61,50h8v8h-8z" />
+</vector>

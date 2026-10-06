@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose 负责实际配色，这里只声明无系统 ActionBar 的窗口基样式 -->
+    <style name="Theme.Lyra" parent="android:Theme.Material.NoActionBar" />
+</resources>
