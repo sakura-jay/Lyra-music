@@ -212,7 +212,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBar(
 }
 
 @Composable
-private fun PlayGlyph(modifier: Modifier = Modifier, tint: Color = Color.Unspecified) {
+private fun PlayGlyph(modifier: Modifier = Modifier, tint: Color) {
     Canvas(modifier = modifier) {
         drawPath(
             path = Path().apply {
