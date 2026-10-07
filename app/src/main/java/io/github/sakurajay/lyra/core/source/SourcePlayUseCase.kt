@@ -18,6 +18,8 @@ data class PlayUrl(
     val requested: Quality,
     val effective: Quality,
     val viaSourceName: String,
+    /** 音源 pic action 给的封面地址；拿不到不影响播放 */
+    val artworkUrl: String? = null,
 )
 
 /** 能执行音源 action 的东西。真身是 SourceRuntime，测试里可以换成假的。 */
@@ -76,7 +78,15 @@ class SourcePlayUseCase(
                     }
                     val url = outcome.getOrThrow().optJSONObject("data")?.optString("url").orEmpty()
                     if (url.startsWith("http://") || url.startsWith("https://")) {
-                        return PlayUrl(url, requested, quality, stored.name)
+                        return PlayUrl(
+                            url = url,
+                            requested = requested,
+                            effective = quality,
+                            viaSourceName = stored.name,
+                            artworkUrl = runCatching {
+                                resolveArtwork(invoker, song, supportsPic = supportsAction(stored, song.source, ACTION_PIC))
+                            }.getOrNull(),
+                        )
                     }
                     lastError = "${stored.name}: 未返回有效地址"
                 }
@@ -87,6 +97,21 @@ class SourcePlayUseCase(
 
         throw PlayUrlException(lastError ?: "所有音源都拿不到播放地址")
     }
+
+    /**
+     * 封面走音源的 pic action：只有自报声明了 pic 的源才会去调。
+     * 失败一律吞掉返回 null——封面缺失不该让已经拿到地址的歌放不出来。
+     */
+    suspend fun resolveArtwork(invoker: ActionInvoker, song: Song, supportsPic: Boolean): String? {
+        if (!supportsPic) return null
+        val info = JSONObject().put("musicInfo", song.toMusicInfo(Quality.STANDARD))
+        val result = runCatching { invoker.invoke(song.source, ACTION_PIC, info) }.getOrNull() ?: return null
+        return result.optJSONObject("data")?.optString("url")
+            ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+    }
+
+    private fun supportsAction(stored: StoredSource, source: String, action: String): Boolean =
+        stored.capabilities[source]?.contains(action) == true
 
     /** 请求档位及其下位，从高到低：FLAC 拿不到就退 320k 再退 128k。 */
     fun qualityChain(requested: Quality): List<Quality> =
@@ -125,5 +150,6 @@ class SourcePlayUseCase(
 
     private companion object {
         const val ACTION_MUSIC_URL = "musicUrl"
+        const val ACTION_PIC = "pic"
     }
 }

@@ -29,8 +29,8 @@ class PlayerClient private constructor(
 
     val player: Player get() = controller
 
-    suspend fun play(url: String, timeoutMs: Long = 20_000L): PlaybackOutcome =
-        withContext(Dispatchers.Main) { awaitPlaybackReady(controller, url, timeoutMs) }
+    suspend fun play(spec: NowPlayingSpec, url: String, timeoutMs: Long = 20_000L): PlaybackOutcome =
+        withContext(Dispatchers.Main) { awaitPlaybackReady(controller, spec.toMediaItem(url), timeoutMs) }
 
     suspend fun playPause() = withContext(Dispatchers.Main) {
         if (controller.isPlaying) controller.pause() else controller.play()

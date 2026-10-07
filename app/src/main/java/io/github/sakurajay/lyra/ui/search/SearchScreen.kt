@@ -51,6 +51,7 @@ import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.PlaybackOutcome
+import io.github.sakurajay.lyra.player.toNowPlayingSpec
 import io.github.sakurajay.lyra.player.PlayerClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -119,7 +120,7 @@ class SearchViewModel(
                 val playUrl = playUseCase.playUrlFor(song, requested)
                 // 播放器活在服务里，UI 只通过 MediaController 下命令
                 val client = playerClient ?: PlayerClient.connect(getApplication()).also { playerClient = it }
-                when (val outcome = client.play(playUrl.url)) {
+                when (val outcome = client.play(song.toNowPlayingSpec(artworkUrl = playUrl.artworkUrl), playUrl.url)) {
                     is PlaybackOutcome.Playing -> _uiState.update {
                         it.copy(
                             playingSongId = song.id,

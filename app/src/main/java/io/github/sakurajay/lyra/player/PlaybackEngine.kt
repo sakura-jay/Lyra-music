@@ -22,7 +22,7 @@ sealed interface PlaybackOutcome {
  * 错误必须自带 errorCodeName 与 cause 链：只报 "Source error" 时，403、明文被拦、
  * 404、SSL 全都长一样——真机上那次定位就靠 cause 里的 CLEARTEXT_NOT_PERMITTED。
  */
-suspend fun awaitPlaybackReady(player: Player, url: String, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome {
+suspend fun awaitPlaybackReady(player: Player, mediaItem: MediaItem, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome {
     val settled = CompletableDeferred<PlaybackOutcome>()
     val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
@@ -39,7 +39,7 @@ suspend fun awaitPlaybackReady(player: Player, url: String, timeoutMs: Long = DE
     }
 
     player.addListener(listener)
-    player.setMediaItem(MediaItem.fromUri(url))
+    player.setMediaItem(mediaItem)
     player.prepare()
     player.playWhenReady = true
 
@@ -81,7 +81,11 @@ class PlaybackEngine private constructor(private val player: ExoPlayer) {
     }
 
     suspend fun play(url: String, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome =
-        withContext(Dispatchers.Main) { awaitPlaybackReady(player, url, timeoutMs) }
+        withContext(Dispatchers.Main) { awaitPlaybackReady(player, MediaItem.fromUri(url), timeoutMs) }
+
+    /** 带元数据的播放：锁屏、通知栏与流体云显示的就是这份 spec */
+    suspend fun play(spec: NowPlayingSpec, url: String, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome =
+        withContext(Dispatchers.Main) { awaitPlaybackReady(player, spec.toMediaItem(url), timeoutMs) }
 
     suspend fun positionMs(): Long = withContext(Dispatchers.Main) { player.currentPosition }
 
