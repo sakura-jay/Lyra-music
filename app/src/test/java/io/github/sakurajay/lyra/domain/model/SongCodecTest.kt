@@ -49,6 +49,22 @@ class SongCodecTest {
     }
 
     @Test
+    fun lazyUriRoundTripsThroughARealUriShape() {
+        val uri = SongCodec.toLazyUri(sample)
+        assertEquals("lyra://song/", uri.substring(0, 12))
+        assertEquals(sample.copy(qualities = sample.qualities.map { it.copy(sizeLabel = it.sizeLabel?.ifBlank { null }) }),
+            SongCodec.fromLazyUri(uri))
+    }
+
+    @Test
+    fun nonLazyUriIsIgnoredSoRealUrlsPassThrough() {
+        // 已解析出的 CDN 地址必须原样交给播放器，不能被当成占位地址处理
+        assertNull(SongCodec.fromLazyUri("https://cdn.example.com/a.mp3"))
+        assertNull(SongCodec.fromLazyUri("lyra://other/x"))
+        assertNull(SongCodec.fromLazyUri("lyra://song/%E4%B8%AD%E6%96%87"))
+    }
+
+    @Test
     fun unknownVersionOrTruncatedPayloadIsRejected() {
         assertNull(SongCodec.decode("nope"))
         assertNull(SongCodec.decode("v1|kw|1"))

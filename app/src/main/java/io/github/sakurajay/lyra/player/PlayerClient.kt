@@ -7,7 +7,10 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
+import androidx.media3.common.MediaItem
 import androidx.media3.session.SessionToken
+import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.domain.model.SongCodec
 import com.google.common.util.concurrent.ListenableFuture
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -31,6 +34,38 @@ class PlayerClient private constructor(
 
     suspend fun play(spec: NowPlayingSpec, url: String, timeoutMs: Long = 20_000L): PlaybackOutcome =
         withContext(Dispatchers.Main) { awaitPlaybackReady(controller, spec.toMediaItem(url), timeoutMs) }
+
+    /**
+     * 下发整个搜索结果作为队列：当前曲带真地址，其余带 lyra:// 占位地址由服务侧
+     * 惰性解析。这样系统媒体界面能看到完整列表与上下曲，而地址又不会提前过期。
+     */
+    suspend fun playQueue(
+        songs: List<Song>,
+        startIndex: Int,
+        resolvedStreamUrl: String,
+        resolvedArtworkUrl: String?,
+        timeoutMs: Long = 20_000L,
+    ): PlaybackOutcome = withContext(Dispatchers.Main) {
+        val items = songs.mapIndexed { index, song ->
+            val spec = song.toNowPlayingSpec(artworkUrl = if (index == startIndex) resolvedArtworkUrl else null)
+            val uri = if (index == startIndex) resolvedStreamUrl else SongCodec.toLazyUri(song)
+            spec.toMediaItem(uri)
+        }
+        controller.setMediaItems(items, startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)), 0L)
+        controller.prepare()
+        controller.playWhenReady = true
+        awaitPlaying(controller, timeoutMs)
+    }
+
+    suspend fun setPlayMode(mode: PlayMode) = withContext(Dispatchers.Main) {
+        val settings = PlayModeMapping.toPlayerSettings(mode)
+        controller.repeatMode = settings.repeatMode
+        controller.shuffleModeEnabled = settings.shuffleModeEnabled
+    }
+
+    suspend fun currentPlayMode(): PlayMode = withContext(Dispatchers.Main) {
+        PlayModeMapping.fromPlayerSettings(controller.repeatMode, controller.shuffleModeEnabled)
+    }
 
     suspend fun playPause() = withContext(Dispatchers.Main) {
         if (controller.isPlaying) controller.pause() else controller.play()

@@ -3,7 +3,13 @@ package io.github.sakurajay.lyra.player
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.MediaItem
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import io.github.sakurajay.lyra.di.ServiceLocator
+import io.github.sakurajay.lyra.domain.model.SongCodec
+import io.github.sakurajay.lyra.domain.model.Quality
+import java.io.IOException
+import kotlinx.coroutines.runBlocking
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import io.github.sakurajay.lyra.MainActivity
@@ -22,7 +28,7 @@ class LyraMediaService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        val player = LyraPlayerFactory.create(this)
+        val player = LyraPlayerFactory.create(this, lazyResolvingFactory())
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(
                 PendingIntent.getActivity(
@@ -34,6 +40,26 @@ class LyraMediaService : MediaSessionService() {
             )
             .build()
     }
+
+    /**
+     * 队列里除当前曲外的项只有 lyra:// 占位地址：真 CDN 地址要一次音源往返，
+     * 而且有时效，提前批量解析既浪费又容易在播到时已过期。播放到这里才解析。
+     */
+    private fun lazyResolvingFactory(): ResolvingDataSource.Factory = ResolvingDataSource.Factory(
+        LyraPlayerFactory.httpDataSourceFactory(),
+        object : ResolvingDataSource.Resolver {
+            override fun resolveDataSpec(dataSpec: androidx.media3.datasource.DataSpec): androidx.media3.datasource.DataSpec {
+                val song = SongCodec.fromLazyUri(dataSpec.uri.toString()) ?: return dataSpec
+                val resolved = try {
+                    runBlocking { ServiceLocator.playUseCase(this@LyraMediaService).playUrlFor(song, DEFAULT_QUALITY) }
+                } catch (e: Exception) {
+                    // 抛给播放器，让它带 cause 报错，而不是静默换成无效地址
+                    throw IOException("音源取址失败: ${'$'}{e.message ?: e.javaClass.simpleName}", e)
+                }
+                return dataSpec.buildUpon().setUri(resolved.url).build()
+            }
+        },
+    )
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
@@ -52,5 +78,9 @@ class LyraMediaService : MediaSessionService() {
             mediaSession = null
         }
         super.onDestroy()
+    }
+
+    private companion object {
+        val DEFAULT_QUALITY: Quality = Quality.LOSSLESS
     }
 }

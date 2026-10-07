@@ -22,7 +22,8 @@ sealed interface PlaybackOutcome {
  * 错误必须自带 errorCodeName 与 cause 链：只报 "Source error" 时，403、明文被拦、
  * 404、SSL 全都长一样——真机上那次定位就靠 cause 里的 CLEARTEXT_NOT_PERMITTED。
  */
-suspend fun awaitPlaybackReady(player: Player, mediaItem: MediaItem, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome {
+/** 只等结果，不动队列：调用方可能已经自己 setMediaItems 了 */
+suspend fun awaitPlaying(player: Player, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome {
     val settled = CompletableDeferred<PlaybackOutcome>()
     val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
@@ -39,10 +40,6 @@ suspend fun awaitPlaybackReady(player: Player, mediaItem: MediaItem, timeoutMs: 
     }
 
     player.addListener(listener)
-    player.setMediaItem(mediaItem)
-    player.prepare()
-    player.playWhenReady = true
-
     return try {
         withTimeout(timeoutMs) { settled.await() }
     } catch (e: TimeoutCancellationException) {
@@ -61,6 +58,14 @@ private fun describe(error: PlaybackException): String {
         append(error.message ?: "无描述")
         if (cause.isNotBlank()) append(" ｜ cause: $cause")
     }
+}
+
+/** 设置单项并等待出声 */
+suspend fun awaitPlaybackReady(player: Player, mediaItem: MediaItem, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome {
+    player.setMediaItem(mediaItem)
+    player.prepare()
+    player.playWhenReady = true
+    return awaitPlaying(player, timeoutMs)
 }
 
 private const val DEFAULT_TIMEOUT_MS = 20_000L

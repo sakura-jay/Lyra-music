@@ -14,6 +14,7 @@ object SongCodec {
 
     private const val SEPARATOR = '|'
     private const val VERSION = "v1"
+    private const val LAZY_HOST = "song"
 
     fun encode(song: Song): String = buildString {
         append(VERSION)
@@ -48,6 +49,24 @@ object SongCodec {
                 Quality.fromId(qualityId)?.let { QualityAvailability(it, size.ifBlank { null }) }
             }.orEmpty(),
         )
+    }
+
+    /**
+     * 把歌曲编成可直接放进 URI 的惰性播放地址：lyra://song/<编码>。
+     *
+     * 播放队列下发时还不知道真实 CDN 地址（每首要一次音源往返），所以先给一个
+     * 自描述的占位 URI，服务侧的 ResolvingDataSource 解出 Song 再换成真地址。
+     * 这样服务不需要维护 mediaId->Song 的跨进程表，少一处会漂移的状态。
+     */
+    const val LAZY_SCHEME = "lyra"
+
+    fun toLazyUri(song: Song): String =
+        "$LAZY_SCHEME://$LAZY_HOST/" + URLEncoder.encode(encode(song), "UTF-8")
+
+    fun fromLazyUri(uri: String): Song? {
+        if (!uri.startsWith("$LAZY_SCHEME://$LAZY_HOST/")) return null
+        val payload = uri.removePrefix("$LAZY_SCHEME://$LAZY_HOST/")
+        return runCatching { decode(URLDecoder.decode(payload, "UTF-8")) }.getOrNull()
     }
 
     private fun escape(value: String): String = URLEncoder.encode(value, "UTF-8")

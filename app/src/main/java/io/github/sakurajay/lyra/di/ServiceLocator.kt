@@ -1,7 +1,12 @@
 package io.github.sakurajay.lyra.di
 
 import android.content.Context
+import io.github.sakurajay.lyra.core.source.RuntimePool
+import io.github.sakurajay.lyra.core.source.SourceHosting
+import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
+import io.github.sakurajay.lyra.core.source.RuntimeLoader
 import io.github.sakurajay.lyra.core.source.repo.SourceRepository
+import io.github.sakurajay.lyra.core.source.runtime.SourceRuntime
 import java.io.File
 
 /**
@@ -21,4 +26,24 @@ object ServiceLocator {
             repository ?: SourceRepository(File(context.filesDir, "source-store")).also { repository = it }
         }
     }
+
+    @Volatile
+    private var pool: RuntimePool? = null
+
+    fun runtimePool(context: Context): RuntimePool {
+        return pool ?: synchronized(this) {
+            pool ?: RuntimePool { stored ->
+                val repo = sourceRepository(context)
+                SourceRuntime.load(
+                    preloadScript = SourceHosting.preload(context),
+                    sourceScript = repo.scriptText(stored.id),
+                    scriptId = stored.id,
+                    requests = SourceHosting.newRequestExecutor(),
+                )
+            }.also { pool = it }
+        }
+    }
+
+    fun playUseCase(context: Context): SourcePlayUseCase =
+        SourcePlayUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) })
 }

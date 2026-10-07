@@ -120,7 +120,9 @@ class SearchViewModel(
                 val playUrl = playUseCase.playUrlFor(song, requested)
                 // 播放器活在服务里，UI 只通过 MediaController 下命令
                 val client = playerClient ?: PlayerClient.connect(getApplication()).also { playerClient = it }
-                when (val outcome = client.play(song.toNowPlayingSpec(artworkUrl = playUrl.artworkUrl), playUrl.url)) {
+                val queue = _uiState.value.songs
+                    val startIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+                when (val outcome = client.playQueue(queue, startIndex, playUrl.url, playUrl.artworkUrl)) {
                     is PlaybackOutcome.Playing -> _uiState.update {
                         it.copy(
                             playingSongId = song.id,

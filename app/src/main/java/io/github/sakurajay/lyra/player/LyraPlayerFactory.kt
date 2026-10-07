@@ -29,9 +29,13 @@ object LyraPlayerFactory {
      * 只能在拥有 Looper 的线程（通常是主线程）上调用：ExoPlayer 会记住创建它的线程，
      * 之后跨线程访问直接抛 "Player is accessed on the wrong thread"。
      */
-    fun create(context: Context): ExoPlayer = ExoPlayer.Builder(context)
-        .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFactory()))
-        .build()
+    fun create(context: Context): ExoPlayer =
+        create(context, httpDataSourceFactory())
+
+    fun create(context: Context, dataSourceFactory: androidx.media3.datasource.DataSource.Factory): ExoPlayer =
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
         .apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
