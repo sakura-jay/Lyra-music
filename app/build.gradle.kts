@@ -64,6 +64,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.quickjs.wrapper.android)
     implementation(libs.okhttp)
+    implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.exoplayer)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
