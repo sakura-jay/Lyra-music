@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -22,10 +23,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -37,56 +42,88 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import io.github.sakurajay.lyra.R
 
 private enum class TopDestination(
+    val route: String,
     @StringRes val labelRes: Int,
     @StringRes val titleRes: Int,
     @StringRes val summaryRes: Int,
 ) {
-    Home(R.string.tab_home, R.string.home_title, R.string.home_summary),
-    Search(R.string.tab_search, R.string.search_title, R.string.search_summary),
-    Library(R.string.tab_library, R.string.library_title, R.string.library_summary),
+    Home("home", R.string.tab_home, R.string.home_title, R.string.home_summary),
+    Search("search", R.string.tab_search, R.string.search_title, R.string.search_summary),
+    Library("library", R.string.tab_library, R.string.library_title, R.string.library_summary),
 }
+
+private const val ROUTE_SOURCES = "sources"
 
 @Composable
 fun LyraApp() {
-    var selected by rememberSaveable { mutableStateOf(TopDestination.Home) }
+    val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val topRoutes = TopDestination.entries.map { it.route }
+    val onTopLevelDestination = currentRoute in topRoutes
 
     Scaffold(
         bottomBar = {
-            Column {
-                MiniPlayerBar()
-                NavigationBar {
-                    TopDestination.entries.forEach { destination ->
-                        NavigationBarItem(
-                            selected = selected == destination,
-                            onClick = { selected = destination },
-                            icon = {
-                                DestinationIcon(
-                                    destination = destination,
-                                    tint = if (selected == destination) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
-                            },
-                            label = { Text(stringResource(destination.labelRes)) },
-                        )
+            if (onTopLevelDestination) {
+                Column {
+                    MiniPlayerBar()
+                    NavigationBar {
+                        TopDestination.entries.forEach { destination ->
+                            NavigationBarItem(
+                                selected = currentRoute == destination.route,
+                                onClick = {
+                                    navController.navigate(destination.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                icon = {
+                                    DestinationIcon(
+                                        destination = destination,
+                                        tint = if (currentRoute == destination.route) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    )
+                                },
+                                label = { Text(stringResource(destination.labelRes)) },
+                            )
+                        }
                     }
                 }
             }
         },
     ) { innerPadding ->
-        Box(Modifier.fillMaxSize().padding(innerPadding)) {
-            DestinationScreen(selected)
+        NavHost(
+            navController = navController,
+            startDestination = TopDestination.Home.route,
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+        ) {
+            TopDestination.entries.forEach { destination ->
+                composable(destination.route) {
+                    DestinationPlaceholder(
+                        destination = destination,
+                        onOpenSources = if (destination == TopDestination.Library) {
+                            { navController.navigate(ROUTE_SOURCES) }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
+            composable(ROUTE_SOURCES) {
+                SourcesScreen(onBack = { navController.popBackStack() })
+            }
         }
     }
 }
 
 @Composable
-private fun DestinationScreen(destination: TopDestination) {
+private fun DestinationPlaceholder(destination: TopDestination, onOpenSources: (() -> Unit)?) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 28.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -101,6 +138,11 @@ private fun DestinationScreen(destination: TopDestination) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (onOpenSources != null) {
+            Button(onClick = onOpenSources, modifier = Modifier.padding(top = 8.dp)) {
+                Text(stringResource(R.string.library_open_sources))
+            }
+        }
     }
 }
 

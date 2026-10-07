@@ -12,7 +12,18 @@
     <string name="search_summary">多音源聚合搜索与来源标签将在这里落地（M1、M6）。</string>
     <string name="library_title">音乐库</string>
     <string name="library_summary">收藏、歌单与本地音乐将在这里落地（M4、M7）。</string>
+    <string name="library_open_sources">音源管理</string>
 
     <string name="mini_player_idle">未在播放</string>
     <string name="mini_player_idle_hint">导入音源后即可播放</string>
+
+    <string name="sources_title">音源管理</string>
+    <string name="sources_import_file">从文件导入</string>
+    <string name="sources_import_url">导入</string>
+    <string name="sources_url_hint">音源链接（https…）</string>
+    <string name="sources_validating">正在试跑脚本，校验 inited 握手…</string>
+    <string name="sources_empty">还没有可用音源。导入一个 .js 音源后即可播放。</string>
+    <string name="sources_actions_count">声明 %1$d 类能力</string>
+    <string name="action_back">返回</string>
+    <string name="action_delete">删除</string>
 </resources>
