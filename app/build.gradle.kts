@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.session)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 

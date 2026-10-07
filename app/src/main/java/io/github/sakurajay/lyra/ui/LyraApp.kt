@@ -1,6 +1,13 @@
 package io.github.sakurajay.lyra.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -59,6 +66,7 @@ private const val ROUTE_SOURCES = "sources"
 
 @Composable
 fun LyraApp() {
+    RequestNotificationPermission()
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -270,5 +278,23 @@ private fun PlayGlyph(modifier: Modifier = Modifier, tint: Color) {
             },
             color = tint,
         )
+    }
+}
+
+
+/**
+ * Android 13+ 通知是运行时权限。
+ *
+ * 没有它，MediaSessionService 的播控通知发不出去，锁屏与通知栏控制、
+ * 以及依赖媒体通知的厂商实况胶囊都不会出现——所以第一次进 App 就要问。
+ */
+@Composable
+private fun RequestNotificationPermission() {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }

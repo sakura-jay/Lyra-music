@@ -1,14 +1,10 @@
 package io.github.sakurajay.lyra.player
 
 import android.content.Context
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -21,114 +17,81 @@ sealed interface PlaybackOutcome {
 }
 
 /**
- * 播放执行器。
+ * 让 player 播这个地址，并等到真正进入 READY 或明确失败。
  *
- * M2 会把它挪进 Media3 的 MediaSessionService 以获得锁屏、通知栏与蓝牙控制；
- * 这一期只需要"给一个地址，能出声"，所以先直接持有 ExoPlayer。
+ * 错误必须自带 errorCodeName 与 cause 链：只报 "Source error" 时，403、明文被拦、
+ * 404、SSL 全都长一样——真机上那次定位就靠 cause 里的 CLEARTEXT_NOT_PERMITTED。
+ */
+suspend fun awaitPlaybackReady(player: Player, url: String, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome {
+    val settled = CompletableDeferred<PlaybackOutcome>()
+    val listener = object : Player.Listener {
+        override fun onPlaybackStateChanged(state: Int) {
+            when (state) {
+                Player.STATE_READY -> settled.complete(PlaybackOutcome.Playing)
+                Player.STATE_IDLE -> player.playerError?.let { settled.complete(PlaybackOutcome.Failed(describe(it))) }
+                else -> Unit
+            }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            settled.complete(PlaybackOutcome.Failed(describe(error)))
+        }
+    }
+
+    player.addListener(listener)
+    player.setMediaItem(MediaItem.fromUri(url))
+    player.prepare()
+    player.playWhenReady = true
+
+    return try {
+        withTimeout(timeoutMs) { settled.await() }
+    } catch (e: TimeoutCancellationException) {
+        PlaybackOutcome.Failed("等待解码就绪超时（${timeoutMs / 1000}s）")
+    } finally {
+        player.removeListener(listener)
+    }
+}
+
+private fun describe(error: PlaybackException): String {
+    val cause = generateSequence(error.cause) { it.cause }
+        .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
+    return buildString {
+        append(error.errorCodeName)
+        append(' ')
+        append(error.message ?: "无描述")
+        if (cause.isNotBlank()) append(" ｜ cause: $cause")
+    }
+}
+
+private const val DEFAULT_TIMEOUT_MS = 20_000L
+
+/**
+ * 直接持有 ExoPlayer 的播放执行器，供不依赖服务的场景（instrumentation 测试）使用。
  *
- * ExoPlayer 的实例与其监听回调都必须待在创建它的那条线程（主线程）上，
- * 因此所有对外方法都在 Dispatchers.Main 上执行。
+ * 产品路径的播放在 LyraMediaService 里，经 MediaController 驱动；这里保留一份
+ * 无服务的等价实现，是为了让"能不能解码出声"可以脱离通知栏/前台服务单独验证。
  */
 class PlaybackEngine private constructor(private val player: ExoPlayer) {
 
     companion object {
-        private const val DEFAULT_TIMEOUT_MS = 20_000L
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
-
-        /**
-         * ExoPlayer 只能被创建它的那条线程（应用主线程）访问，否则 Media3 直接抛
-         * "Player is accessed on the wrong thread"。因此构造走 suspend 工厂，
-         * 把实例的出生地钉死在主线程。
-         */
+        /** ExoPlayer 只能被创建它的线程访问，因此构造走 suspend 工厂钉在主线程。 */
         suspend fun create(context: Context): PlaybackEngine = withContext(Dispatchers.Main) {
-            // 音乐 CDN 普遍对无 UA 的请求返回 403，Media3 的默认 UA 会被拒；
-            // 跨协议重定向也要放开，部分平台先 302 再换 http/https 域
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent(USER_AGENT)
-                .setAllowCrossProtocolRedirects(true)
-                .setConnectTimeoutMs(15_000)
-                .setReadTimeoutMs(20_000)
-
-            val player = ExoPlayer.Builder(context)
-                .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
-                .build()
-            player.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .setUsage(C.USAGE_MEDIA)
-                    .build(),
-                /* handleAudioFocus = */ true,
-            )
-            PlaybackEngine(player)
+            PlaybackEngine(LyraPlayerFactory.create(context))
         }
     }
 
     suspend fun play(url: String, timeoutMs: Long = DEFAULT_TIMEOUT_MS): PlaybackOutcome =
-        withContext(Dispatchers.Main) {
-            val settled = CompletableDeferred<PlaybackOutcome>()
-            val listener = object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    when (state) {
-                        Player.STATE_READY -> settled.complete(PlaybackOutcome.Playing)
-                        Player.STATE_IDLE -> {
-                            val error = player.playerError
-                            if (error != null) settled.complete(PlaybackOutcome.Failed(error.localizedMessage ?: "播放器已空闲退出"))
-                        }
+        withContext(Dispatchers.Main) { awaitPlaybackReady(player, url, timeoutMs) }
 
-                        else -> Unit
-                    }
-                }
-
-                override fun onPlayerError(error: PlaybackException) {
-                    // 只报 "Source error" 没法判断是 403、404 还是 SSL；把错误码与
-                    // cause 链（HTTP 状态码在 cause 里）一起带出来
-                    val cause = generateSequence(error.cause) { it.cause }
-                        .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
-                    settled.complete(
-                        PlaybackOutcome.Failed(
-                            buildString {
-                                append(error.errorCodeName)
-                                append(' ')
-                                append(error.message ?: "无描述")
-                                if (cause.isNotBlank()) append(" ｜ cause: $cause")
-                            },
-                        ),
-                    )
-                }
-            }
-
-            player.addListener(listener)
-            player.setMediaItem(MediaItem.fromUri(url))
-            player.prepare()
-            player.playWhenReady = true
-
-            try {
-                withTimeout(timeoutMs) { settled.await() }
-            } catch (e: TimeoutCancellationException) {
-                PlaybackOutcome.Failed("等待解码就绪超时（${timeoutMs / 1000}s）")
-            } finally {
-                player.removeListener(listener)
-            }
-        }
-
-    /** 播放位置：只有真正在推进才说明音频链路通了，而不只是"准备好"。 */
     suspend fun positionMs(): Long = withContext(Dispatchers.Main) { player.currentPosition }
 
     suspend fun isPlaying(): Boolean = withContext(Dispatchers.Main) { player.isPlaying }
 
-    suspend fun stop() = withContext(Dispatchers.Main) {
-        player.stop()
-    }
+    suspend fun stop() = withContext(Dispatchers.Main) { player.stop() }
 
-    suspend fun release() = withContext(Dispatchers.Main) {
-        player.release()
-    }
+    suspend fun release() = withContext(Dispatchers.Main) { player.release() }
 
-    /**
-     * ViewModel.onCleared 里 viewModelScope 已被取消，挂起函数跑不动，
-     * 而 ExoPlayer.release() 又必须回到它自己的线程。用主线程 Handler 投递。
-     */
+    /** ViewModel.onCleared 里 scope 已取消，挂起函数跑不动，用 Handler 投回主线程。 */
     fun releaseOnMainThread() {
         android.os.Handler(android.os.Looper.getMainLooper()).post { player.release() }
     }
