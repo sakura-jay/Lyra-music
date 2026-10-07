@@ -26,6 +26,21 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 
 **Jank <1% 尚未测量**：M0 无可滚动长列表与动效，留到 M3 歌词页一并做（Perfetto + `gfxinfo framestats`）。
 
+### M1 音源跑通 — 进行中（契约已立，未打 tag）
+
+- `feat(source)` QuickJS 引擎线程 + Promise 排空真机验证（`d529fcd`）：
+  绑定库选 `wang.harlon.quickjs:wrapper-android:3.2.3`，与官方移动端同源
+- `feat(source)` lx.* 宿主契约、OkHttp 请求桥、crypto/buffer/zlib 原生桥（`3d7d868`）：
+  协议逐字对齐官方 preload（`__lx_native__` / `__lx_native_call__` / key 校验 / Uint8Array 语义），
+  并补上官方移动版未实现的 zlib、DES、SHA、AES 解密，成为契约超集
+- 12 条 instrumentation 测试在真机 PLK110 全绿；真实音源（星海 v2.3.12）完成
+  `inited` 握手、来源能力解析与错误归一化
+- 补 `INTERNET` 权限；未开 cleartext
+
+**M1 剩余**：`feat/source-import`（音源导入与管理页）、`feat/player-first-sound`
+（搜索 → 取址 → 出声）。DoD 要求的"3 个真实音源搜索/取址/歌词通过"尚未达成——
+现有这份音源自己就不声明 `search`，故 DoD 需按能力清单逐源验证。因此不打 tag。
+
 ## 计划中的里程碑
 
 - **M0 `v0.1.0`** — 工程骨架：三 Tab 可点、M3 动态取色与明暗、R8 配置
