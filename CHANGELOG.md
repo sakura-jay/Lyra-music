@@ -6,17 +6,20 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
-### M0 工程基线 — 代码完成，构建验证待做
+### M0 工程基线 — 构建已通过，真机验收待做
 
 - 确立术语表（`CONTEXT.md`）与五条架构决策记录（`docs/adr/0001`–`0005`）
 - 确立 Git 工程管理约定：分支模型、提交规范、tag 规则、忽略清单
-- Gradle 骨架：Gradle 8.14.3 / AGP 8.13.2 / Kotlin 2.4.20 / Compose BOM 2026.09.00，`compileSdk 36`、`minSdk 31`
+- Gradle 骨架：Gradle 8.14.5 / AGP 8.13.2 / Kotlin 2.4.20 / Compose BOM 2026.06.01（Compose 1.11.4）+ core-ktx 1.18.0，`compileSdk 36`、`minSdk 31`
+- 版本组合以 `compileSdk 36` 为上限：BOM 2026.09.00（Compose 1.12.1）与 core 1.19.x 的 AAR metadata 要求 compileSdk 37 + AGP 9.1.0，已回退锁定；待工具链升到 AGP 9.1.0 时再抬回
 - 三 Tab 骨架（首页 / 搜索 / 音乐库）+ 底部常驻迷你播放条静态占位
 - 主题：系统动态取色优先，两套预设（光谱 / 余烬）明暗变体兜底
 
-**状态说明**：本机未执行 Gradle 构建与真机安装，因此 M0 的三项验收
-（真机可装、三 Tab 可点、冷启动 < 1.5 s）**均未达成**，也尚未打 `v0.1.0` tag。
-构建需在有 Android Studio 的环境完成一次同步。
+**状态说明**：`assembleDebug` 已在本机跑通（JDK 17 / Gradle 8.14.5 / AGP 8.13.2，
+命令为 `clean assembleDebug --offline`，全离线），
+`checkDebugAarMetadata` 通过，产出 `app-debug.apk`。注意 `clean` 后 Kotlin 编译与 dex
+是从 build cache 恢复的（`compileDebugKotlin FROM-CACHE`），尚未做过真正的冷编译。
+但真机安装与另外两项验收（三 Tab 可点、冷启动 < 1.5 s）**仍未达成**，因此 M0 尚未打 `v0.1.0` tag。
 
 ## 计划中的里程碑
 
