@@ -7,5 +7,5 @@
 ## 后果
 
 - 必须自己实现 `lx.*` 宿主契约（`request` 异步桥接、`crypto`、`buffer`），并移植 preload 作为规范；这是"一份固定契约的移植"，不是 Node 兼容层。
-- 每次 native→JS 回调之后必须 drain QuickJS 的 pending job queue，否则脚本里的 Promise 永不 resolve——这是该方案最常见的翻车点。
+- 每次 native→JS 回调之后必须排空 QuickJS 的 pending job queue，否则脚本里的 Promise 永不 resolve。实测确认 `wrapper-android` 的 native 层在每次 eval/call 后自动跑 `executePendingJobLoop()`（`quickjs_wrapper.cpp`），不需要宿主手工排空；该结论由 `SourceScriptEngineTest.promiseResolvedByHostCallbackDeliversItsContinuation` 在真机（PLK110）验证。
 - 一期把 `zlib`、DES、SHA 等官方移动版未实现的能力补齐，使 Lyra 成为官方契约的超集。
