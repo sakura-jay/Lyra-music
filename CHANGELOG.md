@@ -65,8 +65,15 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 - **M0 `v0.1.0`** — 工程骨架：三 Tab 可点、M3 动态取色与明暗、R8 配置
 - **M1 `v0.2.0`** — 音源跑通：导入音源 → 搜索 → 点击 → 出声
 - **M2 `v0.3.0`** — 播放体系：MediaSessionService 后台播放、锁屏、通知栏、蓝牙媒体键、
-  队列模型、crossfade；**并接入 ColorOS 流体云胶囊**（假设：它读标准 MediaSession +
-  媒体通知，LX 即因此可见——需在真机上验证是否成立，不成立再查 OPPO 侧 SDK）
+  队列模型、crossfade；**并接入 ColorOS 流体云胶囊**
+
+**流体云假设已验证成立**（真机）：接入 MediaSessionService 后，ColorOS 流体云
+自动出现播放胶囊，无需任何厂商 SDK——它就是读标准 MediaSession + 媒体通知。
+已知缺口：胶囊**没有封面**，因为播放时只给了 MediaItem.fromUri(url)，
+MediaMetadata 的标题/艺术家/ARTWORK 全空。已排入 M2 切片2（任务 #9）。
+
+M2 切片1 已完成（`8cb322b`）：真机验证 isForeground=true、types=mediaPlayback、
+通知 category=transport；退后台 8s/14s 仍 state:started，会话位置持续推进。
 - **M3 `v0.4.0`** — 歌词沉浸页：逐字扫光与逐行退化、封面取色模糊背景
 - **M4 `v0.5.0`** — 收藏与音乐库：四类收藏、歌单管理、JSON 备份
 - **M5 `v0.6.0`** — 榜单与详情页
