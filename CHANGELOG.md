@@ -37,9 +37,19 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
   `inited` 握手、来源能力解析与错误归一化
 - 补 `INTERNET` 权限；未开 cleartext
 
-**M1 剩余**：`feat/source-import`（音源导入与管理页）、`feat/player-first-sound`
-（搜索 → 取址 → 出声）。DoD 要求的"3 个真实音源搜索/取址/歌词通过"尚未达成——
-现有这份音源自己就不声明 `search`，故 DoD 需按能力清单逐源验证。因此不打 tag。
+- `feat(ui)` 音源管理页（`fdaea10`）：文件 / https 链接导入，**导入即试跑**——
+  脚本必须真的 `send(inited)` 才入库，`status:false` 与坏源当场拒绝；非 http(s) 方案直接拒
+- `feat(player)` ExoPlayer 播放执行器（`080d225`）：测试内合成 PCM WAV 经 MockWebServer
+  供流，断言进入 READY 且播放位置推进；不可达地址快速失败不挂住
+- 手写 ServiceLocator 注入 + Navigation Compose；依赖版本天花板写进 `libs.versions.toml`
+  注释（navigation 2.10 / lifecycle 2.11 / okhttp 5 / compose-bom 2026.09 都要 compileSdk 37）
+- 测试规模 12 → 24 → 26 条，PLK110 真机通过
+
+**M1 剩余**：搜索页与"点搜索结果 → 出声"的产品路径。卡在一个事实上——用户提供的
+星海 v2.3.12 自报能力只有 `musicUrl / lyric / pic`，**不声明 `search`**，无法用它验收搜索。
+播放引擎已就绪，缺的是一个能搜索的音源。DoD 未齐，故仍不打 `v0.2.0` tag。
+
+现在就可试用：音乐库 → 音源管理 → 从文件或链接导入。
 
 ## 计划中的里程碑
 
