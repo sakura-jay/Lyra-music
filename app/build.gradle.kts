@@ -60,10 +60,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.quickjs.wrapper.android)
+    implementation(libs.okhttp)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.mockwebserver)
 }
