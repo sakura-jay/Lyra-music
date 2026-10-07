@@ -6,7 +6,9 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -31,6 +33,8 @@ class PlaybackEngine private constructor(private val player: ExoPlayer) {
 
     companion object {
         private const val DEFAULT_TIMEOUT_MS = 20_000L
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
         /**
          * ExoPlayer 只能被创建它的那条线程（应用主线程）访问，否则 Media3 直接抛
@@ -38,7 +42,17 @@ class PlaybackEngine private constructor(private val player: ExoPlayer) {
          * 把实例的出生地钉死在主线程。
          */
         suspend fun create(context: Context): PlaybackEngine = withContext(Dispatchers.Main) {
-            val player = ExoPlayer.Builder(context).build()
+            // 音乐 CDN 普遍对无 UA 的请求返回 403，Media3 的默认 UA 会被拒；
+            // 跨协议重定向也要放开，部分平台先 302 再换 http/https 域
+            val dataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(USER_AGENT)
+                .setAllowCrossProtocolRedirects(true)
+                .setConnectTimeoutMs(15_000)
+                .setReadTimeoutMs(20_000)
+
+            val player = ExoPlayer.Builder(context)
+                .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+                .build()
             player.setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -67,7 +81,20 @@ class PlaybackEngine private constructor(private val player: ExoPlayer) {
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
-                    settled.complete(PlaybackOutcome.Failed(error.message ?: "播放失败"))
+                    // 只报 "Source error" 没法判断是 403、404 还是 SSL；把错误码与
+                    // cause 链（HTTP 状态码在 cause 里）一起带出来
+                    val cause = generateSequence(error.cause) { it.cause }
+                        .joinToString(" <- ") { "${it.javaClass.simpleName}: ${it.message}" }
+                    settled.complete(
+                        PlaybackOutcome.Failed(
+                            buildString {
+                                append(error.errorCodeName)
+                                append(' ')
+                                append(error.message ?: "无描述")
+                                if (cause.isNotBlank()) append(" ｜ cause: $cause")
+                            },
+                        ),
+                    )
                 }
             }
 

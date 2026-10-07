@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  音源返回的播放地址常是 http://（实测酷我 CDN 为 car-er.kuwo.cn），
+  Android 默认禁止明文流量，播放器会报 ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED。
+  地址由第三方音源决定，无法预先枚举域名，因此只能整体放开 base-config。
+
+  边界：这只影响播放取到的媒体流；App 自身的接口请求（内置搜索等）仍走 https，
+  且音源脚本发起的 request 也受此约束——这是这类聚合播放器的固有取舍。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
