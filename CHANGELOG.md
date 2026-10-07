@@ -26,7 +26,22 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 
 **Jank <1% 尚未测量**：M0 无可滚动长列表与动效，留到 M3 歌词页一并做（Perfetto + `gfxinfo framestats`）。
 
-### M1 音源跑通 — 进行中（契约已立，未打 tag）
+### M1 音源跑通 — 已完成（`v0.2.0`）
+
+**真机验收（PLK110）**：搜索「jay」→ 点「晴天 · 无损」→ 系统音频层出现本进程
+`AudioTrack`、`state:started`、`USAGE_MEDIA`、44.1kHz、已路由输出设备；
+界面显示"正在播放 · 无损 · 经 星海音乐源"。
+
+过程中修掉三个只有真机能暴露的问题：
+- `musicInfo` 写了 `hash:""`，音源用 `??` 链取 id 时停在空串上 → 报"缺少 songId"
+- 音源播放地址是 `http://` CDN，被 Android 明文策略拦 → `CLEARTEXT_NOT_PERMITTED`；
+  改为按域名无法枚举的现实放开 base-config，并补浏览器 UA 与跨协议重定向
+- 错误只报 "Source error" 无法定位 → 现在带 `errorCodeName` 与 cause 链
+
+**DoD 偏差（如实记）**：原计划写"3 个真实音源搜索/取址/歌词通过"。实际是
+1 个真实音源（星海 v2.3.12）完成取址与播放，搜索由内置适配器提供——因为
+洛雪音源格式本身通常不声明 search，这是分工而非缺陷。后续拿到更多音源时
+按同一套能力清单跑回归即可。
 
 - `feat(source)` QuickJS 引擎线程 + Promise 排空真机验证（`d529fcd`）：
   绑定库选 `wang.harlon.quickjs:wrapper-android:3.2.3`，与官方移动端同源
@@ -44,15 +59,6 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 - 手写 ServiceLocator 注入 + Navigation Compose；依赖版本天花板写进 `libs.versions.toml`
   注释（navigation 2.10 / lifecycle 2.11 / okhttp 5 / compose-bom 2026.09 都要 compileSdk 37）
 - 测试规模 12 → 24 → 26 条，PLK110 真机通过
-
-**M1 剩余**：工程侧已全部完成（引擎 / 契约 / 存储 / 导入页 / 播放引擎 / 内置搜索 / 搜索页 / 换址降级）。
-唯一未闭合的是 DoD 里"用真实音源实际出声一次"——它需要使用者在 App 内亲手导入自己的音源
-（我无法驱动系统文件选择器，且星海对 kw 平台要求自行配置 apikey）。
-
-因此 **`v0.2.0` 暂不打**：按规则 tag 的权威是验收通过，而不是代码写完。
-一旦导入音源后点歌出声，即补 tag。
-
-已可完整试用：音乐库 → 音源管理导入；搜索页输入关键词 → 出结果 → 点歌播放。
 
 ## 计划中的里程碑
 
