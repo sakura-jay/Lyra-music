@@ -60,6 +60,15 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
   注释（navigation 2.10 / lifecycle 2.11 / okhttp 5 / compose-bom 2026.09 都要 compileSdk 37）
 - 测试规模 12 → 24 → 26 条，PLK110 真机通过
 
+### M2 进行中 — 队列所有权与惰性解析地基
+
+- 决策变更（ADR-0006）：删掉自研 `PlayQueue`（含 15 条测试），队列所有权交给 Media3 播放器；
+  播放模式改为映射到 `repeatMode`/`shuffleModeEnabled`，避免两套状态对"下一首是谁"理解不一致
+- 新增 `SongCodec`（把 Song 编码进 mediaId 传给服务，供惰性解析地址）与 `NowPlayingSpec`（元数据映射）
+- JVM 单元测试 12 条通过（codec 5 / 元数据 5 / 模式映射 2），未使用设备
+- 待做：服务侧 `ResolvingDataSource` 惰性解析 + 音源运行时缓存（现在每首播歌都会重建一次 JS 引擎）；
+  crossfade；界面切换动效（用户新增要求：要灵动）
+
 ## 计划中的里程碑
 
 - **M0 `v0.1.0`** — 工程骨架：三 Tab 可点、M3 动态取色与明暗、R8 配置
