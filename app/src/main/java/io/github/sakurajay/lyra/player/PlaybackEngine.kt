@@ -97,4 +97,12 @@ class PlaybackEngine private constructor(private val player: ExoPlayer) {
     suspend fun release() = withContext(Dispatchers.Main) {
         player.release()
     }
+
+    /**
+     * ViewModel.onCleared 里 viewModelScope 已被取消，挂起函数跑不动，
+     * 而 ExoPlayer.release() 又必须回到它自己的线程。用主线程 Handler 投递。
+     */
+    fun releaseOnMainThread() {
+        android.os.Handler(android.os.Looper.getMainLooper()).post { player.release() }
+    }
 }

@@ -17,6 +17,10 @@
     <string name="mini_player_idle">未在播放</string>
     <string name="mini_player_idle_hint">导入音源后即可播放</string>
 
+    <string name="search_hint">搜索歌曲（内置酷我曲库）</string>
+    <string name="search_action">搜索</string>
+    <string name="searching">正在搜索…</string>
+
     <string name="sources_title">音源管理</string>
     <string name="sources_import_file">从文件导入</string>
     <string name="sources_import_url">导入</string>

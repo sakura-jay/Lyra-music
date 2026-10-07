@@ -30,6 +30,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.ui.search.SearchScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -105,14 +106,18 @@ fun LyraApp() {
         ) {
             TopDestination.entries.forEach { destination ->
                 composable(destination.route) {
-                    DestinationPlaceholder(
-                        destination = destination,
-                        onOpenSources = if (destination == TopDestination.Library) {
-                            { navController.navigate(ROUTE_SOURCES) }
-                        } else {
-                            null
-                        },
-                    )
+                    if (destination == TopDestination.Search) {
+                        SearchScreen()
+                    } else {
+                        DestinationPlaceholder(
+                            destination = destination,
+                            onOpenSources = if (destination == TopDestination.Library) {
+                                { navController.navigate(ROUTE_SOURCES) }
+                            } else {
+                                null
+                            },
+                        )
+                    }
                 }
             }
             composable(ROUTE_SOURCES) {

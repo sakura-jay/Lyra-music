@@ -33,7 +33,7 @@ class SourceRuntime private constructor(
     private val natives: JsNativeFunctions,
     private val requests: RequestExecutor,
     private val timers: ScheduledExecutorService,
-) : AutoCloseable {
+) : AutoCloseable, io.github.sakurajay.lyra.core.source.ActionInvoker {
 
     /** 音源自己在 `send(inited)` 里上报的能力；不是我们写死的枚举 */
     var capabilities: Map<String, SourceCapability> = emptyMap()
@@ -116,7 +116,7 @@ class SourceRuntime private constructor(
         }
     }
 
-    suspend fun invoke(source: String, action: String, info: JSONObject): JSONObject {
+    override suspend fun invoke(source: String, action: String, info: JSONObject): JSONObject {
         if (!initDeferred.isCompleted) throw SourceInitException("音源尚未完成 init 握手")
         val requestKey = "invoke-${System.nanoTime()}"
         val deferred = CompletableDeferred<JSONObject>()
