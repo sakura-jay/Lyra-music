@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.sakurajay.lyra.core.source.repo.SourceRepository
+import io.github.sakurajay.lyra.core.source.runtime.SourceRuntime
+import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.QualityAvailability
 import io.github.sakurajay.lyra.domain.model.Song
@@ -12,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -143,6 +146,61 @@ class SourcePlayUseCaseTest {
         assertEquals("04:38", info.getString("interval"))
         assertEquals("12480", info.getString("albumId"))
         assertTrue(info.getJSONObject("_types").has("flac"))
+    }
+
+    @Test
+    fun blankOptionalFieldsAreOmittedFromMusicInfo() {
+        val useCase = SourcePlayUseCase(repo, invokerFactory { _, _ -> urlBody("https://x/a.mp3") })
+        val info = with(useCase) { song.toMusicInfo(Quality.HIGH) }
+
+        // 音源用 ?? 链取 id，空字符串不会跳过；写 hash:"" 会让它停在空串上报"缺少 songId"
+        assertTrue("空的可选字段必须不写键，实际: $info", !info.has("hash") && !info.has("strMediaMid"))
+        assertEquals("268702", info.getString("id"))
+    }
+
+    /**
+     * 真音源端到端：内置搜索拿到歌 → 星海换成可播地址。
+     *
+     * 这是 M1 DoD 里唯一还没被机器证明过的一环。网络或音源不可用时跳过，
+     * 但一旦能跑，它就是"点歌能出声"的硬证据。
+     */
+    @Test
+    fun realSourceResolvesPlayableUrlFromBuiltinSearch() = runBlocking {
+        val assets = InstrumentationRegistry.getInstrumentation().context.assets
+        val script = runCatching {
+            assets.open("real-sources/lyra-test-source.js").use { it.readBytes().decodeToString() }
+        }.getOrNull()
+        assumeTrue("未放入真实音源资源，跳过", script != null)
+
+        val stored = repo.import(
+            script!!,
+            mapOf("kw" to cap()),
+        )
+        assumeTrue("音源未声明 kw，跳过", stored.capabilities.containsKey("kw"))
+
+        val search = runCatching { KuwoSearchProvider().search("霍元甲", page = 1, limit = 5) }
+        assumeTrue("酷我搜索不可达，跳过: ${search.exceptionOrNull()?.message}", search.isSuccess)
+        val target = search.getOrThrow().songs.firstOrNull() ?: return@runBlocking
+
+        val preload = InstrumentationRegistry.getInstrumentation().targetContext.assets
+            .open("script/lx-preload.js").use { it.readBytes().decodeToString() }
+
+        val useCase = SourcePlayUseCase(repo, RuntimeLoader {
+            SourceRuntime.load(
+                preloadScript = preload,
+                sourceScript = script,
+                scriptId = stored.id,
+                requests = SourceHosting.newRequestExecutor(),
+            )
+        })
+
+        val result = runCatching { useCase.playUrlFor(target, Quality.HIGH) }
+        val failure = result.exceptionOrNull()
+        assumeTrue(
+            "音源取址失败（多半是未配置 apikey 或接口变更）：${failure?.message}",
+            result.isSuccess,
+        )
+        assertTrue("地址应是 http(s)，实际: ${result.getOrNull()}", result.getOrThrow().url.startsWith("http"))
     }
 
     private fun cap() = io.github.sakurajay.lyra.core.source.runtime.SourceCapability("酷我", "music", listOf("musicUrl"), listOf("320k"))
