@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -212,8 +213,12 @@ fun SearchScreen(viewModel: SearchViewModel = viewModel(factory = SearchViewMode
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
+        // 外层 Scaffold 已把状态栏高度算进 innerPadding；内层再叠一次 windowInsets
+        // 会把标题顶下去整整一个状态栏高度（真机反馈的"字体下沉、不贴顶栏"）
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text(stringResource(R.string.search_title)) },
                 actions = {
                     TextButton(

@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,8 +65,11 @@ fun SourcesScreen(
     var urlInput by remember { mutableStateOf("") }
 
     Scaffold(
+        // 同 SearchScreen：外层 Scaffold 已经处理过状态栏，内层再叠一次会把顶栏顶下去
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text(stringResource(R.string.sources_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
