@@ -51,7 +51,6 @@ import io.github.sakurajay.lyra.core.source.repo.StoredSource
 import io.github.sakurajay.lyra.core.source.runtime.SourceRuntime
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
 import io.github.sakurajay.lyra.di.ServiceLocator
-import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.ArtworkLoader
 import io.github.sakurajay.lyra.player.PlaybackOutcome
@@ -115,13 +114,20 @@ class SearchViewModel(
         }
     }
 
-    /** 默认请求无损；拿不到时按 ADR 自动降级，并把实际音质显示出来。 */
-    fun play(song: Song, requested: Quality = Quality.LOSSLESS) {
+    /**
+     * 档位取用户在播放页选的那一档（不是写死无损）：否则播放页上改了档位，
+     * 下一首又偷偷回到无损。拿不到时按 ADR 自动降级，并把实际音质显示出来。
+     */
+    fun play(song: Song) {
         if (_uiState.value.loadingSongId != null) return
+        val requested = ServiceLocator.qualityStore().requested.value
         viewModelScope.launch {
             _uiState.update { it.copy(loadingSongId = song.id, message = null) }
             try {
                 val playUrl = playUseCase.playUrlFor(song, requested)
+                // 第一首是界面侧解析的，服务的惰性解析器不会为它跑第二次：
+                // 不在这里记一次，播放页的"实际音质"会永远停在"取址中"
+                ServiceLocator.qualityStore().recordEffective(playUrl.effective)
                 // 播放器活在服务里，UI 只通过 MediaController 下命令
                 val client = playerClient ?: PlayerClient.connect(getApplication()).also { playerClient = it }
                 val queue = _uiState.value.songs
