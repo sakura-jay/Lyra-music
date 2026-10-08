@@ -119,6 +119,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _uiState.update { it.copy(lyricLoading = true, lyric = LyricDoc(emptyList())) }
             val doc = runCatching { ServiceLocator.lyricUseCase(getApplication()).lyricFor(song) }
                 .getOrDefault(LyricDoc(emptyList()))
+            android.util.Log.i("LyraLyric", "${song.name} 解析出 ${doc.lines.size} 行（逐字 ${doc.lines.count { it.wordTimed }} 行）")
             _uiState.update { it.copy(lyricLoading = false, lyric = doc) }
         }
         viewModelScope.launch {

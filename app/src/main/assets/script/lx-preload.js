@@ -289,11 +289,20 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
   }
 
   const verifyLyricInfo = (info) => {
-    const bad = () => { throw new Error('Invalid lyric info') }
-    if (typeof info !== 'object' || info == null) bad()
-    if (typeof info.lyric !== 'string') bad()
-    if (info.tlyric != null && typeof info.tlyric !== 'string') bad()
-    if (info.lxlyric != null && typeof info.lxlyric !== 'string') bad()
+    // 报错要带回来的形状：只说 Invalid lyric info 时，音源到底给了什么字段谁也不知道
+    const bad = (why) => {
+      const shape = info && typeof info === 'object' && !Array.isArray(info)
+        ? Object.keys(info).map((k) => k + ':' + (info[k] === null ? 'null' : typeof info[k])).join(', ')
+        : Array.isArray(info) ? 'array[' + info.length + ']' : (info === null ? 'null' : typeof info)
+      throw new Error('Invalid lyric info' + (why ? '（' + why + '）' : '') + '，收到={' + shape + '}')
+    }
+    // 音源用 null 表示"这首歌我没词"，那是正常状态不是故障：报成错误会让界面
+    // 把"没有歌词"演成"出错了"。真机实测星海 v3.2.12 的 lyric action 一律回 null。
+    if (info === null || info === undefined) return { lyric: '', tlyric: '', lxlyric: '' }
+    if (typeof info !== 'object') bad('不是对象')
+    if (typeof info.lyric !== 'string') bad('lyric 不是字符串')
+    if (info.tlyric != null && typeof info.tlyric !== 'string') bad('tlyric 不是字符串')
+    if (info.lxlyric != null && typeof info.lxlyric !== 'string') bad('lxlyric 不是字符串')
     return { ...info, lyric: info.lyric, tlyric: info.tlyric || '', lxlyric: info.lxlyric || '' }
   }
 
