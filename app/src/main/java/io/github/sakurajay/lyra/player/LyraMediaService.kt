@@ -55,7 +55,7 @@ class LyraMediaService : MediaSessionService() {
                 val song = SongCodec.fromLazyUri(dataSpec.uri.toString()) ?: return dataSpec
                 val requested = ServiceLocator.qualityStore().requested.value
                 val resolved = try {
-                    runBlocking { ServiceLocator.playUseCase(this@LyraMediaService).playUrlFor(song, requested) }
+                    runBlocking { ServiceLocator.switchingPlayUseCase(this@LyraMediaService).playUrlFor(song, requested) }
                 } catch (e: Exception) {
                     // 抛给播放器，让它带 cause 报错，而不是静默换成无效地址
                     throw IOException("音源取址失败: ${'$'}{e.message ?: e.javaClass.simpleName}", e)

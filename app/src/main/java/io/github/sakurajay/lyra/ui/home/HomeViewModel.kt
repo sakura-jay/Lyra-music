@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
+import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider
@@ -14,6 +14,7 @@ import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.LaunchOutcome
 import io.github.sakurajay.lyra.player.SongQueueLauncher
+import io.github.sakurajay.lyra.player.describe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +27,7 @@ class HomeViewModel(
     application: Application,
     private val provider: KuwoLeaderboardProvider,
     private val playlistProvider: KuwoPlaylistProvider,
-    playUseCase: SourcePlayUseCase,
+    playUseCase: SwitchingPlayUseCase,
 ) : AndroidViewModel(application) {
 
     data class UiState(
@@ -112,11 +113,7 @@ class HomeViewModel(
                     is LaunchOutcome.Playing -> state.copy(
                         loadingSongId = null,
                         playingSongId = song.id,
-                        message = if (outcome.effective == outcome.requested) {
-                            "正在播放 · ${outcome.requested.label} · 经 ${outcome.viaSourceName}"
-                        } else {
-                            "正在播放 · 实际音质 ${outcome.effective.label}（请求 ${outcome.requested.label}，已降级）· 经 ${outcome.viaSourceName}"
-                        },
+                        message = outcome.describe(),
                     )
 
                     is LaunchOutcome.Failed -> state.copy(loadingSongId = null, message = outcome.message)
@@ -144,7 +141,7 @@ class HomeViewModel(
                     application,
                     ServiceLocator.leaderboardProvider(),
                     ServiceLocator.playlistProvider(),
-                    ServiceLocator.playUseCase(application),
+                    ServiceLocator.switchingPlayUseCase(application),
                 ) as T
             }
         }

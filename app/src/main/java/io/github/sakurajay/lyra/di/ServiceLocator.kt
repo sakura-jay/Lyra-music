@@ -2,13 +2,17 @@ package io.github.sakurajay.lyra.di
 
 import android.content.Context
 import io.github.sakurajay.lyra.core.source.RuntimePool
+import io.github.sakurajay.lyra.core.search.AggregateSearch
 import io.github.sakurajay.lyra.core.source.LyricLookup
 import io.github.sakurajay.lyra.core.source.SourceHosting
 import io.github.sakurajay.lyra.core.source.SourceLyricUseCase
 import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
+import io.github.sakurajay.lyra.core.source.SourceSearchUseCase
+import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.core.source.RuntimeLoader
 import io.github.sakurajay.lyra.core.source.repo.SourceRepository
 import io.github.sakurajay.lyra.core.source.runtime.SourceRuntime
+import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
 import java.io.File
 
 /**
@@ -48,6 +52,16 @@ object ServiceLocator {
 
     fun playUseCase(context: Context): SourcePlayUseCase =
         SourcePlayUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) })
+
+    fun sourceSearchUseCase(context: Context): SourceSearchUseCase =
+        SourceSearchUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) })
+
+    /** 取址失败会自动去别的平台找同一首歌，所以界面与服务两侧都要走这一个入口 */
+    fun switchingPlayUseCase(context: Context): SwitchingPlayUseCase =
+        SwitchingPlayUseCase(playUseCase(context), sourceSearchUseCase(context))
+
+    fun aggregateSearch(context: Context): AggregateSearch =
+        AggregateSearch(listOf(KuwoSearchProvider()), sourceSearchUseCase(context))
 
     @Volatile
     private var settings: io.github.sakurajay.lyra.data.settings.AppSettings? = null

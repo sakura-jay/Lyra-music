@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import io.github.sakurajay.lyra.core.source.PlayUrlException
-import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
+import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
 
@@ -13,9 +13,28 @@ sealed interface LaunchOutcome {
         val requested: Quality,
         val effective: Quality,
         val viaSourceName: String,
+        /** 非空表示听到的不是原点开那个平台的版本，而是换源后的 */
+        val switchedFrom: String? = null,
     ) : LaunchOutcome
 
     data class Failed(val message: String) : LaunchOutcome
+}
+
+/**
+ * 这次点击到底发生了什么，一句人话。
+ *
+ * 档位、降级、换源三件事都必须可见——静默换档或静默换源都会让用户以为
+ * 自己听到的就是点的那首、那一档。三个列表页共用这一份措辞。
+ */
+fun LaunchOutcome.describe(): String = when (this) {
+    is LaunchOutcome.Playing -> buildString {
+        append("正在播放 · ").append(requested.label)
+        if (effective != requested) append("（实际 ").append(effective.label).append("，已降级）")
+        if (switchedFrom != null) append(" · 换源自 ").append(switchedFrom)
+        append(" · 经 ").append(viaSourceName)
+    }
+
+    is LaunchOutcome.Failed -> message
 }
 
 /**
@@ -27,7 +46,7 @@ sealed interface LaunchOutcome {
 @OptIn(UnstableApi::class)
 class SongQueueLauncher(
     private val context: Context,
-    private val playUseCase: SourcePlayUseCase,
+    private val playUseCase: SwitchingPlayUseCase,
     private val qualityStore: PlaybackQualityStore,
 ) {
 
@@ -69,6 +88,7 @@ class SongQueueLauncher(
                 requested = requested,
                 effective = playUrl.effective,
                 viaSourceName = playUrl.viaSourceName,
+                switchedFrom = playUrl.switchedFrom,
             )
 
             is PlaybackOutcome.Failed -> LaunchOutcome.Failed(outcome.message)

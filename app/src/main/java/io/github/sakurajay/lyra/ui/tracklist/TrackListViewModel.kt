@@ -6,12 +6,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
+import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.ArtworkLoader
 import io.github.sakurajay.lyra.player.LaunchOutcome
 import io.github.sakurajay.lyra.player.SongQueueLauncher
+import io.github.sakurajay.lyra.player.describe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +39,7 @@ data class TrackList(
 class TrackListViewModel(
     application: Application,
     private val loader: suspend () -> TrackList,
-    playUseCase: SourcePlayUseCase,
+    playUseCase: SwitchingPlayUseCase,
 ) : AndroidViewModel(application) {
 
     data class UiState(
@@ -95,11 +96,7 @@ class TrackListViewModel(
                     is LaunchOutcome.Playing -> state.copy(
                         loadingSongId = null,
                         playingSongId = song.id,
-                        message = if (outcome.effective == outcome.requested) {
-                            "正在播放 · ${outcome.requested.label} · 经 ${outcome.viaSourceName}"
-                        } else {
-                            "正在播放 · 实际音质 ${outcome.effective.label}（请求 ${outcome.requested.label}，已降级）· 经 ${outcome.viaSourceName}"
-                        },
+                        message = outcome.describe(),
                     )
 
                     is LaunchOutcome.Failed -> state.copy(loadingSongId = null, message = outcome.message)
@@ -120,7 +117,7 @@ class TrackListViewModel(
                 extras: androidx.lifecycle.viewmodel.CreationExtras,
             ): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                return TrackListViewModel(application, loader, ServiceLocator.playUseCase(application)) as T
+                return TrackListViewModel(application, loader, ServiceLocator.switchingPlayUseCase(application)) as T
             }
         }
     }

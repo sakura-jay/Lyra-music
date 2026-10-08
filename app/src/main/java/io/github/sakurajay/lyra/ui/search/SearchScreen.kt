@@ -3,8 +3,8 @@ package io.github.sakurajay.lyra.ui.search
 import android.app.Application
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,23 +12,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -38,15 +37,18 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewModelScope
 import io.github.sakurajay.lyra.R
-import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
+import io.github.sakurajay.lyra.core.search.AggregateSearch
+import io.github.sakurajay.lyra.core.search.SearchGroup
+import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.LaunchOutcome
 import io.github.sakurajay.lyra.player.SongQueueLauncher
+import io.github.sakurajay.lyra.player.describe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,75 +57,68 @@ import kotlinx.coroutines.launch
 
 class SearchViewModel(
     application: Application,
+    private val aggregate: AggregateSearch,
+    playUseCase: SwitchingPlayUseCase,
 ) : AndroidViewModel(application) {
 
     data class UiState(
         val query: String = "",
-        val songs: List<Song> = emptyList(),
+        val groups: List<SearchGroup> = emptyList(),
+        val selectedGroup: String? = null,
         val searching: Boolean = false,
         val loadingSongId: String? = null,
-        val playingSongId: String? = null,
+        val playingKey: String? = null,
         val message: String? = null,
-    )
+    ) {
+        /** 选了某一家就只看那一家的结果；没选则把有内容与带错误的组都列出来 */
+        val shownGroups: List<SearchGroup>
+            get() = if (selectedGroup != null) {
+                listOfNotNull(groups.firstOrNull { it.label == selectedGroup })
+            } else {
+                groups.filter { it.songs.isNotEmpty() || it.error != null }
+            }
+    }
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val searchProvider = KuwoSearchProvider()
-    private val launcher = SongQueueLauncher(
-        application,
-        ServiceLocator.playUseCase(application),
-        ServiceLocator.qualityStore(),
-    )
+    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore())
 
     fun onQueryChange(value: String) = _uiState.update { it.copy(query = value) }
 
+    fun selectGroup(label: String?) = _uiState.update { it.copy(selectedGroup = label) }
+
     fun search() {
-        val query = _uiState.value.query.trim()
-        if (query.isEmpty() || _uiState.value.searching) return
+        val keyword = _uiState.value.query.trim()
+        if (keyword.isEmpty() || _uiState.value.searching) return
         viewModelScope.launch {
-            _uiState.update { it.copy(searching = true, message = null, songs = emptyList()) }
-            val outcome = runCatching { searchProvider.search(query) }
-            outcome.fold(
-                onSuccess = { result ->
-                    _uiState.update {
-                        it.copy(
-                            searching = false,
-                            songs = result.songs,
-                            message = if (result.songs.isEmpty()) "没有结果" else null,
-                        )
-                    }
-                },
+            _uiState.update { it.copy(searching = true, message = null, groups = emptyList()) }
+            runCatching { aggregate.search(keyword) }.fold(
+                onSuccess = { groups -> _uiState.update { it.copy(searching = false, groups = groups) } },
                 onFailure = { e ->
-                    _uiState.update { it.copy(searching = false, message = "搜索失败：${e.message ?: e.javaClass.simpleName}") }
+                    _uiState.update {
+                        it.copy(searching = false, message = "搜索失败：${e.message ?: e.javaClass.simpleName}")
+                    }
                 },
             )
         }
     }
 
-    /**
-     * 档位取用户在播放页选的那一档（不是写死无损）：否则播放页上改了档位，
-     * 下一首又偷偷回到无损。取址 → 记实际音质 → 下发队列的整条流程与首页共用。
-     */
-    fun play(song: Song) {
+    /** 点歌：队列取它所在那一组，上下曲就都在同一条供给路径上 */
+    fun play(song: Song, queue: List<Song>) {
         if (_uiState.value.loadingSongId != null) return
-        val queue = _uiState.value.songs
         viewModelScope.launch {
             _uiState.update { it.copy(loadingSongId = song.id, message = null) }
             val outcome = launcher.launch(song, queue)
             _uiState.update { state ->
                 when (outcome) {
                     is LaunchOutcome.Playing -> state.copy(
-                        playingSongId = song.id,
                         loadingSongId = null,
-                        message = if (outcome.effective == outcome.requested) {
-                            "正在播放 · ${outcome.requested.label} · 经 ${outcome.viaSourceName}"
-                        } else {
-                            "正在播放 · 实际音质 ${outcome.effective.label}（请求 ${outcome.requested.label} 已降级）· 经 ${outcome.viaSourceName}"
-                        },
+                        playingKey = "${song.source}-${song.id}",
+                        message = outcome.describe(),
                     )
 
-                    is LaunchOutcome.Failed -> state.copy(loadingSongId = null, message = outcome.message)
+                    is LaunchOutcome.Failed -> state.copy(loadingSongId = null, message = outcome.describe())
                 }
             }
         }
@@ -138,7 +133,11 @@ class SearchViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: androidx.lifecycle.viewmodel.CreationExtras): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                return SearchViewModel(application) as T
+                return SearchViewModel(
+                    application,
+                    ServiceLocator.aggregateSearch(application),
+                    ServiceLocator.switchingPlayUseCase(application),
+                ) as T
             }
         }
     }
@@ -165,10 +164,14 @@ fun SearchScreen(
         },
     ) { innerPadding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 OutlinedTextField(
                     value = state.query,
                     onValueChange = viewModel::onQueryChange,
@@ -182,7 +185,11 @@ fun SearchScreen(
             }
 
             if (state.searching) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Text(stringResource(R.string.searching), style = MaterialTheme.typography.bodySmall)
                 }
@@ -191,22 +198,90 @@ fun SearchScreen(
             state.message?.let { message ->
                 Text(
                     text = message,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.songs, key = { "${it.source}-${it.id}" }) { song ->
-                    SongRow(
-                        song = song,
-                        highlighted = song.id == state.playingSongId,
-                        loading = song.id == state.loadingSongId,
-                        onClick = { viewModel.play(song) },
-                        onOpenAlbum = onOpenAlbum,
-                    )
+            if (state.groups.size > 1 || state.selectedGroup != null) {
+                GroupFilter(groups = state.groups, selected = state.selectedGroup, onSelect = viewModel::selectGroup)
+            }
+
+            if (state.groups.isEmpty() && !state.searching) {
+                Text(
+                    text = stringResource(R.string.search_idle),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                state.shownGroups.forEach { group ->
+                    item(key = "header-${group.label}") { GroupHeader(group) }
+                    items(group.songs, key = { "${group.label}-${it.source}-${it.id}" }) { song ->
+                        SongRow(
+                            song = song,
+                            highlighted = "${song.source}-${song.id}" == state.playingKey,
+                            loading = song.id == state.loadingSongId,
+                            onClick = { viewModel.play(song, group.songs) },
+                            onOpenAlbum = onOpenAlbum,
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+/** 一家供给方一行标题；失败的那家把原因写出来，不要静悄悄少一块结果 */
+@Composable
+private fun GroupHeader(group: SearchGroup) {
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
+        Text(
+            text = group.label,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        when {
+            group.error != null -> Text(
+                text = stringResource(R.string.search_group_failed, group.error),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+
+            group.songs.isEmpty() -> Text(
+                text = stringResource(R.string.search_group_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun GroupFilter(groups: List<SearchGroup>, selected: String?, onSelect: (String?) -> Unit) {
+    LazyRow(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 0.dp),
+    ) {
+        item {
+            FilterChip(
+                selected = selected == null,
+                onClick = { onSelect(null) },
+                label = { Text(stringResource(R.string.search_group_all)) },
+                shape = RoundedCornerShape(999.dp),
+            )
+        }
+        items(groups, key = { it.label }) { group ->
+            FilterChip(
+                selected = group.label == selected,
+                onClick = { onSelect(group.label) },
+                label = { Text(group.label) },
+                shape = RoundedCornerShape(999.dp),
+            )
         }
     }
 }
@@ -234,7 +309,10 @@ private fun SongRow(
                 Text(song.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = song.artists.joinToString(" / ").ifBlank { stringResource(R.string.song_unknown_artist) },
+                        text = buildString {
+                            append(song.artists.joinToString(" / ").ifBlank { stringResource(R.string.song_unknown_artist) })
+                            append(" · ").append(song.source)
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -267,4 +345,3 @@ private fun SongRow(
         }
     }
 }
-

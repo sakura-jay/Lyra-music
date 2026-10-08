@@ -12,6 +12,8 @@ class PlayUrlException(message: String) : Exception(message)
 /**
  * @param effective 真正拿到的档位。请求 FLAC 只拿到 320k 时它是 HIGH，
  * UI 必须显示这个而不是 [requested]——见 ADR 的"自动降级 + 标注实际音质"。
+ * @param switchedFrom 这首是从哪个平台换过来的（null 表示没换）。换源必须可见，
+ * 否则用户点的是酷我的歌，听到的却是别家曲库的版本。
  */
 data class PlayUrl(
     val url: String,
@@ -20,6 +22,7 @@ data class PlayUrl(
     val viaSourceName: String,
     /** 音源 pic action 给的封面地址；拿不到不影响播放 */
     val artworkUrl: String? = null,
+    val switchedFrom: String? = null,
 )
 
 /** 能执行音源 action 的东西。真身是 SourceRuntime，测试里可以换成假的。 */
