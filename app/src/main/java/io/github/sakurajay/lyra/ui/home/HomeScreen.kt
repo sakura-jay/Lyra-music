@@ -1,6 +1,5 @@
 package io.github.sakurajay.lyra.ui.home
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,17 +28,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
-import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.ui.common.TrackRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)) {
+fun HomeScreen(
+    onOpenAlbum: (String) -> Unit,
+    viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val board = state.boards.firstOrNull { it.id == state.selectedBoardId } ?: state.boards.firstOrNull()
 
@@ -107,12 +108,13 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Fact
 
             LazyColumn {
                 itemsIndexed(state.songs, key = { _, song -> "${song.source}-${song.id}" }) { index, song ->
-                    BoardSongRow(
+                    TrackRow(
                         rank = index + 1,
                         song = song,
                         highlighted = song.id == state.playingSongId,
                         loading = song.id == state.loadingSongId,
                         onClick = { viewModel.play(song) },
+                        onOpenAlbum = onOpenAlbum,
                     )
                 }
             }
@@ -136,57 +138,3 @@ private fun BoardSelector(boards: List<Board>, selectedId: String, onSelect: (Bo
         }
     }
 }
-
-@Composable
-private fun BoardSongRow(
-    rank: Int,
-    song: Song,
-    highlighted: Boolean,
-    loading: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = rank.toString(),
-            modifier = Modifier.size(width = 26.dp, height = 24.dp),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (rank <= 3) FontWeight.Bold else FontWeight.Normal,
-            color = if (rank <= 3) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = song.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = buildString {
-                    append(song.artists.joinToString(" / ").ifBlank { stringResource(R.string.song_unknown_artist) })
-                    if (song.durationSec > 0) append(" · ").append(formatDuration(song.durationSec))
-                    song.qualities.maxByOrNull { it.quality.ordinal }?.let {
-                        append(" · ").append(it.quality.label)
-                    }
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (loading) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-        }
-    }
-}
-
-private fun formatDuration(durationSec: Int): String =
-    "%d:%02d".format(durationSec / 60, durationSec % 60)

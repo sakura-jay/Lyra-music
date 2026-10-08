@@ -146,7 +146,10 @@ class SearchViewModel(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory)) {
+fun SearchScreen(
+    onOpenAlbum: (String) -> Unit,
+    viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -200,6 +203,7 @@ fun SearchScreen(viewModel: SearchViewModel = viewModel(factory = SearchViewMode
                         highlighted = song.id == state.playingSongId,
                         loading = song.id == state.loadingSongId,
                         onClick = { viewModel.play(song) },
+                        onOpenAlbum = onOpenAlbum,
                     )
                 }
             }
@@ -208,7 +212,13 @@ fun SearchScreen(viewModel: SearchViewModel = viewModel(factory = SearchViewMode
 }
 
 @Composable
-private fun SongRow(song: Song, highlighted: Boolean, loading: Boolean, onClick: () -> Unit) {
+private fun SongRow(
+    song: Song,
+    highlighted: Boolean,
+    loading: Boolean,
+    onClick: () -> Unit,
+    onOpenAlbum: ((String) -> Unit)?,
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
@@ -222,16 +232,27 @@ private fun SongRow(song: Song, highlighted: Boolean, loading: Boolean, onClick:
         ) {
             Column(Modifier.weight(1f)) {
                 Text(song.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    text = buildString {
-                        append(song.artists.joinToString(" / ").ifBlank { "未知" })
-                        if (song.albumName.isNotBlank()) append(" · ").append(song.albumName)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = song.artists.joinToString(" / ").ifBlank { stringResource(R.string.song_unknown_artist) },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    val albumId = song.albumId
+                    if (onOpenAlbum != null && albumId.isNotBlank() && song.albumName.isNotBlank()) {
+                        Text(
+                            text = song.albumName,
+                            modifier = Modifier.clickable { onOpenAlbum(albumId) }.padding(start = 2.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
             if (loading) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)

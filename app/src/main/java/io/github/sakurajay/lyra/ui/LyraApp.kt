@@ -42,11 +42,13 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.ui.album.AlbumScreen
 import io.github.sakurajay.lyra.ui.common.PauseGlyph
 import io.github.sakurajay.lyra.ui.common.PlayGlyph
 import io.github.sakurajay.lyra.ui.home.HomeScreen
@@ -84,9 +86,13 @@ private enum class TopDestination(
 
 private const val ROUTE_SOURCES = "sources"
 private const val ROUTE_PLAYER = "player"
+private const val ROUTE_ALBUM = "album/{albumId}"
+
+/** 详情页的参数位；专辑 id 只由数字组成，直接拼进路径不需要转义 */
+private fun albumRoute(albumId: String) = "album/$albumId"
 
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
-private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER)
+private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_ALBUM)
 
 @Composable
 fun LyraApp() {
@@ -171,8 +177,14 @@ fun LyraApp() {
                 ) {
                     Box(Modifier.fillMaxSize().padding(innerPadding)) {
                         when (destination) {
-                            TopDestination.Home -> HomeScreen()
-                            TopDestination.Search -> SearchScreen()
+                            TopDestination.Home -> HomeScreen(
+                                onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
+                            )
+
+                            TopDestination.Search -> SearchScreen(
+                                onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
+                            )
+
                             TopDestination.Library -> DestinationPlaceholder(
                                 destination = destination,
                                 onOpenSources = { navController.navigate(ROUTE_SOURCES) },
@@ -199,6 +211,21 @@ fun LyraApp() {
             ) {
                 Box(Modifier.fillMaxSize().padding(innerPadding)) {
                     SourcesScreen(onBack = { navController.popBackStack() })
+                }
+            }
+            composable(
+                ROUTE_ALBUM,
+                arguments = listOf(navArgument("albumId") { defaultValue = "" }),
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) { entry ->
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    AlbumScreen(
+                        albumId = entry.arguments?.getString("albumId").orEmpty(),
+                        onBack = { navController.popBackStack() },
+                    )
                 }
             }
         }
