@@ -72,6 +72,23 @@ class LyricTimelineTest {
     }
 
     @Test
+    fun ratioOfALineNeverBleedsIntoTheNextOne() {
+        // 视图要提前一个轮询间隔取进度；行末若取到下一行的 0，画面就是"扫完又退回开头"
+        val lines = wordDoc.lines
+        assertEquals(1f, LyricTimeline.ratioForLine(wordDoc, 0, 3_900L), 1e-6f)
+        assertEquals(1f, LyricTimeline.ratioForLine(wordDoc, 0, 3_999L), 1e-6f)
+        // 第二行在同一时刻仍然是它自己的起点进度
+        assertEquals(0f, LyricTimeline.ratioForLine(wordDoc, 1, 4_000L), 1e-6f)
+        assertTrue(LyricTimeline.ratioForLine(wordDoc, 0, 99_999L) == 1f)
+    }
+
+    @Test
+    fun lineRatioStaysClampedForPlainLyrics() {
+        assertEquals(1f, LyricTimeline.ratioForLine(plainDoc, 0, 99_999L), 1e-6f)
+        assertEquals(0f, LyricTimeline.ratioForLine(plainDoc, 0, 0L), 1e-6f)
+    }
+
+    @Test
     fun emptyDocSweepsNowhere() {
         assertNull(LyricTimeline.sweepAt(LyricDoc(emptyList()), 1_000L))
         assertEquals(-1, LyricTimeline.activeLineIndex(LyricDoc(emptyList()), 1_000L))

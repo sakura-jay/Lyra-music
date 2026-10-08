@@ -37,6 +37,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
@@ -54,6 +55,9 @@ import io.github.sakurajay.lyra.ui.player.PlayerViewModel
 import io.github.sakurajay.lyra.ui.search.SearchScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -95,6 +99,17 @@ fun LyraApp() {
     val topRoutes = TopDestination.entries.map { it.route }
     val onTopLevelDestination = currentRoute in topRoutes
 
+    // 播放页背景是封面模糊，深浅不可预测；状态栏与手势条图标跟着当前配色走，
+    // 否则在浅色主题下压深色封面时状态栏图标会看不见
+    val darkScheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val view = LocalView.current
+    SideEffect {
+        val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
+        val controller = WindowCompat.getInsetsController(window, view)
+        controller.isAppearanceLightStatusBars = !darkScheme
+        controller.isAppearanceLightNavigationBars = !darkScheme
+    }
+
     Scaffold(
         bottomBar = {
             if (onTopLevelDestination) {
@@ -132,10 +147,12 @@ fun LyraApp() {
             }
         },
     ) { innerPadding ->
+        // 内边距按目的地给：播放页的背景要铺到状态栏与底部手势条后面，
+        // 所以它自己处理 insets，不在这里被统一裁掉
         NavHost(
             navController = navController,
             startDestination = TopDestination.Home.route,
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
         ) {
             TopDestination.entries.forEach { destination ->
                 composable(
@@ -151,26 +168,28 @@ fun LyraApp() {
                     },
                     popExitTransition = { LyraMotion.slideOutOf(forward = false) },
                 ) {
-                    if (destination == TopDestination.Search) {
-                        SearchScreen()
-                    } else {
-                        DestinationPlaceholder(
-                            destination = destination,
-                            onOpenSources = if (destination == TopDestination.Library) {
-                                { navController.navigate(ROUTE_SOURCES) }
-                            } else {
-                                null
-                            },
-                        )
+                    Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                        if (destination == TopDestination.Search) {
+                            SearchScreen()
+                        } else {
+                            DestinationPlaceholder(
+                                destination = destination,
+                                onOpenSources = if (destination == TopDestination.Library) {
+                                    { navController.navigate(ROUTE_SOURCES) }
+                                } else {
+                                    null
+                                },
+                            )
+                        }
                     }
                 }
             }
             composable(
                 ROUTE_PLAYER,
-                enterTransition = { LyraMotion.riseIn() },
-                exitTransition = { LyraMotion.riseOut() },
-                popEnterTransition = { LyraMotion.riseIn() },
-                popExitTransition = { LyraMotion.riseOut() },
+                enterTransition = { LyraMotion.expandFromBar() },
+                exitTransition = { LyraMotion.collapseToBar() },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { LyraMotion.collapseToBar() },
             ) {
                 PlayerScreen(viewModel = playerViewModel, onBack = { navController.popBackStack() })
             }
@@ -181,7 +200,9 @@ fun LyraApp() {
                 popEnterTransition = { LyraMotion.slideInto(forward = false) },
                 popExitTransition = { LyraMotion.slideOutOf(forward = false) },
             ) {
-                SourcesScreen(onBack = { navController.popBackStack() })
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    SourcesScreen(onBack = { navController.popBackStack() })
+                }
             }
         }
     }

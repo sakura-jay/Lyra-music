@@ -35,15 +35,21 @@ object LyraMotion {
             targetOffsetX = { if (forward) -it / 10 else it / 10 },
         ) + fadeOut(tween(140))
 
-    fun riseIn(): EnterTransition =
+    /**
+     * 播放页：整页从底部升起、整页落回底部。
+     *
+     * 原来用的是"位移 1/6 屏 + 淡出"，退回时那一点点位移看着像页面被抽走。
+     * 整页下落朝的是迷你播放条的方向，观感上更像把播放条拉开又缩回去。
+     */
+    fun expandFromBar(): EnterTransition =
         slideInVertically(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
-            initialOffsetY = { it / 6 },
+            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            initialOffsetY = { it },
         ) + fadeIn(tween(200))
 
-    fun riseOut(): ExitTransition =
+    fun collapseToBar(): ExitTransition =
         slideOutVertically(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
-            targetOffsetY = { it / 6 },
-        ) + fadeOut(tween(150))
+            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            targetOffsetY = { it },
+        ) + fadeOut(tween(170, delayMillis = 40))
 }

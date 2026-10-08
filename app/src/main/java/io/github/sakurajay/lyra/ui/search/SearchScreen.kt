@@ -22,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,7 +54,6 @@ import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.ArtworkLoader
-import io.github.sakurajay.lyra.player.PlayMode
 import io.github.sakurajay.lyra.player.PlaybackOutcome
 import io.github.sakurajay.lyra.player.toNowPlayingSpec
 import io.github.sakurajay.lyra.player.PlayerClient
@@ -77,9 +75,6 @@ class SearchViewModel(
         val loadingSongId: String? = null,
         val playingSongId: String? = null,
         val message: String? = null,
-        val playMode: PlayMode = PlayMode.LOOP_ALL,
-        /** 未连接播放器时不给切换：否则用户点了没反应，还以为坏了 */
-        val playModeLabelDisabled: Boolean = true,
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -96,23 +91,6 @@ class SearchViewModel(
     private var playerClient: PlayerClient? = null
 
     fun onQueryChange(value: String) = _uiState.update { it.copy(query = value) }
-
-    /** 模式只下发给播放器、也只在播放器读回：应用内不留第二份状态 */
-    fun cyclePlayMode() {
-        viewModelScope.launch {
-            val client = playerClient ?: return@launch
-            val next = PlayMode.entries[(client.currentPlayMode().ordinal + 1) % PlayMode.entries.size]
-            client.setPlayMode(next)
-            _uiState.update { it.copy(playMode = next) }
-        }
-    }
-
-    fun syncPlayMode() {
-        viewModelScope.launch {
-            val client = playerClient ?: return@launch
-            _uiState.update { it.copy(playMode = client.currentPlayMode()) }
-        }
-    }
 
     fun search() {
         val query = _uiState.value.query.trim()
@@ -146,8 +124,6 @@ class SearchViewModel(
                 val playUrl = playUseCase.playUrlFor(song, requested)
                 // 播放器活在服务里，UI 只通过 MediaController 下命令
                 val client = playerClient ?: PlayerClient.connect(getApplication()).also { playerClient = it }
-                // 连上播放器才允许切模式，并把界面模式与播放器当前值对齐
-                _uiState.update { it.copy(playModeLabelDisabled = false, playMode = client.currentPlayMode()) }
                 val queue = _uiState.value.songs
                     val startIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
                 val artworkUrl = playUrl.artworkUrl ?: song.artworkUrl
@@ -220,15 +196,7 @@ fun SearchScreen(viewModel: SearchViewModel = viewModel(factory = SearchViewMode
             TopAppBar(
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text(stringResource(R.string.search_title)) },
-                actions = {
-                    TextButton(
-                        onClick = viewModel::cyclePlayMode,
-                        enabled = !state.playModeLabelDisabled,
-                        modifier = Modifier.padding(end = 8.dp),
-                    ) {
-                        Text(modeLabel(state.playMode))
-                    }
-                },
+                // 播放顺序只在播放详情页下部提供，这里不再重复
             )
         },
     ) { innerPadding ->
@@ -318,13 +286,3 @@ private fun SongRow(song: Song, highlighted: Boolean, loading: Boolean, onClick:
     }
 }
 
-
-@Composable
-private fun modeLabel(mode: PlayMode): String = stringResource(
-    when (mode) {
-        PlayMode.SEQUENTIAL -> R.string.mode_sequential
-        PlayMode.LOOP_ALL -> R.string.mode_loop_all
-        PlayMode.LOOP_ONE -> R.string.mode_loop_one
-        PlayMode.SHUFFLE -> R.string.mode_shuffle
-    },
-)

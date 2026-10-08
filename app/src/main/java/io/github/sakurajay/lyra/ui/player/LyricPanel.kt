@@ -1,8 +1,8 @@
 package io.github.sakurajay.lyra.ui.player
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +21,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,6 +31,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -70,16 +72,23 @@ fun LyricPanel(
     }
 
     // 扫光进度交给 Compose 的动画系统驱动，而不是自己写 withFrameNanos 循环：
-    // 真机实测手写的帧循环不自持——它等帧、又只有值变了才会来帧，20 秒只画了 45 帧
-    // （约 2fps，正好等于轮询频率）。改成朝"下一次轮询该到的位置"做线性 tween，
-    // 帧由动画系统按刷新率要，进度读在绘制阶段所以仍然不触发重组。
-    val targetRatio = LyricTimeline.sweepAt(doc, positionMs + POLL_MS - offsetMs)?.ratio ?: 0f
-    // 不写 by：把 State 本身交给行组件，让它只在绘制阶段读值
-    val sweepRatio = animateFloatAsState(
-        targetValue = targetRatio,
-        animationSpec = tween(durationMillis = POLL_MS.toInt(), easing = LinearEasing),
-        label = "lyricSweep",
-    )
+    // 真机实测手写的帧循环不自持——它等帧，而只有值变了才会有帧，20 秒只画了 45 帧
+    // （≈轮询频率的 2fps）。
+    val sweep = remember { Animatable(0f) }
+    // Animatable 本身不是 State，转一次并记住：行组件只在绘制阶段读它
+    val sweepState = remember(sweep) { sweep.asState() }
+
+    // 换行时归零，且必须 snap 不能动画：否则新行会从上一行的 1.0 往回扫，
+    // 看起来就是"扫完一行又退回开头"（真机反馈）。
+    LaunchedEffect(activeIndex) { sweep.snapTo(0f) }
+
+    LaunchedEffect(activeIndex, positionMs, isPlaying, offsetMs) {
+        if (activeIndex < 0) return@LaunchedEffect
+        // 目标点是"下一次轮询该到的位置"，但进度夹在当前行内：行末只会到 1.0
+        val ahead = if (isPlaying) positionMs + POLL_MS else positionMs
+        val target = LyricTimeline.ratioForLine(doc, activeIndex, ahead - offsetMs)
+        sweep.animateTo(target, tween(durationMillis = POLL_MS.toInt(), easing = LinearEasing))
+    }
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when {
@@ -95,7 +104,7 @@ fun LyricPanel(
                     LyricLineRow(
                         line = line,
                         active = index == activeIndex,
-                        sweep = if (index == activeIndex) sweepRatio else null,
+                        sweep = if (index == activeIndex) sweepState else null,
                         onClick = { onSeekToLine(index) },
                     )
                 }
@@ -118,6 +127,8 @@ private fun LyricLineRow(line: LyricLine, active: Boolean, sweep: State<Float>?,
     val spacing by animateDpAsState(if (active) 10.dp else 4.dp, label = "lyricLineSpacing")
     val scheme = MaterialTheme.colorScheme
     val dim = scheme.onSurfaceVariant.copy(alpha = if (active) 0.45f else 0.55f)
+    val activeStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     Column(
         modifier = Modifier
@@ -127,22 +138,16 @@ private fun LyricLineRow(line: LyricLine, active: Boolean, sweep: State<Float>?,
         verticalArrangement = Arrangement.spacedBy(spacing),
     ) {
         if (active && sweep != null) {
-            // 两层同一个 Text：底层层层是未唱到的颜色，上层裁到进度
+            // 两层同一个 Text：底层是未唱到的颜色，上层按进度裁出已唱的部分
             Box(contentAlignment = Alignment.Center) {
+                Text(text = line.text, style = activeStyle, color = dim, textAlign = TextAlign.Center)
                 Text(
                     text = line.text,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = dim,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = line.text,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
+                    style = activeStyle,
                     color = scheme.onSurface,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.clipSweepTo(sweep),
+                    onTextLayout = { layout = it },
+                    modifier = Modifier.clipSweepTo(sweep) { layout },
                 )
             }
         } else {
@@ -165,12 +170,40 @@ private fun LyricLineRow(line: LyricLine, active: Boolean, sweep: State<Float>?,
     }
 }
 
-/** 每帧只改裁剪右边界；读的是 State，所以只重绘不重组 */
-private fun Modifier.clipSweepTo(sweep: State<Float>): Modifier = drawWithContent {
-    clipRect(right = size.width * sweep.value.coerceIn(0f, 1f)) {
-        this@drawWithContent.drawContent()
+/**
+ * 按视觉行逐行裁剪，读的是 State，所以只重绘不重组。
+ *
+ * 折行时不能整块按 x 裁：那样上下两行会在同一时刻一起变亮（真机反馈）。改成先按字符数
+ * 把总进度分给每一行，再只在该行的矩形里裁——第一行扫完才轮到第二行。
+ */
+private fun Modifier.clipSweepTo(sweep: State<Float>, layout: () -> TextLayoutResult?): Modifier =
+    drawWithContent {
+        val ratio = sweep.value.coerceIn(0f, 1f)
+        val result = layout()
+        if (result == null || result.lineCount <= 1) {
+            clipRect(right = size.width * ratio) { this@drawWithContent.drawContent() }
+            return@drawWithContent
+        }
+        val totalChars = result.layoutInput.text.length.coerceAtLeast(1)
+        val sweptChars = ratio * totalChars
+        for (row in 0 until result.lineCount) {
+            val start = result.getLineStart(row)
+            val end = result.getLineEnd(row, visibleEnd = true)
+            val rowChars = (end - start).coerceAtLeast(1)
+            val sweptInRow = (sweptChars - start).coerceIn(0f, rowChars.toFloat())
+            if (sweptInRow <= 0f) continue
+            val left = result.getLineLeft(row)
+            val right = result.getLineRight(row)
+            clipRect(
+                left = left,
+                top = result.getLineTop(row),
+                right = left + (sweptInRow / rowChars) * (right - left),
+                bottom = result.getLineBottom(row),
+            ) {
+                this@drawWithContent.drawContent()
+            }
+        }
     }
-}
 
 /** 与 PlayerViewModel 的轮询间隔一致：tween 的时长必须等于两次锚点的间隔 */
 private const val POLL_MS = 500L

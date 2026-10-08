@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -22,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -69,39 +70,40 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
     val effective by viewModel.effectiveQuality.collectAsStateWithLifecycle()
     val pagerState = rememberPagerState(initialPage = 0) { 2 }
 
-    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0)) { innerPadding ->
-        Box(Modifier.fillMaxSize()) {
-            BlurBackdrop(state.artwork, Modifier.matchParentSize())
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 20.dp),
+    // 背景要铺到状态栏与底部手势条后面，所以这一页自己处理 insets；
+    // 外层 NavHost 已经不再给播放页加内边距
+    Box(Modifier.fillMaxSize()) {
+        BlurBackdrop(state.artwork, Modifier.matchParentSize())
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(horizontal = 20.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = onBack) { BackGlyph(tint = MaterialTheme.colorScheme.onSurface) }
-                    Text(
-                        text = stringResource(R.string.player_title),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center,
-                    )
-                    TextButton(onClick = viewModel::cyclePlayMode) { Text(modeLabel(state.playMode)) }
-                }
-
-                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-                    when (page) {
-                        0 -> DetailPage(state, requested, effective, viewModel)
-                        else -> LyricPage(state, viewModel)
-                    }
-                }
-
-                PageIndicator(pages = 2, current = pagerState.currentPage)
-                Spacer(Modifier.height(8.dp))
+                IconButton(onClick = onBack) { BackGlyph(tint = MaterialTheme.colorScheme.onSurface) }
+                Text(
+                    text = stringResource(R.string.player_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
+                // 占位保持标题居中：播放顺序已挪到详情页下部
+                Spacer(Modifier.size(48.dp))
             }
+
+            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+                when (page) {
+                    0 -> DetailPage(state, requested, effective, viewModel)
+                    else -> LyricPage(state, viewModel)
+                }
+            }
+
+            PageIndicator(pages = 2, current = pagerState.currentPage)
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -169,6 +171,8 @@ private fun DetailPage(
         )
 
         QualityRow(requested = requested, effective = effective, onPick = viewModel::setQuality)
+
+        ModeRow(current = state.playMode, onPick = viewModel::setPlayMode)
     }
 }
 
@@ -185,6 +189,24 @@ private fun LyricPage(state: PlayerViewModel.UiState, viewModel: PlayerViewModel
             modifier = Modifier.weight(1f),
         )
         OffsetRow(offsetMs = state.lyricOffsetMs, onNudge = viewModel::nudgeLyricOffset)
+    }
+}
+
+/** 播放顺序：四种模式并排，当前项高亮 */
+@Composable
+private fun ModeRow(current: PlayMode, onPick: (PlayMode) -> Unit) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+    ) {
+        PlayMode.entries.forEach { mode ->
+            FilterChip(
+                selected = mode == current,
+                onClick = { onPick(mode) },
+                label = { Text(modeLabel(mode)) },
+                shape = RoundedCornerShape(999.dp),
+            )
+        }
     }
 }
 

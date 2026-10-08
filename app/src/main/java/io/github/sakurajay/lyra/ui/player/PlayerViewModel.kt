@@ -183,6 +183,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun nudgeLyricOffset(deltaMs: Long) =
         _uiState.update { it.copy(lyricOffsetMs = (it.lyricOffsetMs + deltaMs).coerceIn(-10_000L, 10_000L)) }
 
+    fun setPlayMode(mode: PlayMode) {
+        val target = client ?: return
+        viewModelScope.launch { runCatching { target.setPlayMode(mode) } }
+    }
+
     fun cyclePlayMode() {
         val target = client ?: return
         viewModelScope.launch {

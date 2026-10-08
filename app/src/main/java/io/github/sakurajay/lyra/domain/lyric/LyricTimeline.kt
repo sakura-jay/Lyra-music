@@ -37,9 +37,19 @@ object LyricTimeline {
     fun sweepAt(doc: LyricDoc, positionMs: Long): Sweep? {
         val index = activeLineIndex(doc, positionMs)
         if (index < 0) return null
-        val line = doc.lines[index]
+        return Sweep(index, ratioForLine(doc, index, positionMs))
+    }
+
+    /**
+     * 指定行的扫光进度，结果夹在 [0,1]。
+     *
+     * 必须按行夹住：视图要让动画提前赶一个轮询间隔，如果直接取"位置 + 间隔"的全局进度，
+     * 行末会取到下一行的 0，表现就是"扫完一行又瞬间退回开头"（真机反馈）。
+     */
+    fun ratioForLine(doc: LyricDoc, index: Int, positionMs: Long): Float {
+        val line = doc.lines.getOrNull(index) ?: return 0f
         val ratio = if (line.wordTimed) wordRatio(line, positionMs) else lineRatio(doc.lines, index, positionMs)
-        return Sweep(index, ratio)
+        return ratio.coerceIn(0f, 1f)
     }
 
     fun lineDurationMs(lines: List<LyricLine>, index: Int): Long {
