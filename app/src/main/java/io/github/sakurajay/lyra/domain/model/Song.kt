@@ -36,6 +36,8 @@ data class Song(
     /** 网易/酷狗等按 hash 取址；平台没有 hash 时留空，映射进 musicInfo 时不写键 */
     val hash: String = "",
     val mediaMid: String = "",
+    /** 由内置搜索直接给出的封面地址；不依赖音源的 pic action */
+    val artworkUrl: String = "",
 ) {
     /** 用于跨来源匹配同一首歌 */
     val matchKey: String

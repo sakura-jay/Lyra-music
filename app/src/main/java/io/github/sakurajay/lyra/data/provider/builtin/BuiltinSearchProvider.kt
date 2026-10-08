@@ -75,6 +75,10 @@ class KuwoSearchProvider(
             .build()
 
         /** 酷我用 HTML 实体转义歌名（如 &#31435;&#26575;），必须解码后才是中文 */
+        /** 只有绝对 http(s) 地址才能直接当封面用；相对路径一律丢弃 */
+        internal fun firstHttpUrl(vararg candidates: String?): String =
+            candidates.firstOrNull { !it.isNullOrBlank() && (it.startsWith("https://") || it.startsWith("http://")) } ?: ""
+
         internal fun decodeName(raw: String?): String =
             raw?.let { Html.fromHtml(it, Html.FROM_HTML_MODE_LEGACY).toString().trim() } ?: ""
 
@@ -123,6 +127,7 @@ class KuwoSearchProvider(
                     albumName = decodeName(item.optString("ALBUM")),
                     albumId = decodeName(item.optString("ALBUMID")),
                     durationSec = item.optString("DURATION").toIntOrNull() ?: 0,
+                    artworkUrl = firstHttpUrl(item.optString("hts_MVPIC"), item.optString("web_albumpic_short")),
                     qualities = parseQualities(item.optString("N_MINFO").ifBlank { item.optString("MINFO") }),
                 )
             }.filterNotNull()

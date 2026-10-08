@@ -23,7 +23,7 @@ object SongCodec {
             song.artists.joinToString(","),
             song.albumName, song.albumId,
             song.durationSec.toString(),
-            song.hash, song.mediaMid,
+            song.hash, song.mediaMid, song.artworkUrl,
             song.qualities.joinToString(",") { "${it.quality.id}:${it.sizeLabel ?: ""}" },
         ).forEach { append(SEPARATOR).append(escape(it)) }
     }
@@ -31,7 +31,7 @@ object SongCodec {
     fun decode(raw: String): Song? {
         if (!raw.startsWith(VERSION)) return null
         val parts = raw.split(SEPARATOR).drop(1).map { unescape(it) }
-        if (parts.size < 9) return null
+        if (parts.size < 10) return null
         return Song(
             id = parts[1],
             source = parts[0],
@@ -42,7 +42,8 @@ object SongCodec {
             durationSec = parts[6].toIntOrNull() ?: 0,
             hash = parts[7],
             mediaMid = parts[8],
-            qualities = parts.getOrNull(9)?.split(',')?.filter { it.isNotBlank() }?.mapNotNull { entry ->
+            artworkUrl = parts[9],
+            qualities = parts.getOrNull(10)?.split(',')?.filter { it.isNotBlank() }?.mapNotNull { entry ->
                 val (qualityId, size) = entry.split(':', limit = 2).let {
                     it.firstOrNull().orEmpty() to it.getOrNull(1).orEmpty()
                 }

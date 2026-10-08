@@ -50,6 +50,7 @@ import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.player.ArtworkLoader
 import io.github.sakurajay.lyra.player.PlaybackOutcome
 import io.github.sakurajay.lyra.player.toNowPlayingSpec
 import io.github.sakurajay.lyra.player.PlayerClient
@@ -122,7 +123,9 @@ class SearchViewModel(
                 val client = playerClient ?: PlayerClient.connect(getApplication()).also { playerClient = it }
                 val queue = _uiState.value.songs
                     val startIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-                when (val outcome = client.playQueue(queue, startIndex, playUrl.url, playUrl.artworkUrl)) {
+                val artworkUrl = playUrl.artworkUrl ?: song.artworkUrl
+                val artworkData = ArtworkLoader.load(artworkUrl)
+                when (val outcome = client.playQueue(queue, startIndex, playUrl.url, artworkUrl, artworkData)) {
                     is PlaybackOutcome.Playing -> _uiState.update {
                         it.copy(
                             playingSongId = song.id,

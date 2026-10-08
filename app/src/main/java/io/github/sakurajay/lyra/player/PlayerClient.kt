@@ -44,12 +44,13 @@ class PlayerClient private constructor(
         startIndex: Int,
         resolvedStreamUrl: String,
         resolvedArtworkUrl: String?,
+        artworkData: ByteArray? = null,
         timeoutMs: Long = 20_000L,
     ): PlaybackOutcome = withContext(Dispatchers.Main) {
         val items = songs.mapIndexed { index, song ->
             val spec = song.toNowPlayingSpec(artworkUrl = if (index == startIndex) resolvedArtworkUrl else null)
             val uri = if (index == startIndex) resolvedStreamUrl else SongCodec.toLazyUri(song)
-            spec.toMediaItem(uri)
+            spec.toMediaItem(uri, if (index == startIndex) artworkData else null)
         }
         controller.setMediaItems(items, startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)), 0L)
         controller.prepare()

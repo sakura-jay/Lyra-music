@@ -24,6 +24,6 @@ fun Song.toNowPlayingSpec(artworkUrl: String? = null, sourceLabel: String? = nul
             .ifBlank { sourceLabel?.let { "未知（$it）" } ?: "未知" },
         album = albumName,
         durationMs = durationSec.toLong() * 1000L,
-        artworkUrl = artworkUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") },
+        artworkUrl = (artworkUrl ?: this.artworkUrl).takeIf { it.startsWith("http://") || it.startsWith("https://") },
         mediaId = "$source:$id",
     )

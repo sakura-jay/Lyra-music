@@ -11,7 +11,7 @@ import androidx.media3.common.MediaMetadata
  * 省掉我们下载与解码一次的成本。若某些封面因需要 UA 而取不到，再改成我们下载后
  * 塞 Bitmap——那是有证据之后的事，不提前做。
  */
-fun NowPlayingSpec.toMediaItem(streamUrl: String): MediaItem = MediaItem.Builder()
+fun NowPlayingSpec.toMediaItem(streamUrl: String, artworkData: ByteArray? = null): MediaItem = MediaItem.Builder()
     .setUri(streamUrl)
     .setMediaId(mediaId)
     .setMediaMetadata(
@@ -21,6 +21,7 @@ fun NowPlayingSpec.toMediaItem(streamUrl: String): MediaItem = MediaItem.Builder
             .setAlbumTitle(album)
             .setDurationMs(durationMs)
             .setArtworkUri(artworkUrl?.let { Uri.parse(it) })
+            .setArtworkData(artworkData, null)
             .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
             .setIsBrowsable(false)
             .setIsPlayable(true)
