@@ -25,10 +25,14 @@ import io.github.sakurajay.lyra.MainActivity
 class LyraMediaService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
+    private var crossfade: CrossfadeEngine? = null
 
     override fun onCreate() {
         super.onCreate()
-        val player = LyraPlayerFactory.create(this, lazyResolvingFactory())
+        // 缓存套在惰性取址外面：命中缓存时上游不会被打开，也就不会白打一次音源
+        val dataSourceFactory = LyraCache.factory(this, lazyResolvingFactory())
+        val player = LyraPlayerFactory.create(this, dataSourceFactory)
+        crossfade = CrossfadeEngine(this, player, dataSourceFactory)
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(
                 PendingIntent.getActivity(
@@ -71,6 +75,8 @@ class LyraMediaService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        crossfade?.release()
+        crossfade = null
         val session = mediaSession
         if (session != null) {
             session.player.release()

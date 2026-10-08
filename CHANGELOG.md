@@ -60,14 +60,34 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
   注释（navigation 2.10 / lifecycle 2.11 / okhttp 5 / compose-bom 2026.09 都要 compileSdk 37）
 - 测试规模 12 → 24 → 26 条，PLK110 真机通过
 
-### M2 进行中 — 队列所有权与惰性解析地基
+### M2 播放体系 — 已完成（`v0.3.0`）
+
+后台播放、队列、四种播放模式、音质降级、crossfade、流体云封面，全部真机验收（PLK110）。
 
 - 决策变更（ADR-0006）：删掉自研 `PlayQueue`（含 15 条测试），队列所有权交给 Media3 播放器；
-  播放模式改为映射到 `repeatMode`/`shuffleModeEnabled`，避免两套状态对"下一首是谁"理解不一致
-- 新增 `SongCodec`（把 Song 编码进 mediaId 传给服务，供惰性解析地址）与 `NowPlayingSpec`（元数据映射）
-- JVM 单元测试 12 条通过（codec 5 / 元数据 5 / 模式映射 2），未使用设备
-- 待做：服务侧 `ResolvingDataSource` 惰性解析 + 音源运行时缓存（现在每首播歌都会重建一次 JS 引擎）；
-  crossfade；界面切换动效（用户新增要求：要灵动）
+  播放模式映射到 `repeatMode`/`shuffleModeEnabled`，避免两套状态对"下一首是谁"理解不一致
+- `feat(player)` MediaSessionService 后台播放：isForeground=true、types=mediaPlayback、
+  通知 category=transport；退后台 8s/14s 仍 state:started，会话位置持续推进；锁屏/蓝牙媒体键走同一会话
+- `feat(player)` 队列下发与惰性解析（`95836ea`）：搜索结果整队下发，当前曲带真地址、其余带
+  `lyra://` 占位；真地址在播到那一刻才向音源要（`ResolvingDataSource`），避免提前过期
+- `feat(player)` 播放元数据与封面（`41b7ada`）：流体云缺图的根因是 MediaMetadata 全空；
+  补标题/艺术家/专辑/时长与封面字节后，胶囊带封面出现
+- `feat(player)` 播放模式切换入口与转场动效（`73fe6a9`）：列表循环/单曲循环/随机/单曲一次
+  四种模式真机行为验证 4/4；页面切换统一走 `LyraMotion` 的 spring 规格
+- `feat(player)` crossfade（ADR-0007）：双播放器 + 共享 SimpleCache + 等功率斜坡，会话播放器
+  不换人。真机实测重叠 4012ms 后由会话播放器接管；instrumentation 断言两路确实同时出声、
+  斜坡走完全程、交接点不存在两路皆静音的采样点、手动切歌会取消淡入并交回满音量
+- `fix(source)` 取址方不再关掉借来的音源运行时：`playUrlFor` 曾在 finally 里 close 池化的
+  SourceRuntime，第一首之后每首报「音源已卸载」；回归测试在修复前的代码上会失败
+
+**RuntimePool 收益实测**：合成音源冷启动 9–12ms / 缓存命中 0ms；真音源（星海 v2.3.12）
+冷启动 12ms / 命中 0ms。如实记：池子省的是引擎重建（十毫秒级）；用户感知的
+"点下一首要等一下"大头是音源 musicUrl 的网络往返，池子并不消除它。
+
+**动效观感取证（12 次 Tab 切换）**：`gfxinfo framestats` 682 帧、Janky 28（4.11%）、
+90/95/99 分位 10/18/44ms，另存转场录屏供目视（未入库）。**4.11% 高于项目 1% 的目标**：
+jank 集中在每次切换的首帧合成（120Hz 帧预算仅 8.3ms），归 M7 性能收口
+（baseline profile / 预合成）处理，不在 M2 里假装达标。
 
 ## 计划中的里程碑
 
@@ -78,8 +98,8 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 
 **流体云假设已验证成立**（真机）：接入 MediaSessionService 后，ColorOS 流体云
 自动出现播放胶囊，无需任何厂商 SDK——它就是读标准 MediaSession + 媒体通知。
-已知缺口：胶囊**没有封面**，因为播放时只给了 MediaItem.fromUri(url)，
-MediaMetadata 的标题/艺术家/ARTWORK 全空。已排入 M2 切片2（任务 #9）。
+曾经胶囊**没有封面**，根因是播放时只给了 MediaItem.fromUri(url)，MediaMetadata 全空；
+该缺口已在 M2 内修复（`41b7ada`）。
 
 M2 切片1 已完成（`8cb322b`）：真机验证 isForeground=true、types=mediaPlayback、
 通知 category=transport；退后台 8s/14s 仍 state:started，会话位置持续推进。

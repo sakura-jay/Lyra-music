@@ -4,9 +4,6 @@ import android.app.Application
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
@@ -49,7 +46,7 @@ class PlaybackEngineTest {
             MockResponse()
                 .setResponseCode(200)
                 .setHeader("Content-Type", "audio/wav")
-                .setBody(Buffer().write(wavBytes(durationMs = 4000))),
+                .setBody(Buffer().write(TestAudio.wav(durationMs = 4000))),
         )
         val engine = PlaybackEngine.create(app)
 
@@ -70,37 +67,5 @@ class PlaybackEngineTest {
         val outcome = engine.play("http://127.0.0.1:1/nothing.wav", timeoutMs = 8_000)
         assertTrue("应返回失败，实际: $outcome", outcome is PlaybackOutcome.Failed)
         engine.release()
-    }
-
-    /** 生成 PCM 16-bit 单声道正弦波 WAV；44 字节标准 RIFF 头。 */
-    private fun wavBytes(durationMs: Int, sampleRate: Int = 8000): ByteArray {
-        val frames = sampleRate * durationMs / 1000
-        val dataBytes = frames * 2
-        val out = ByteArrayOutputStream(44 + dataBytes)
-
-        fun le32(v: Int) = out.write(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(v).array())
-        fun le16(v: Int) = out.write(ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(v.toShort()).array())
-
-        out.write("RIFF".toByteArray())
-        le32(36 + dataBytes)
-        out.write("WAVE".toByteArray())
-        out.write("fmt ".toByteArray())
-        le32(16)
-        le16(1)                       // PCM
-        le16(1)                       // mono
-        le32(sampleRate)
-        le32(sampleRate * 2)          // byte rate
-        le16(2)                       // block align
-        le16(16)                      // bits
-        out.write("data".toByteArray())
-        le32(dataBytes)
-
-        val pcm = ByteBuffer.allocate(dataBytes).order(ByteOrder.LITTLE_ENDIAN)
-        for (i in 0 until frames) {
-            val sample = (Math.sin(2 * Math.PI * 440.0 * i / sampleRate) * 12000).toInt()
-            pcm.putShort(sample.toShort())
-        }
-        out.write(pcm.array())
-        return out.toByteArray()
     }
 }
