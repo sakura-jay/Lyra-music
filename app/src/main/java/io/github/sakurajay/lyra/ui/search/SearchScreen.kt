@@ -42,20 +42,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
-import io.github.sakurajay.lyra.core.source.PlayUrlException
-import io.github.sakurajay.lyra.core.source.RuntimeLoader
-import io.github.sakurajay.lyra.core.source.SourceHosting
-import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
-import io.github.sakurajay.lyra.core.source.repo.SourceRepository
-import io.github.sakurajay.lyra.core.source.repo.StoredSource
-import io.github.sakurajay.lyra.core.source.runtime.SourceRuntime
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
-import io.github.sakurajay.lyra.player.ArtworkLoader
-import io.github.sakurajay.lyra.player.PlaybackOutcome
-import io.github.sakurajay.lyra.player.toNowPlayingSpec
-import io.github.sakurajay.lyra.player.PlayerClient
+import io.github.sakurajay.lyra.player.LaunchOutcome
+import io.github.sakurajay.lyra.player.SongQueueLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,7 +55,6 @@ import kotlinx.coroutines.launch
 
 class SearchViewModel(
     application: Application,
-    repository: SourceRepository,
 ) : AndroidViewModel(application) {
 
     data class UiState(
@@ -80,14 +70,11 @@ class SearchViewModel(
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private val searchProvider = KuwoSearchProvider()
-    private val playUseCase = SourcePlayUseCase(
-        repository = repository,
-        runtimeLoader = RuntimeLoader { stored ->
-            SourceRuntimeLoader.load(getApplication(), repository, stored)
-        },
+    private val launcher = SongQueueLauncher(
+        application,
+        ServiceLocator.playUseCase(application),
+        ServiceLocator.qualityStore(),
     )
-
-    private var playerClient: PlayerClient? = null
 
     fun onQueryChange(value: String) = _uiState.update { it.copy(query = value) }
 
@@ -116,52 +103,34 @@ class SearchViewModel(
 
     /**
      * 档位取用户在播放页选的那一档（不是写死无损）：否则播放页上改了档位，
-     * 下一首又偷偷回到无损。拿不到时按 ADR 自动降级，并把实际音质显示出来。
+     * 下一首又偷偷回到无损。取址 → 记实际音质 → 下发队列的整条流程与首页共用。
      */
     fun play(song: Song) {
         if (_uiState.value.loadingSongId != null) return
-        val requested = ServiceLocator.qualityStore().requested.value
+        val queue = _uiState.value.songs
         viewModelScope.launch {
             _uiState.update { it.copy(loadingSongId = song.id, message = null) }
-            try {
-                val playUrl = playUseCase.playUrlFor(song, requested)
-                // 第一首是界面侧解析的，服务的惰性解析器不会为它跑第二次：
-                // 不在这里记一次，播放页的"实际音质"会永远停在"取址中"
-                ServiceLocator.qualityStore().recordEffective(playUrl.effective)
-                // 播放器活在服务里，UI 只通过 MediaController 下命令
-                val client = playerClient ?: PlayerClient.connect(getApplication()).also { playerClient = it }
-                val queue = _uiState.value.songs
-                    val startIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-                val artworkUrl = playUrl.artworkUrl ?: song.artworkUrl
-                val artworkData = ArtworkLoader.load(artworkUrl)
-                when (val outcome = client.playQueue(queue, startIndex, playUrl.url, artworkUrl, artworkData)) {
-                    is PlaybackOutcome.Playing -> _uiState.update {
-                        it.copy(
-                            playingSongId = song.id,
-                            loadingSongId = null,
-                            message = if (playUrl.effective == requested) {
-                                "正在播放 · ${requested.label} · 经 ${playUrl.viaSourceName}"
-                            } else {
-                                "正在播放 · 实际音质 ${playUrl.effective.label}（请求 ${requested.label} 已降级）· 经 ${playUrl.viaSourceName}"
-                            },
-                        )
-                    }
+            val outcome = launcher.launch(song, queue)
+            _uiState.update { state ->
+                when (outcome) {
+                    is LaunchOutcome.Playing -> state.copy(
+                        playingSongId = song.id,
+                        loadingSongId = null,
+                        message = if (outcome.effective == outcome.requested) {
+                            "正在播放 · ${outcome.requested.label} · 经 ${outcome.viaSourceName}"
+                        } else {
+                            "正在播放 · 实际音质 ${outcome.effective.label}（请求 ${outcome.requested.label} 已降级）· 经 ${outcome.viaSourceName}"
+                        },
+                    )
 
-                    is PlaybackOutcome.Failed -> _uiState.update {
-                        it.copy(loadingSongId = null, message = "播放失败：${outcome.message}")
-                    }
+                    is LaunchOutcome.Failed -> state.copy(loadingSongId = null, message = outcome.message)
                 }
-            } catch (e: PlayUrlException) {
-                _uiState.update { it.copy(loadingSongId = null, message = e.message) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(loadingSongId = null, message = "出错：${e.message ?: e.javaClass.simpleName}") }
             }
         }
     }
 
     override fun onCleared() {
-        playerClient?.release()
-        playerClient = null
+        launcher.release()
     }
 
     companion object {
@@ -169,24 +138,10 @@ class SearchViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: androidx.lifecycle.viewmodel.CreationExtras): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                return SearchViewModel(application, ServiceLocator.sourceRepository(application)) as T
+                return SearchViewModel(application) as T
             }
         }
     }
-}
-
-/** 把已导入的音源真正加载成可调用运行时。 */
-private object SourceRuntimeLoader {
-    suspend fun load(
-        application: Application,
-        repository: SourceRepository,
-        stored: StoredSource,
-    ): SourceRuntime = SourceRuntime.load(
-        preloadScript = SourceHosting.preload(application),
-        sourceScript = repository.scriptText(stored.id),
-        scriptId = stored.id,
-        requests = SourceHosting.newRequestExecutor(),
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

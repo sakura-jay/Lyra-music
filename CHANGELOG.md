@@ -129,6 +129,31 @@ jank 集中在每次切换的首帧合成（120Hz 帧预算仅 8.3ms），归 M7
 （androidx.test 反射 `InputManager.getInstance` 在该系统不存在，镜像里没有更新的 runner），
 相关依赖已回退，歌词视图目前只有 JVM 侧的解析/时间线测试兜底。
 
+### M5 榜单与详情页 — 进行中（首页榜单已跑通，歌单/专辑/歌手详情页未开始）
+
+**切片1 内置酷我榜单适配器**（`cdab6e2`）：接口与签名取自 lx-music-mobile 的
+`musicSdk/kw/leaderboard.js`，但**照抄不通**——它先 base64 再 AES(NoPadding)，服务端只回
+`DECRYPT_ERROR`；四种组合实测下来只有"原始 JSON + AES/ECB/PKCS5Padding"拿得到数据。
+`musiclist[]` 的字段映射复用搜索适配器的 `decodeName/splitArtists/parseQualities`，
+不允许同一份 `N_MINFO` 存在两套判定表。
+
+**切片2 首页榜单 UI**：12 个常用榜的 chip 横滑 + 排名列表（前三位高亮）+ 点歌进队列。
+
+- 把"点一首歌到真的出声"抽成 `SongQueueLauncher` 共享。搜索页原来自己抄了一遍，
+  漏过一次 `recordEffective`（播放页的实际音质永远停在"取址中"）；抄第二遍就会漏第二次
+- 搜索页顺带改走 `ServiceLocator.playUseCase`（池化运行时）。它原来用私有 loader 每次点歌
+  新建一个 QuickJS 运行时且从不关闭——白付重建成本还漏线程
+- 切榜取消在途请求：两个请求并发时晚到的响应会把列表写成上一个榜的
+- 队列快照在点击时取，取址期间列表被换掉则只播这一首，而不是夹到 0 变成"点 A 播 B"
+
+**验收记录（2026-10-08，Pixel_8 模拟器）**：飙升榜 `total=298`、点第 1 首 →
+`dumpsys media_session` 显示 `state=PLAYING position=35857 buffered=87381`，
+界面"正在播放 · 无损 · 经 星海音乐源"，迷你条出现封面；切到热歌榜再切回飙升榜，
+标题与列表一致；搜索页回归（"jay" → 晴天）仍能出声，档位仍为无损。
+
+**未验证**：榜单封面缩略图（当前列表无图，与搜索页一致）、分页加载（只取前 30 首）、
+歌单/专辑/歌手详情页。
+
 ## 计划中的里程碑
 
 - **M0 `v0.1.0`** — 工程骨架：三 Tab 可点、M3 动态取色与明暗、R8 配置

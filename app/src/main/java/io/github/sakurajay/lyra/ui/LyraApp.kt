@@ -49,6 +49,7 @@ import androidx.navigation.compose.rememberNavController
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.ui.common.PauseGlyph
 import io.github.sakurajay.lyra.ui.common.PlayGlyph
+import io.github.sakurajay.lyra.ui.home.HomeScreen
 import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
@@ -169,16 +170,12 @@ fun LyraApp() {
                     popExitTransition = { LyraMotion.slideOutOf(forward = false) },
                 ) {
                     Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                        if (destination == TopDestination.Search) {
-                            SearchScreen()
-                        } else {
-                            DestinationPlaceholder(
+                        when (destination) {
+                            TopDestination.Home -> HomeScreen()
+                            TopDestination.Search -> SearchScreen()
+                            TopDestination.Library -> DestinationPlaceholder(
                                 destination = destination,
-                                onOpenSources = if (destination == TopDestination.Library) {
-                                    { navController.navigate(ROUTE_SOURCES) }
-                                } else {
-                                    null
-                                },
+                                onOpenSources = { navController.navigate(ROUTE_SOURCES) },
                             )
                         }
                     }
