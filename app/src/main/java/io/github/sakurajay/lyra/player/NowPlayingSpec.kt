@@ -1,6 +1,7 @@
 package io.github.sakurajay.lyra.player
 
 import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.domain.model.SongCodec
 
 /**
  * 一首歌在系统侧该显示成什么——纯数据，不依赖 Media3，因此可以在 JVM 上测。
@@ -15,6 +16,13 @@ data class NowPlayingSpec(
     val durationMs: Long,
     val artworkUrl: String?,
     val mediaId: String,
+    /**
+     * 指向这首歌自己的 lyra:// 地址。
+     *
+     * MediaItem 的播放 URI 可能是已经解析出的 CDN 直链（队列第一首就是），
+     * 光看它认不出是哪首歌；歌词与详情都要靠这个稳定标识反解回 Song。
+     */
+    val songUri: String? = null,
 )
 
 fun Song.toNowPlayingSpec(artworkUrl: String? = null, sourceLabel: String? = null): NowPlayingSpec =
@@ -26,4 +34,5 @@ fun Song.toNowPlayingSpec(artworkUrl: String? = null, sourceLabel: String? = nul
         durationMs = durationSec.toLong() * 1000L,
         artworkUrl = (artworkUrl ?: this.artworkUrl).takeIf { it.startsWith("http://") || it.startsWith("https://") },
         mediaId = "$source:$id",
+        songUri = SongCodec.toLazyUri(this),
     )

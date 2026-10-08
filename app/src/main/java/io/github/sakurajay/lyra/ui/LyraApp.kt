@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Canvas
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -30,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -37,7 +40,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.ui.common.PauseGlyph
+import io.github.sakurajay.lyra.ui.common.PlayGlyph
 import io.github.sakurajay.lyra.ui.motion.LyraMotion
+import io.github.sakurajay.lyra.ui.player.PlayerScreen
+import io.github.sakurajay.lyra.ui.player.PlayerViewModel
 import io.github.sakurajay.lyra.ui.search.SearchScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import androidx.compose.ui.Modifier
@@ -50,6 +57,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 private enum class TopDestination(
@@ -64,11 +72,15 @@ private enum class TopDestination(
 }
 
 private const val ROUTE_SOURCES = "sources"
+private const val ROUTE_PLAYER = "player"
 
 @Composable
 fun LyraApp() {
     RequestNotificationPermission()
     val navController = rememberNavController()
+    // 迷你条与播放页共用一个 VM：两处各连一个控制器各自轮询，显示就会互相打架
+    val playerViewModel: PlayerViewModel = viewModel(factory = PlayerViewModel.Factory)
+    LaunchedEffect(Unit) { playerViewModel.connect() }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val topRoutes = TopDestination.entries.map { it.route }
@@ -78,7 +90,10 @@ fun LyraApp() {
         bottomBar = {
             if (onTopLevelDestination) {
                 Column {
-                    MiniPlayerBar()
+                    MiniPlayerBar(
+                        viewModel = playerViewModel,
+                        onOpen = { navController.navigate(ROUTE_PLAYER) },
+                    )
                     NavigationBar {
                         TopDestination.entries.forEach { destination ->
                             NavigationBarItem(
@@ -136,6 +151,15 @@ fun LyraApp() {
                 }
             }
             composable(
+                ROUTE_PLAYER,
+                enterTransition = { LyraMotion.riseIn() },
+                exitTransition = { LyraMotion.riseOut() },
+                popEnterTransition = { LyraMotion.riseIn() },
+                popExitTransition = { LyraMotion.riseOut() },
+            ) {
+                PlayerScreen(viewModel = playerViewModel, onBack = { navController.popBackStack() })
+            }
+            composable(
                 ROUTE_SOURCES,
                 enterTransition = { LyraMotion.slideInto() },
                 exitTransition = { LyraMotion.slideOutOf(forward = false) },
@@ -172,11 +196,17 @@ private fun DestinationPlaceholder(destination: TopDestination, onOpenSources: (
     }
 }
 
-/** 底部常驻播放条：M0 为静态占位，M2 接 Media3 播放状态后变为可交互控件。 */
+/** 底部常驻播放条：显示当前曲与播放状态，点空白处进播放页，点按钮直接播停。 */
 @Composable
-private fun MiniPlayerBar() {
+private fun MiniPlayerBar(viewModel: PlayerViewModel, onOpen: () -> Unit) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val song = state.song
+
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .clickable(onClick = onOpen),
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 3.dp,
@@ -193,25 +223,34 @@ private fun MiniPlayerBar() {
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.mini_player_idle),
+                    text = song?.name ?: stringResource(R.string.mini_player_idle),
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = stringResource(R.string.mini_player_idle_hint),
+                    text = song?.let { s ->
+                        s.artists.filter { it.isNotBlank() }.joinToString(" / ").ifBlank { null }
+                    } ?: stringResource(R.string.mini_player_idle_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(Modifier.size(10.dp))
             Box(
                 modifier = Modifier
                     .size(38.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    .clickable(onClick = viewModel::playPause),
                 contentAlignment = Alignment.Center,
             ) {
-                PlayGlyph(modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                if (state.isPlaying) {
+                    PauseGlyph(modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    PlayGlyph(modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                }
             }
         }
     }
@@ -278,22 +317,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBar(
         cornerRadius = corner,
     )
 }
-
-@Composable
-private fun PlayGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier) {
-        drawPath(
-            path = Path().apply {
-                moveTo(size.width * 0.22f, size.height * 0.14f)
-                lineTo(size.width * 0.86f, size.height * 0.5f)
-                lineTo(size.width * 0.22f, size.height * 0.86f)
-                close()
-            },
-            color = tint,
-        )
-    }
-}
-
 
 /**
  * Android 13+ 通知是运行时权限。
