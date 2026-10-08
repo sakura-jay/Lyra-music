@@ -117,10 +117,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         loadedLyricFor = key
         viewModelScope.launch {
             _uiState.update { it.copy(lyricLoading = true, lyric = LyricDoc(emptyList())) }
-            val doc = runCatching { ServiceLocator.lyricUseCase(getApplication()).lyricFor(song) }
-                .getOrDefault(LyricDoc(emptyList()))
-            android.util.Log.i("LyraLyric", "${song.name} 解析出 ${doc.lines.size} 行（逐字 ${doc.lines.count { it.wordTimed }} 行）")
-            _uiState.update { it.copy(lyricLoading = false, lyric = doc) }
+            val result = runCatching { ServiceLocator.lyricLookup(getApplication()).lyricFor(song) }.getOrNull()
+            android.util.Log.i(
+                "LyraLyric",
+                "${song.name} 歌词来源=${result?.via ?: "查询失败"} 行数=${result?.doc?.lines?.size ?: 0} " +
+                    "逐字=${result?.doc?.lines?.count { it.wordTimed } ?: 0} 行",
+            )
+            _uiState.update { it.copy(lyricLoading = false, lyric = result?.doc ?: LyricDoc(emptyList())) }
         }
         viewModelScope.launch {
             val bitmap = runCatching {

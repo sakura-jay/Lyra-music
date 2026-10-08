@@ -2,6 +2,7 @@ package io.github.sakurajay.lyra.di
 
 import android.content.Context
 import io.github.sakurajay.lyra.core.source.RuntimePool
+import io.github.sakurajay.lyra.core.source.LyricLookup
 import io.github.sakurajay.lyra.core.source.SourceHosting
 import io.github.sakurajay.lyra.core.source.SourceLyricUseCase
 import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
@@ -48,6 +49,8 @@ object ServiceLocator {
     fun playUseCase(context: Context): SourcePlayUseCase =
         SourcePlayUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) })
 
-    fun lyricUseCase(context: Context): SourceLyricUseCase =
-        SourceLyricUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) })
+    fun lyricLookup(context: Context): LyricLookup =
+        LyricLookup(
+            SourceLyricUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) }),
+        )
 }
