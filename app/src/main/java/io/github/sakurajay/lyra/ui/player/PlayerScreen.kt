@@ -52,6 +52,9 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0)) { innerPadding ->
+        Box(Modifier.fillMaxSize()) {
+            BlurBackdrop(state.artwork, Modifier.matchParentSize())
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()

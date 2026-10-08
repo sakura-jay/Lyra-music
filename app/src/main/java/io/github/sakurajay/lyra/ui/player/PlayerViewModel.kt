@@ -10,6 +10,7 @@ import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.lyric.LyricDoc
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.domain.model.SongCodec
+import io.github.sakurajay.lyra.player.ArtworkLoader
 import io.github.sakurajay.lyra.player.PlayMode
 import io.github.sakurajay.lyra.player.PlayModeMapping
 import io.github.sakurajay.lyra.player.PlayerClient
@@ -38,6 +39,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val durationMs: Long = 0L,
         val playMode: PlayMode = PlayMode.LOOP_ALL,
         val lyric: LyricDoc = LyricDoc(emptyList()),
+        /** 已经降采样到 ~256px 的封面，只给播放页的模糊背景用 */
+        val artwork: android.graphics.Bitmap? = null,
         val lyricLoading: Boolean = false,
         /** 用户手动校准：正数把歌词往后推 */
         val lyricOffsetMs: Long = 0L,
@@ -105,10 +108,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 playMode = PlayModeMapping.fromPlayerSettings(player.repeatMode, player.shuffleModeEnabled),
             )
         }
-        if (song != null) ensureLyricLoaded(song)
+        if (song != null) ensureSongAssetsLoaded(song)
     }
 
-    private fun ensureLyricLoaded(song: Song) {
+    private fun ensureSongAssetsLoaded(song: Song) {
         val key = "${song.source}:${song.id}"
         if (loadedLyricFor == key) return
         loadedLyricFor = key
@@ -117,6 +120,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val doc = runCatching { ServiceLocator.lyricUseCase(getApplication()).lyricFor(song) }
                 .getOrDefault(LyricDoc(emptyList()))
             _uiState.update { it.copy(lyricLoading = false, lyric = doc) }
+        }
+        viewModelScope.launch {
+            val bitmap = runCatching {
+                ArtworkLoader.load(song.artworkUrl)?.let { ArtworkLoader.decodeDownsampled(it) }
+            }.getOrNull()
+            // 取回来时可能已经切歌了，别把上一首的封面糊到这一首上
+            _uiState.update { if (it.song?.id == song.id && it.song.source == song.source) it.copy(artwork = bitmap) else it }
         }
     }
 
