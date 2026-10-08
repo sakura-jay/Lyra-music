@@ -159,6 +159,42 @@ class SourcePlayUseCaseTest {
     }
 
     /**
+     * 池化路径的回归：invoker 是「借」来的。用完就 close 会把共享运行时打死，
+     * 症状是第一首能播、第二首报「音源已卸载」——真机上就是这么踩到的。
+     */
+    @Test
+    fun pooledInvokerSurvivesAcrossCalls() {
+        repo.import(script("复用源", """{ kw: { name: '酷我', type: 'music', actions: ['musicUrl'], qualitys: ['320k'] } }"""), mapOf("kw" to cap()))
+
+        var loads = 0
+        var closes = 0
+        // 照 SourceRuntime 的行为做：关掉之后再 invoke 就报错
+        val shared = object : ActionInvoker, AutoCloseable {
+            private var closed = false
+
+            override suspend fun invoke(source: String, action: String, info: JSONObject): JSONObject {
+                if (closed) throw IllegalStateException("音源已卸载")
+                return urlBody("https://cdn.example/ok.mp3")
+            }
+
+            override fun close() {
+                closed = true
+                closes++
+            }
+        }
+        val pooled = mutableMapOf<String, ActionInvoker>()
+        val useCase = SourcePlayUseCase(repo, RuntimeLoader { stored ->
+            pooled.getOrPut(stored.id) { loads++; shared }
+        })
+
+        repeat(2) {
+            assertEquals("https://cdn.example/ok.mp3", runBlocking { useCase.playUrlFor(song, Quality.HIGH) }.url)
+        }
+        assertEquals("共享运行时只该建一次", 1, loads)
+        assertEquals("借来的运行时不该被取址方关掉", 0, closes)
+    }
+
+    /**
      * 真音源端到端：内置搜索拿到歌 → 星海换成可播地址。
      *
      * 这是 M1 DoD 里唯一还没被机器证明过的一环。网络或音源不可用时跳过，

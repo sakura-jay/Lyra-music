@@ -27,6 +27,10 @@ interface ActionInvoker {
     suspend fun invoke(source: String, action: String, info: JSONObject): JSONObject
 }
 
+/**
+ * 借用语义：invoker 的生命周期归实现方。池化实现（[RuntimePool]）每次返回同一个
+ * SourceRuntime，调用方用完就 close 等于把整条音源打死，下一首必然报「音源已卸载」。
+ */
 fun interface RuntimeLoader {
     suspend fun load(stored: StoredSource): ActionInvoker
 }
@@ -61,37 +65,33 @@ class SourcePlayUseCase(
                 continue
             }
 
-            try {
-                for (quality in chain) {
-                    val info = JSONObject().put("musicInfo", song.toMusicInfo(quality)).put("type", quality.id)
-                    val outcome = try {
-                        Result.success(invoker.invoke(song.source, ACTION_MUSIC_URL, info))
-                    } catch (e: Exception) {
-                        Result.failure<JSONObject>(e)
-                    }
-                    if (outcome.isFailure) {
-                        val error = outcome.exceptionOrNull()
-                        lastError = "${stored.name}: ${error?.message ?: error?.javaClass?.simpleName}"
-                        // 不 break：ADR 的自动降级要求同一个源沿档位链往下试，
-                        // 只有整条链都失败才换下一个音源
-                        continue
-                    }
-                    val url = outcome.getOrThrow().optJSONObject("data")?.optString("url").orEmpty()
-                    if (url.startsWith("http://") || url.startsWith("https://")) {
-                        return PlayUrl(
-                            url = url,
-                            requested = requested,
-                            effective = quality,
-                            viaSourceName = stored.name,
-                            artworkUrl = runCatching {
-                                resolveArtwork(invoker, song, supportsPic = supportsAction(stored, song.source, ACTION_PIC))
-                            }.getOrNull(),
-                        )
-                    }
-                    lastError = "${stored.name}: 未返回有效地址"
+            for (quality in chain) {
+                val info = JSONObject().put("musicInfo", song.toMusicInfo(quality)).put("type", quality.id)
+                val outcome = try {
+                    Result.success(invoker.invoke(song.source, ACTION_MUSIC_URL, info))
+                } catch (e: Exception) {
+                    Result.failure<JSONObject>(e)
                 }
-            } finally {
-                (invoker as? AutoCloseable)?.close()
+                if (outcome.isFailure) {
+                    val error = outcome.exceptionOrNull()
+                    lastError = "${stored.name}: ${error?.message ?: error?.javaClass?.simpleName}"
+                    // 不 break：ADR 的自动降级要求同一个源沿档位链往下试，
+                    // 只有整条链都失败才换下一个音源
+                    continue
+                }
+                val url = outcome.getOrThrow().optJSONObject("data")?.optString("url").orEmpty()
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    return PlayUrl(
+                        url = url,
+                        requested = requested,
+                        effective = quality,
+                        viaSourceName = stored.name,
+                        artworkUrl = runCatching {
+                            resolveArtwork(invoker, song, supportsPic = supportsAction(stored, song.source, ACTION_PIC))
+                        }.getOrNull(),
+                    )
+                }
+                lastError = "${stored.name}: 未返回有效地址"
             }
         }
 
