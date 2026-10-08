@@ -4,7 +4,7 @@ import io.github.sakurajay.lyra.core.source.repo.SourceRepository
 import io.github.sakurajay.lyra.core.source.repo.StoredSource
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
-import org.json.JSONArray
+import io.github.sakurajay.lyra.domain.model.toMusicInfo
 import org.json.JSONObject
 
 class PlayUrlException(message: String) : Exception(message)
@@ -116,37 +116,6 @@ class SourcePlayUseCase(
     /** 请求档位及其下位，从高到低：FLAC 拿不到就退 320k 再退 128k。 */
     fun qualityChain(requested: Quality): List<Quality> =
         Quality.entries.filter { it.ordinal <= requested.ordinal }.sortedByDescending { it.ordinal }
-
-    /**
-     * 映射成音源期望的 musicInfo 形状（字段名对齐官方洛雪的歌曲模型）：
-     * singer 是 "/" 连接的字符串，interval 是 "mm:ss"，_types 带各档位尺寸。
-     *
-     * 空值一律**不写键**。音源用 `musicInfo.hash ?? musicInfo.songmid ?? musicInfo.id`
-     * 取值，而 ?? 只认 null/undefined——写一个 hash:"" 会让整条链停在空串上，
-     * 表现为音源报"缺少 songId"（真机踩到）。
-     */
-    fun Song.toMusicInfo(requested: Quality): JSONObject {
-        val info = JSONObject()
-            .put("name", name)
-            .put("singer", artists.joinToString("/"))
-            .put("albumName", albumName)
-            .put("songmid", id)
-            .put("id", id)
-            .put("interval", formatInterval(durationSec))
-            .put("source", source)
-        if (albumId.isNotBlank()) info.put("albumId", albumId)
-        if (hash.isNotBlank()) info.put("hash", hash)
-        if (mediaMid.isNotBlank()) info.put("strMediaMid", mediaMid)
-
-        val types = JSONObject()
-        qualities.forEach { types.put(it.quality.id, JSONObject().put("size", it.sizeLabel ?: "")) }
-        info.put("types", JSONArray(qualities.map { it.quality.id }))
-        info.put("_types", types)
-        return info
-    }
-
-    private fun formatInterval(seconds: Int): String =
-        if (seconds <= 0) "00:00" else "%02d:%02d".format(seconds / 60, seconds % 60)
 
     private companion object {
         const val ACTION_MUSIC_URL = "musicUrl"

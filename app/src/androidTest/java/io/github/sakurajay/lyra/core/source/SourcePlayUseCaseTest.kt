@@ -9,6 +9,7 @@ import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.QualityAvailability
 import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.domain.model.toMusicInfo
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -138,7 +139,7 @@ class SourcePlayUseCaseTest {
     @Test
     fun mapsSongIntoSourceExpectedMusicInfoShape() {
         val useCase = SourcePlayUseCase(repo, invokerFactory { _, _ -> urlBody("https://x/a.mp3") })
-        val info = with(useCase) { song.toMusicInfo(Quality.HIGH) }
+        val info = song.toMusicInfo(Quality.HIGH)
 
         assertEquals("霍元甲", info.getString("name"))
         assertEquals("周杰伦/林志玲", info.getString("singer"))
@@ -151,7 +152,7 @@ class SourcePlayUseCaseTest {
     @Test
     fun blankOptionalFieldsAreOmittedFromMusicInfo() {
         val useCase = SourcePlayUseCase(repo, invokerFactory { _, _ -> urlBody("https://x/a.mp3") })
-        val info = with(useCase) { song.toMusicInfo(Quality.HIGH) }
+        val info = song.toMusicInfo(Quality.HIGH)
 
         // 音源用 ?? 链取 id，空字符串不会跳过；写 hash:"" 会让它停在空串上报"缺少 songId"
         assertTrue("空的可选字段必须不写键，实际: $info", !info.has("hash") && !info.has("strMediaMid"))
