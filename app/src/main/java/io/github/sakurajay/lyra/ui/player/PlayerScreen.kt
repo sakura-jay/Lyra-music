@@ -108,6 +108,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
             LyricPanel(
                 doc = state.lyric,
                 positionMs = state.positionMs,
+                isPlaying = state.isPlaying,
                 offsetMs = state.lyricOffsetMs,
                 loading = state.lyricLoading,
                 onSeekToLine = viewModel::seekToLine,
