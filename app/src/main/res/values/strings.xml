@@ -36,6 +36,9 @@
     <string name="player_lyric_loading">歌词加载中…</string>
     <string name="player_lyric_empty">暂无歌词</string>
     <string name="player_offset">歌词校准 %1$s</string>
+    <string name="player_quality_pending">正在按所选档位取址…</string>
+    <string name="player_quality_actual">本次实际音质：%1$s</string>
+    <string name="player_quality_degraded">本次实际音质：%1$s（请求 %2$s，已降级）</string>
     <string name="action_play">播放</string>
     <string name="action_pause">暂停</string>
     <string name="action_previous">上一首</string>

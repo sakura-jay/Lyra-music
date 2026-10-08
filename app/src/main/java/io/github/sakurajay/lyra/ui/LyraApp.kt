@@ -9,8 +9,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,6 +80,9 @@ private enum class TopDestination(
 private const val ROUTE_SOURCES = "sources"
 private const val ROUTE_PLAYER = "player"
 
+/** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
+private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER)
+
 @Composable
 fun LyraApp() {
     RequestNotificationPermission()
@@ -132,8 +141,14 @@ fun LyraApp() {
                 composable(
                     destination.route,
                     enterTransition = { LyraMotion.slideInto() },
-                    exitTransition = { LyraMotion.slideOutOf() },
-                    popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                    exitTransition = {
+                        if (targetState.destination.route in DETAIL_ROUTES) ExitTransition.None else LyraMotion.slideOutOf()
+                    },
+                    popEnterTransition = {
+                        // 从详情页退回 Tab 时，底下的 Tab 页本来就在原位，再播一次入场就是用户看到的"错误动画"
+                        if (initialState.destination.route in DETAIL_ROUTES) EnterTransition.None
+                        else LyraMotion.slideInto(forward = false)
+                    },
                     popExitTransition = { LyraMotion.slideOutOf(forward = false) },
                 ) {
                     if (destination == TopDestination.Search) {
@@ -219,7 +234,18 @@ private fun MiniPlayerBar(viewModel: PlayerViewModel, onOpen: () -> Unit) {
                 modifier = Modifier
                     .size(44.dp)
                     .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp)),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                // 封面位不能空着：没有图时至少给个占位形状，比一块纯色更像"这里会有图"
+                state.artwork?.let { bitmap ->
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+            }
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(

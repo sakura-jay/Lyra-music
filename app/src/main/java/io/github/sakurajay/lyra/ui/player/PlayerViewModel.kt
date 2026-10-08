@@ -154,6 +154,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         seekTo(line.startMs)
     }
 
+    /**
+     * 换音质 = 让服务按新档位重新取一次址。
+     *
+     * 做法是把当前项换回 lyra:// 占位地址（解析器于是会再跑一遍），再 seek 回原位置。
+     * 不直接改播放 URI：真地址有时效，界面手里那份可能已经过期。
+     */
+    fun setQuality(quality: io.github.sakurajay.lyra.domain.model.Quality) {
+        val store = ServiceLocator.qualityStore()
+        val player = client?.player ?: return
+        val item = player.currentMediaItem
+        val lazyUri = item?.requestMetadata?.mediaUri?.toString() ?: return
+        if (store.requested.value == quality) return
+        store.request(quality)
+
+        val position = player.currentPosition
+        val index = player.currentMediaItemIndex
+        runCatching {
+            player.replaceMediaItem(index, item.buildUpon().setUri(lazyUri).build())
+            player.seekTo(index, position)
+            player.playWhenReady = true
+        }
+    }
+
+    val requestedQuality get() = ServiceLocator.qualityStore().requested
+    val effectiveQuality get() = ServiceLocator.qualityStore().effective
+
     fun nudgeLyricOffset(deltaMs: Long) =
         _uiState.update { it.copy(lyricOffsetMs = (it.lyricOffsetMs + deltaMs).coerceIn(-10_000L, 10_000L)) }
 

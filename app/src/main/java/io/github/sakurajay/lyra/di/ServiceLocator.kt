@@ -49,6 +49,14 @@ object ServiceLocator {
     fun playUseCase(context: Context): SourcePlayUseCase =
         SourcePlayUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) })
 
+    @Volatile
+    private var qualityStore: io.github.sakurajay.lyra.player.PlaybackQualityStore? = null
+
+    fun qualityStore(): io.github.sakurajay.lyra.player.PlaybackQualityStore = qualityStore
+        ?: synchronized(this) {
+            qualityStore ?: io.github.sakurajay.lyra.player.PlaybackQualityStore().also { qualityStore = it }
+        }
+
     fun lyricLookup(context: Context): LyricLookup =
         LyricLookup(
             SourceLyricUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) }),

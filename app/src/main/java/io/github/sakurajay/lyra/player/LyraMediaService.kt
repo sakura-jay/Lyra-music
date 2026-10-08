@@ -7,7 +7,6 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.SongCodec
-import io.github.sakurajay.lyra.domain.model.Quality
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import androidx.media3.session.MediaSession
@@ -54,12 +53,14 @@ class LyraMediaService : MediaSessionService() {
         object : ResolvingDataSource.Resolver {
             override fun resolveDataSpec(dataSpec: androidx.media3.datasource.DataSpec): androidx.media3.datasource.DataSpec {
                 val song = SongCodec.fromLazyUri(dataSpec.uri.toString()) ?: return dataSpec
+                val requested = ServiceLocator.qualityStore().requested.value
                 val resolved = try {
-                    runBlocking { ServiceLocator.playUseCase(this@LyraMediaService).playUrlFor(song, DEFAULT_QUALITY) }
+                    runBlocking { ServiceLocator.playUseCase(this@LyraMediaService).playUrlFor(song, requested) }
                 } catch (e: Exception) {
                     // 抛给播放器，让它带 cause 报错，而不是静默换成无效地址
                     throw IOException("音源取址失败: ${'$'}{e.message ?: e.javaClass.simpleName}", e)
                 }
+                ServiceLocator.qualityStore().recordEffective(resolved.effective)
                 return dataSpec.buildUpon().setUri(resolved.url).build()
             }
         },
@@ -87,6 +88,6 @@ class LyraMediaService : MediaSessionService() {
     }
 
     private companion object {
-        val DEFAULT_QUALITY: Quality = Quality.LOSSLESS
+        // 请求档位不再写死：见 PlaybackQualityStore，界面可以改
     }
 }
