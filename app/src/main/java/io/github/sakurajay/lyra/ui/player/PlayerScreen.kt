@@ -46,9 +46,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.player.PlayMode
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.HeartGlyph
 import io.github.sakurajay.lyra.ui.common.ModeGlyph
 import io.github.sakurajay.lyra.ui.common.NextGlyph
 import io.github.sakurajay.lyra.ui.common.PauseGlyph
@@ -159,6 +161,32 @@ private fun DetailPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        val song = state.song
+        val favorite = song != null && FavoritesRepository.keyOf(song) in state.favoriteKeys
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .clickable(enabled = song != null, onClick = viewModel::toggleFavorite),
+                contentAlignment = Alignment.Center,
+            ) {
+                HeartGlyph(
+                    modifier = Modifier.size(20.dp),
+                    tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    filled = favorite,
+                )
+            }
+            Text(
+                text = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
+import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.lyric.LyricDoc
 import io.github.sakurajay.lyra.domain.model.Song
@@ -44,10 +45,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val lyricLoading: Boolean = false,
         /** 用户手动校准：正数把歌词往后推 */
         val lyricOffsetMs: Long = 0L,
+        /** 收藏的 key 集合（"source:id"）。当前曲是否收藏由这里算，避免两处状态会漂 */
+        val favoriteKeys: Set<String> = emptySet(),
     )
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    private val favorites: FavoritesRepository = ServiceLocator.favoritesRepository(getApplication())
 
     private var client: PlayerClient? = null
     private var polling: Job? = null
@@ -60,6 +65,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _uiState.update { it.copy(isPlaying = isPlaying) }
             if (isPlaying) startPolling() else stopPolling()
         }
+    }
+
+    init {
+        viewModelScope.launch {
+            favorites.favorites.collect { list ->
+                _uiState.update { it.copy(favoriteKeys = list.map { favorite -> favorite.key }.toSet()) }
+            }
+        }
+    }
+
+    /** 收藏/取消收藏当前曲。列表刷新由仓库的 StateFlow 带回来，这里不自己改状态 */
+    fun toggleFavorite() {
+        val song = _uiState.value.song ?: return
+        viewModelScope.launch { favorites.toggle(song) }
     }
 
     fun connect() {

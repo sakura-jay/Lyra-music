@@ -102,3 +102,23 @@ private fun DrawScope.drawTriangle(tint: Color, from: Float, to: Float) {
         color = tint,
     )
 }
+
+/** 收藏心形：没收藏时只描边，否则两种状态看起来是一样的 */
+@Composable
+fun HeartGlyph(modifier: Modifier = Modifier, tint: Color, filled: Boolean = true) {
+    Canvas(modifier = modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val heart = Path().apply {
+            moveTo(w * 0.5f, h * 0.86f)
+            cubicTo(w * 0.06f, h * 0.56f, w * 0.12f, h * 0.14f, w * 0.5f, h * 0.35f)
+            cubicTo(w * 0.88f, h * 0.14f, w * 0.94f, h * 0.56f, w * 0.5f, h * 0.86f)
+            close()
+        }
+        if (filled) {
+            drawPath(heart, tint)
+        } else {
+            drawPath(heart, tint, style = Stroke(width = w * 0.09f, cap = StrokeCap.Round))
+        }
+    }
+}

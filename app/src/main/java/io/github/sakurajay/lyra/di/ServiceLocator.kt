@@ -79,6 +79,16 @@ object ServiceLocator {
             qualityStore ?: io.github.sakurajay.lyra.player.PlaybackQualityStore().also { qualityStore = it }
         }
 
+    @Volatile
+    private var favorites: io.github.sakurajay.lyra.data.local.FavoritesRepository? = null
+
+    fun favoritesRepository(context: Context): io.github.sakurajay.lyra.data.local.FavoritesRepository =
+        favorites ?: synchronized(this) {
+            favorites ?: io.github.sakurajay.lyra.data.local.FavoritesRepository(
+                io.github.sakurajay.lyra.data.local.FavoritesDatabase(context),
+            ).also { favorites = it }
+        }
+
     fun lyricLookup(context: Context): LyricLookup =
         LyricLookup(
             SourceLyricUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) }),

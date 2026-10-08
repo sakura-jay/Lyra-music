@@ -51,6 +51,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.ui.common.PauseGlyph
 import io.github.sakurajay.lyra.ui.common.PlayGlyph
 import io.github.sakurajay.lyra.ui.home.HomeScreen
+import io.github.sakurajay.lyra.ui.library.LibraryScreen
 import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
@@ -78,11 +79,10 @@ private enum class TopDestination(
     val route: String,
     @StringRes val labelRes: Int,
     @StringRes val titleRes: Int,
-    @StringRes val summaryRes: Int,
 ) {
-    Home("home", R.string.tab_home, R.string.home_title, R.string.home_summary),
-    Search("search", R.string.tab_search, R.string.search_title, R.string.search_summary),
-    Library("library", R.string.tab_library, R.string.library_title, R.string.library_summary),
+    Home("home", R.string.tab_home, R.string.home_title),
+    Search("search", R.string.tab_search, R.string.search_title),
+    Library("library", R.string.tab_library, R.string.library_title),
 }
 
 private const val ROUTE_SOURCES = "sources"
@@ -192,9 +192,9 @@ fun LyraApp() {
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                             )
 
-                            TopDestination.Library -> DestinationPlaceholder(
-                                destination = destination,
+                            TopDestination.Library -> LibraryScreen(
                                 onOpenSources = { navController.navigate(ROUTE_SOURCES) },
+                                onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                             )
                         }
                     }
@@ -250,30 +250,6 @@ fun LyraApp() {
                         onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DestinationPlaceholder(destination: TopDestination, onOpenSources: (() -> Unit)?) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(
-            text = stringResource(destination.titleRes),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = stringResource(destination.summaryRes),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (onOpenSources != null) {
-            Button(onClick = onOpenSources, modifier = Modifier.padding(top = 8.dp)) {
-                Text(stringResource(R.string.library_open_sources))
             }
         }
     }

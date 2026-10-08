@@ -2,17 +2,20 @@ package io.github.sakurajay.lyra.ui.common
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -21,23 +24,26 @@ import androidx.compose.ui.unit.dp
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.domain.model.Song
 
-/** 榜单与专辑的序号从 1 开始，前三位加重，与主流榜单一致 */
+/** 榜单与专辑的序号从 1 开始，前三位加重，与主流榜单一致；收藏列表没有序号 */
 private val EMPHASIZED_RANK = 3
 
 /**
- * 一列曲目：序号 + 曲名 + 次行信息。榜单页与专辑页共用，两处不该各写一份行高与序号样式。
+ * 一列曲目：序号 + 曲名 + 次行信息。榜单、专辑、歌单、收藏共用，
+ * 四处不该各写一份行高与序号样式。
  *
- * 专辑名单独可点：整行点击是"播这首歌"，"看这张专辑"是另一个意图，
+ * 专辑名单独可点：整行点击是"播这首歌"，而"看这张专辑"是另一个意图，
  * 混在一个点击里就只能二选一。
  */
 @Composable
 fun TrackRow(
-    rank: Int,
     song: Song,
     highlighted: Boolean,
     loading: Boolean,
     onClick: () -> Unit,
+    rank: Int? = null,
     onOpenAlbum: ((String) -> Unit)? = null,
+    favorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -46,14 +52,16 @@ fun TrackRow(
             .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = rank.toString(),
-            modifier = Modifier.size(width = 26.dp, height = 24.dp),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (rank <= EMPHASIZED_RANK) FontWeight.Bold else FontWeight.Normal,
-            color = if (rank <= EMPHASIZED_RANK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
+        if (rank != null) {
+            Text(
+                text = rank.toString(),
+                modifier = Modifier.size(width = 26.dp, height = 24.dp),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (rank <= EMPHASIZED_RANK) FontWeight.Bold else FontWeight.Normal,
+                color = if (rank <= EMPHASIZED_RANK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
         Column(Modifier.weight(1f)) {
             Text(
                 text = song.name,
@@ -90,8 +98,22 @@ fun TrackRow(
                 }
             }
         }
-        if (loading) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+        when {
+            loading -> CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+
+            onToggleFavorite != null -> Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onToggleFavorite),
+                contentAlignment = Alignment.Center,
+            ) {
+                HeartGlyph(
+                    modifier = Modifier.size(18.dp),
+                    tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    filled = favorite,
+                )
+            }
         }
     }
 }
