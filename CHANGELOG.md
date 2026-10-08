@@ -89,29 +89,33 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 jank 集中在每次切换的首帧合成（120Hz 帧预算仅 8.3ms），归 M7 性能收口
 （baseline profile / 预合成）处理，不在 M2 里假装达标。
 
-### M3 进行中 — 歌词沉浸页（代码已合入，未上机）
+### M3 歌词沉浸页 — 代码合入并真机跑通，`v0.4.0` 仍不打
 
-按用户要求本轮暂停真机测试：下面四条切片只过了编译与 39 条 JVM 测试，
-**观感、手感、帧预算一律未验证**，`v0.4.0` 因此不打。
+切片 1–4 先只过了编译与 JVM 测试；上机后按用户反馈返工一轮，现在歌词页是真能用的。
 
-- `feat(lyric)` 域模型与逐字解析（`8a586d0`）：LRC / lxlyric 逐字 / tlyric 翻译三条路径，
-  `[offset:]` 按"正数提前"惯例作用到时间上，翻译按 1s 内就近配对；
-  当前行与扫光进度单独放 `LyricTimeline`，视图不自己算时间。写测试时抓到一条真 bug：
-  只有一个 `<起,耗>` 标签的行没剥标签，屏幕上会露出 `<0,400>`
-- `feat(player)` 播放页与活的迷你播放条（`69b7ba2`）：迷你条从 M0 的静态占位变成真状态；
-  播放 URI 可能是已解析的 CDN 直链，认不出是哪首歌，所以把 `lyra://` 歌曲地址放进
-  `RequestMetadata.mediaUri` 供反解
-- `feat(lyric)` 逐字扫光（`12465f8`）：底字 + 裁到进度处的亮字两层，进度放在只有绘制阶段
-  读取的 `FloatState`，每帧只重绘一行、不触发列表重组；轮询只当锚点，帧间用
-  `withFrameNanos` 自己推。目前是硬边推进，软渐变边待上机看过再定
-- `feat(lyric)` 封面取色模糊背景（`dd3d68b`）：降采样到 ~256px 再 blur，换封面走两层
-  alpha 交叉而不是每帧改 radius（ADR-0005）；`ArtworkLoader` 加 8 张内存缓存，
-  同一 URL 不再给通知和播放页各下一遍
-- `fix(ui)` 嵌套 Scaffold 重复吃状态栏 inset（`7b990cb`）：搜索页/音源管理页的顶栏标题
-  被顶下一个状态栏高度，即用户反馈的"字体意外下沉"
+- `feat(lyric)` 内置酷我歌词适配器：星海 v3.2.12 连取 8 首，`lyric` action **全部回 null**
+  （它的词是"取地址时顺手缓存"，缓存里没有就没有）。洛雪用同一条音源却有歌词，是因为词由
+  App 内置适配器补——ADR-0003 的双轨因此补上第二条。接口形状在真机探测确认：
+  `{"data":{"lrclist":[{"lineLyric","time"}]}}`，且会偶发返回空 body，故同一 id 重试一次
+- `fix(lyric)` 音源回 `null` 归一化成"没有歌词"而不是 `Invalid lyric info`；取词每个环节
+  都记日志（哪个音源、三个字段各多少字、内置轨道拿到多少），只说"暂无歌词"谁都定位不了
+- `feat(player)` 播放页返工：封面在上、进度/播停/档位在下，向左滑是整屏歌词页；
+  迷你播放条补上封面缩略图；从详情页退回 Tab 不再让底下的 Tab 页重播入场动画
+- `feat(player)` 档位切换：`PlaybackQualityStore` 让服务按新档位重新取址并回到原位置，
+  界面显示"本次实际音质"，降级时明说
+- `fix(lyric)` 扫光不再手写 `withFrameNanos` 帧循环——真机实测它不自持（20 秒只画 45 帧，
+  ≈轮询频率的 2fps）：它等帧，而只有值变了才会有帧。改成 `animateFloatAsState` + 线性 tween
+- 当前行居中改为"上下各留半个视口"的 contentPadding，不再猜行高
+- `test` 音源播种：`SeedTestSourceTest` 走与界面相同的"导入即试跑"路径，把 gitignore 掉的
+  真实音源种回应用；跑完 `connectedDebugAndroidTest` 应用会被卸掉、手工导入的音源跟着没，
+  之后改用 `am instrument` 单跑，不再触发卸载
 
-**待做**：`perf/lyric-frame-budget` —— 120Hz 下歌词页滚动与扫光的 Jank <1%（M3 DoD），
-以及模糊浓度、纱的透明度、交叉时长、扫光软边这些必须用眼睛定的参数。
+**帧预算实测（PLK110，歌词页扫光中）**：20s 内 1220 帧、Jank **0.33%**（FrameTimeline）
+／1.32%（legacy）、90/95/99 分位 8/11/14ms、Missed Vsync 0。
+**但这一轮还没达成 M3 DoD**：这段时间应用实际只拿到约 60Hz（面板支持 120/144Hz），
+"120Hz 下 Jank<1%"没有被真正测到；且 Compose UI 测试在本机跑不起来
+（androidx.test 反射 `InputManager.getInstance` 在该系统不存在，镜像里没有更新的 runner），
+相关依赖已回退，歌词视图目前只有 JVM 侧的解析/时间线测试兜底。
 
 ## 计划中的里程碑
 
