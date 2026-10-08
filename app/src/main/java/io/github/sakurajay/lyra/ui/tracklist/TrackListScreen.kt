@@ -1,4 +1,4 @@
-package io.github.sakurajay.lyra.ui.album
+package io.github.sakurajay.lyra.ui.tracklist
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,20 +33,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.TrackRow
 
+/**
+ * 曲目列表详情：封面 + 归属 + 简介 + 曲目。
+ *
+ * [onOpenAlbum] 只有跨专辑的列表（歌单）才需要；专辑页里每行再挂一个本专辑的链接是噪声。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumScreen(
-    albumId: String,
+fun TrackListScreen(
+    state: TrackListViewModel.UiState,
     onBack: () -> Unit,
-    viewModel: AlbumViewModel = viewModel(key = "album-$albumId", factory = AlbumViewModel.factory(albumId)),
+    onPlay: (io.github.sakurajay.lyra.domain.model.Song) -> Unit,
+    onOpenAlbum: ((String) -> Unit)?,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val detail = state.detail
+    val list = state.list
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -55,7 +59,7 @@ fun AlbumScreen(
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 title = {
                     Text(
-                        text = detail?.info?.name ?: stringResource(R.string.album_title),
+                        text = list?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.tracklist_title),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -92,25 +96,27 @@ fun AlbumScreen(
                     }
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = detail?.info?.artist.orEmpty(),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    detail?.let {
+                    list?.subtitle?.takeIf { it.isNotBlank() }?.let {
                         Text(
-                            text = if (it.info.songCount == it.songs.size) {
-                                stringResource(R.string.album_track_count, it.songs.size)
+                            text = it,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    list?.let {
+                        Text(
+                            text = if (it.playCountLabel.isBlank()) {
+                                stringResource(R.string.tracklist_count, it.songCount)
                             } else {
-                                stringResource(R.string.album_track_count_partial, it.info.songCount, it.songs.size)
+                                stringResource(R.string.tracklist_count_with_play, it.songCount, it.playCountLabel)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    detail?.info?.description?.takeIf { it.isNotBlank() }?.let {
+                    list?.description?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             text = it,
                             style = MaterialTheme.typography.bodySmall,
@@ -131,9 +137,9 @@ fun AlbumScreen(
                 )
             }
 
-            if (detail != null && detail.songs.isEmpty()) {
+            if (list != null && list.songs.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.album_empty),
+                    text = stringResource(R.string.tracklist_empty),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -141,13 +147,14 @@ fun AlbumScreen(
             }
 
             LazyColumn {
-                itemsIndexed(detail?.songs.orEmpty(), key = { _, song -> "${song.source}-${song.id}" }) { index, song ->
+                itemsIndexed(list?.songs.orEmpty(), key = { _, song -> "${song.source}-${song.id}" }) { index, song ->
                     TrackRow(
                         rank = index + 1,
                         song = song,
                         highlighted = song.id == state.playingSongId,
                         loading = song.id == state.loadingSongId,
-                        onClick = { viewModel.play(song) },
+                        onClick = { onPlay(song) },
+                        onOpenAlbum = onOpenAlbum,
                     )
                 }
             }

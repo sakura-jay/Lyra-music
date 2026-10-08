@@ -8,6 +8,8 @@ import androidx.lifecycle.viewModelScope
 import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider
+import io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider
+import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.LaunchOutcome
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     application: Application,
     private val provider: KuwoLeaderboardProvider,
+    private val playlistProvider: KuwoPlaylistProvider,
     playUseCase: SourcePlayUseCase,
 ) : AndroidViewModel(application) {
 
@@ -35,6 +38,9 @@ class HomeViewModel(
         val loadingSongId: String? = null,
         val playingSongId: String? = null,
         val message: String? = null,
+        val playlists: List<PlaylistSummary> = emptyList(),
+        val playlistsLoading: Boolean = false,
+        val playlistsFailed: Boolean = false,
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -46,6 +52,7 @@ class HomeViewModel(
 
     init {
         _uiState.value.boards.firstOrNull()?.let { load(it) }
+        loadPlaylists()
     }
 
     /** 同一个榜重复点不重新拉：切走再切回来会把列表闪成加载态 */
@@ -75,6 +82,21 @@ class HomeViewModel(
                 _uiState.update {
                     it.copy(loading = false, message = "榜单加载失败：${e.message ?: e.javaClass.simpleName}")
                 }
+            }
+        }
+    }
+
+    private fun loadPlaylists() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(playlistsLoading = true, playlistsFailed = false) }
+            try {
+                val list = playlistProvider.recommended(page = 1, limit = PLAYLIST_LIMIT)
+                _uiState.update { it.copy(playlistsLoading = false, playlists = list) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 歌单只是首页的一个区块，失败不能把榜单那一块也变成错误态
+                _uiState.update { it.copy(playlistsLoading = false, playlistsFailed = true) }
             }
         }
     }
@@ -109,6 +131,7 @@ class HomeViewModel(
 
     companion object {
         private const val PAGE_SIZE = 30
+        private const val PLAYLIST_LIMIT = 12
 
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -119,7 +142,8 @@ class HomeViewModel(
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
                 return HomeViewModel(
                     application,
-                    KuwoLeaderboardProvider(),
+                    ServiceLocator.leaderboardProvider(),
+                    ServiceLocator.playlistProvider(),
                     ServiceLocator.playUseCase(application),
                 ) as T
             }

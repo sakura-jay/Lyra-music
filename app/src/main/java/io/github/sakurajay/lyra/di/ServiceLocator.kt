@@ -69,4 +69,35 @@ object ServiceLocator {
         LyricLookup(
             SourceLyricUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) }),
         )
+
+    /**
+     * 内置适配器各一个实例：每个都自带 OkHttpClient（连接池 + 线程池），
+     * 每次进页面新建一个就是白建一套池子。
+     */
+    @Volatile
+    private var leaderboardProvider: io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider? = null
+
+    fun leaderboardProvider(): io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider =
+        leaderboardProvider
+            ?: synchronized(this) {
+                leaderboardProvider ?: io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider().also { leaderboardProvider = it }
+            }
+
+    @Volatile
+    private var albumProvider: io.github.sakurajay.lyra.data.provider.builtin.KuwoAlbumProvider? = null
+
+    fun albumProvider(): io.github.sakurajay.lyra.data.provider.builtin.KuwoAlbumProvider = albumProvider
+        ?: synchronized(this) {
+            albumProvider ?: io.github.sakurajay.lyra.data.provider.builtin.KuwoAlbumProvider().also { albumProvider = it }
+        }
+
+    @Volatile
+    private var playlistProvider: io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider? = null
+
+    fun playlistProvider(): io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider = playlistProvider
+        ?: synchronized(this) {
+            playlistProvider ?: io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider(
+                albumProvider = albumProvider(),
+            ).also { playlistProvider = it }
+        }
 }

@@ -48,7 +48,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.sakurajay.lyra.R
-import io.github.sakurajay.lyra.ui.album.AlbumScreen
 import io.github.sakurajay.lyra.ui.common.PauseGlyph
 import io.github.sakurajay.lyra.ui.common.PlayGlyph
 import io.github.sakurajay.lyra.ui.home.HomeScreen
@@ -57,6 +56,8 @@ import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
 import io.github.sakurajay.lyra.ui.search.SearchScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
+import io.github.sakurajay.lyra.ui.tracklist.AlbumRoute
+import io.github.sakurajay.lyra.ui.tracklist.PlaylistRoute
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
@@ -87,12 +88,17 @@ private enum class TopDestination(
 private const val ROUTE_SOURCES = "sources"
 private const val ROUTE_PLAYER = "player"
 private const val ROUTE_ALBUM = "album/{albumId}"
+private const val ROUTE_PLAYLIST = "playlist/{listId}"
 
-/** 详情页的参数位；专辑 id 只由数字组成，直接拼进路径不需要转义 */
+/**
+ * 详情页的参数直接拼进路径：专辑 id 只有数字，歌单 id 是 `digest-8__123` 这种
+ * 只含字母数字与 -_ 的形式，都不需要转义。
+ */
 private fun albumRoute(albumId: String) = "album/$albumId"
+private fun playlistRoute(listId: String) = "playlist/$listId"
 
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
-private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_ALBUM)
+private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_ALBUM, ROUTE_PLAYLIST)
 
 @Composable
 fun LyraApp() {
@@ -179,6 +185,7 @@ fun LyraApp() {
                         when (destination) {
                             TopDestination.Home -> HomeScreen(
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
+                                onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
                             )
 
                             TopDestination.Search -> SearchScreen(
@@ -222,9 +229,25 @@ fun LyraApp() {
                 popExitTransition = { LyraMotion.slideOutOf(forward = false) },
             ) { entry ->
                 Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    AlbumScreen(
+                    AlbumRoute(
                         albumId = entry.arguments?.getString("albumId").orEmpty(),
                         onBack = { navController.popBackStack() },
+                    )
+                }
+            }
+            composable(
+                ROUTE_PLAYLIST,
+                arguments = listOf(navArgument("listId") { defaultValue = "" }),
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) { entry ->
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    PlaylistRoute(
+                        listId = entry.arguments?.getString("listId").orEmpty(),
+                        onBack = { navController.popBackStack() },
+                        onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                     )
                 }
             }
