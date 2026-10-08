@@ -21,7 +21,8 @@ import java.io.File
  * 断言消息里会直接打印拿到的值。
  */
 @RunWith(AndroidJUnit4::class)
-class ArtworkProbeTest  // 封面来源诊断：结论是搜索自带 hts_MVPIC，音源 pic 不可依赖 {
+// 封面来源诊断结论：搜索自带 hts_MVPIC，音源 pic 不可依赖
+class ArtworkProbeTest {
 
     @Test
     fun probePicActionAfterResolvingStreamUrl() = runBlocking {

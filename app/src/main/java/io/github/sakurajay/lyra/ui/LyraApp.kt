@@ -37,6 +37,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.search.SearchScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import androidx.compose.ui.Modifier
@@ -113,7 +114,13 @@ fun LyraApp() {
             modifier = Modifier.fillMaxSize().padding(innerPadding),
         ) {
             TopDestination.entries.forEach { destination ->
-                composable(destination.route) {
+                composable(
+                    destination.route,
+                    enterTransition = { LyraMotion.slideInto() },
+                    exitTransition = { LyraMotion.slideOutOf() },
+                    popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                    popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+                ) {
                     if (destination == TopDestination.Search) {
                         SearchScreen()
                     } else {
@@ -128,7 +135,13 @@ fun LyraApp() {
                     }
                 }
             }
-            composable(ROUTE_SOURCES) {
+            composable(
+                ROUTE_SOURCES,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
                 SourcesScreen(onBack = { navController.popBackStack() })
             }
         }

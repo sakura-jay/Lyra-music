@@ -30,4 +30,9 @@
     <string name="sources_actions_count">声明 %1$d 类能力</string>
     <string name="action_back">返回</string>
     <string name="action_delete">删除</string>
+
+    <string name="mode_sequential">顺序播放</string>
+    <string name="mode_loop_all">列表循环</string>
+    <string name="mode_loop_one">单曲循环</string>
+    <string name="mode_shuffle">随机播放</string>
 </resources>
