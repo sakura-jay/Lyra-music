@@ -74,9 +74,13 @@ object ServiceLocator {
     @Volatile
     private var qualityStore: io.github.sakurajay.lyra.player.PlaybackQualityStore? = null
 
-    fun qualityStore(): io.github.sakurajay.lyra.player.PlaybackQualityStore = qualityStore
+    /** 默认音质从设置里读，改档位要写回去——否则重开应用永远回到无损 */
+    fun qualityStore(context: Context): io.github.sakurajay.lyra.player.PlaybackQualityStore = qualityStore
         ?: synchronized(this) {
-            qualityStore ?: io.github.sakurajay.lyra.player.PlaybackQualityStore().also { qualityStore = it }
+            qualityStore ?: io.github.sakurajay.lyra.player.PlaybackQualityStore(
+                initialQuality = settings(context).requestedQuality.value,
+                persist = { settings(context).setRequestedQuality(it) },
+            ).also { qualityStore = it }
         }
 
     @Volatile

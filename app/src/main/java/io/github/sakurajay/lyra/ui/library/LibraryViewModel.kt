@@ -41,7 +41,7 @@ class LibraryViewModel(
         viewModelScope, SharingStarted.Eagerly, emptyList(),
     )
 
-    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore())
+    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
 
     init {
         viewModelScope.launch { runCatching { favorites.refresh() } }

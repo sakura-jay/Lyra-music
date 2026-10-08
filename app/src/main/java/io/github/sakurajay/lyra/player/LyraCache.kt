@@ -25,7 +25,7 @@ import java.io.File
 @UnstableApi
 object LyraCache {
 
-    private const val MAX_BYTES = 128L * 1024 * 1024
+    const val MAX_BYTES = 128L * 1024 * 1024
     private const val FRAGMENT_BYTES = 2L * 1024 * 1024
 
     @Volatile

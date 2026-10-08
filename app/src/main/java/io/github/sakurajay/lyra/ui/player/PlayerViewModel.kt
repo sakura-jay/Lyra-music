@@ -180,7 +180,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * 不直接改播放 URI：真地址有时效，界面手里那份可能已经过期。
      */
     fun setQuality(quality: io.github.sakurajay.lyra.domain.model.Quality) {
-        val store = ServiceLocator.qualityStore()
+        val store = ServiceLocator.qualityStore(getApplication())
         val player = client?.player ?: return
         val item = player.currentMediaItem
         val lazyUri = item?.requestMetadata?.mediaUri?.toString() ?: return
@@ -196,8 +196,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    val requestedQuality get() = ServiceLocator.qualityStore().requested
-    val effectiveQuality get() = ServiceLocator.qualityStore().effective
+    val requestedQuality get() = ServiceLocator.qualityStore(getApplication()).requested
+    val effectiveQuality get() = ServiceLocator.qualityStore(getApplication()).effective
 
     /** 歌词字号：档位存在设置里，切换即时生效并留住 */
     val lyricTextSize get() = ServiceLocator.settings(getApplication()).lyricTextSize

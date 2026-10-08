@@ -47,7 +47,7 @@ class HomeViewModel(
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore())
+    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
 
     private var loadJob: kotlinx.coroutines.Job? = null
 

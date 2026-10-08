@@ -53,14 +53,14 @@ class LyraMediaService : MediaSessionService() {
         object : ResolvingDataSource.Resolver {
             override fun resolveDataSpec(dataSpec: androidx.media3.datasource.DataSpec): androidx.media3.datasource.DataSpec {
                 val song = SongCodec.fromLazyUri(dataSpec.uri.toString()) ?: return dataSpec
-                val requested = ServiceLocator.qualityStore().requested.value
+                val requested = ServiceLocator.qualityStore(this@LyraMediaService).requested.value
                 val resolved = try {
                     runBlocking { ServiceLocator.switchingPlayUseCase(this@LyraMediaService).playUrlFor(song, requested) }
                 } catch (e: Exception) {
                     // 抛给播放器，让它带 cause 报错，而不是静默换成无效地址
                     throw IOException("音源取址失败: ${'$'}{e.message ?: e.javaClass.simpleName}", e)
                 }
-                ServiceLocator.qualityStore().recordEffective(resolved.effective)
+                ServiceLocator.qualityStore(this@LyraMediaService).recordEffective(resolved.effective)
                 return dataSpec.buildUpon().setUri(resolved.url).build()
             }
         },

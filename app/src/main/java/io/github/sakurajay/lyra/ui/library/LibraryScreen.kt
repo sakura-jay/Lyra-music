@@ -14,6 +14,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import io.github.sakurajay.lyra.ui.common.TrackRow
 @Composable
 fun LibraryScreen(
     onOpenSources: () -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory),
 ) {
@@ -45,6 +47,12 @@ fun LibraryScreen(
             TopAppBar(
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text(stringResource(R.string.library_title)) },
+                actions = {
+                    // 音源管理原来只在空态里出现，收藏一首之后就再也没有入口——设置页放这儿
+                    TextButton(onClick = onOpenSettings, modifier = Modifier.padding(end = 12.dp)) {
+                        Text(stringResource(R.string.settings_title))
+                    }
+                },
             )
         },
     ) { innerPadding ->

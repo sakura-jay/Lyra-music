@@ -27,6 +27,20 @@
     <string name="player_favorite">收藏</string>
     <string name="player_favorite_on">已收藏</string>
 
+    <string name="settings_title">设置</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_dark_mode">深色模式</string>
+    <string name="settings_dynamic">跟随系统动态取色</string>
+    <string name="settings_color_scheme">预设配色</string>
+    <string name="settings_playback">播放</string>
+    <string name="settings_default_quality">默认音质</string>
+    <string name="settings_lyric_size">歌词字号</string>
+    <string name="settings_storage">存储</string>
+    <string name="settings_cache">播放缓存 %1$s / 上限 %2$d MB</string>
+    <string name="settings_clear_cache">清除缓存</string>
+    <string name="settings_data">数据</string>
+    <string name="settings_version">Lyra %1$s</string>
+
     <string name="mini_player_idle">未在播放</string>
     <string name="mini_player_idle_hint">导入音源后即可播放</string>
 

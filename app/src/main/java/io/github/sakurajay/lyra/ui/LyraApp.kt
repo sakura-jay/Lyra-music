@@ -56,6 +56,7 @@ import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
 import io.github.sakurajay.lyra.ui.search.SearchScreen
+import io.github.sakurajay.lyra.ui.settings.SettingsScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import io.github.sakurajay.lyra.ui.tracklist.AlbumRoute
 import io.github.sakurajay.lyra.ui.tracklist.PlaylistRoute
@@ -87,6 +88,7 @@ private enum class TopDestination(
 
 private const val ROUTE_SOURCES = "sources"
 private const val ROUTE_PLAYER = "player"
+private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_ALBUM = "album/{albumId}"
 private const val ROUTE_PLAYLIST = "playlist/{listId}"
 
@@ -98,7 +100,7 @@ private fun albumRoute(albumId: String) = "album/$albumId"
 private fun playlistRoute(listId: String) = "playlist/$listId"
 
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
-private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_ALBUM, ROUTE_PLAYLIST)
+private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST)
 
 @Composable
 fun LyraApp() {
@@ -198,6 +200,7 @@ fun LyraApp() {
 
                             TopDestination.Library -> LibraryScreen(
                                 onOpenSources = { navController.navigate(ROUTE_SOURCES) },
+                                onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                             )
                         }
@@ -222,6 +225,20 @@ fun LyraApp() {
             ) {
                 Box(Modifier.fillMaxSize().padding(innerPadding)) {
                     SourcesScreen(onBack = { navController.popBackStack() })
+                }
+            }
+            composable(
+                ROUTE_SETTINGS,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenSources = { navController.navigate(ROUTE_SOURCES) },
+                    )
                 }
             }
             composable(

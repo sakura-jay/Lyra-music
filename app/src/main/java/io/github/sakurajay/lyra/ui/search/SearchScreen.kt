@@ -82,7 +82,7 @@ class SearchViewModel(
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore())
+    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
 
     fun onQueryChange(value: String) = _uiState.update { it.copy(query = value) }
 
