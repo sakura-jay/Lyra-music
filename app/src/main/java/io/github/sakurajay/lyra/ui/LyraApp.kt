@@ -125,35 +125,39 @@ fun LyraApp() {
 
     Scaffold(
         bottomBar = {
-            if (onTopLevelDestination) {
+            // 播放页占满整屏不需要条；其余页面（含详情页）都要能一眼跳回正在播的那首。
+            // 之前只在顶层 Tab 显示，结果在专辑/歌单页点了歌就没有任何入口回到播放页。
+            if (currentRoute != ROUTE_PLAYER) {
                 Column {
                     MiniPlayerBar(
                         viewModel = playerViewModel,
                         onOpen = { navController.navigate(ROUTE_PLAYER) },
                     )
-                    NavigationBar {
-                        TopDestination.entries.forEach { destination ->
-                            NavigationBarItem(
-                                selected = currentRoute == destination.route,
-                                onClick = {
-                                    navController.navigate(destination.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = {
-                                    DestinationIcon(
-                                        destination = destination,
-                                        tint = if (currentRoute == destination.route) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                    )
-                                },
-                                label = { Text(stringResource(destination.labelRes)) },
-                            )
+                    if (onTopLevelDestination) {
+                        NavigationBar {
+                            TopDestination.entries.forEach { destination ->
+                                NavigationBarItem(
+                                    selected = currentRoute == destination.route,
+                                    onClick = {
+                                        navController.navigate(destination.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
+                                    icon = {
+                                        DestinationIcon(
+                                            destination = destination,
+                                            tint = if (currentRoute == destination.route) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                        )
+                                    },
+                                    label = { Text(stringResource(destination.labelRes)) },
+                                )
+                            }
                         }
                     }
                 }
