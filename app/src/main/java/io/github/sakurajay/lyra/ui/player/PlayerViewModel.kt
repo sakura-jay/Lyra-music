@@ -180,6 +180,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val requestedQuality get() = ServiceLocator.qualityStore().requested
     val effectiveQuality get() = ServiceLocator.qualityStore().effective
 
+    /** 歌词字号：档位存在设置里，切换即时生效并留住 */
+    val lyricTextSize get() = ServiceLocator.settings(getApplication()).lyricTextSize
+
+    fun setLyricTextSize(size: io.github.sakurajay.lyra.domain.lyric.LyricTextSize) {
+        ServiceLocator.settings(getApplication()).setLyricTextSize(size)
+    }
+
     fun nudgeLyricOffset(deltaMs: Long) =
         _uiState.update { it.copy(lyricOffsetMs = (it.lyricOffsetMs + deltaMs).coerceIn(-10_000L, 10_000L)) }
 

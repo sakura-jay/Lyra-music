@@ -32,8 +32,11 @@ class KuwoLyricProvider(
             return@withContext ""
         }
         val url = "$ENDPOINT?musicId=${URLEncoder.encode(musicId, "UTF-8")}"
-        // 真机实测这个接口会偶发返回"音乐查询失败"甚至空 body，同一个 id 再试一次就正常
+        // 真机实测这个接口会偶发返回"音乐查询失败"甚至空 body，同一个 id 再试就正常。
+        // 但两次请求之间必须留间隔：连着打两发落在同一个限流窗口里，第二次也是白打
+        // （模拟器上就见过同一 id 连吃两次 127 字节的"音乐查询失败"）。
         repeat(ATTEMPTS) { attempt ->
+            if (attempt > 0) kotlinx.coroutines.delay(RETRY_BACKOFF_MS * attempt)
             val (reason, lrc) = runCatching {
                 client.newCall(Request.Builder().url(url).build()).execute().use { response ->
                     if (!response.isSuccessful) return@use "HTTP ${response.code}" to ""
@@ -70,7 +73,8 @@ class KuwoLyricProvider(
 
     private companion object {
         const val TAG = "LyraLyric"
-        const val ATTEMPTS = 2
+        const val ATTEMPTS = 3
+        const val RETRY_BACKOFF_MS = 300L
         const val ENDPOINT = "https://m.kuwo.cn/newh5/singles/songinfoandlrc"
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()

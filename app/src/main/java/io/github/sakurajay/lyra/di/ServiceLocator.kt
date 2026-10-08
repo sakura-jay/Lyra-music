@@ -50,6 +50,14 @@ object ServiceLocator {
         SourcePlayUseCase(sourceRepository(context), RuntimeLoader { runtimePool(context).get(it) })
 
     @Volatile
+    private var settings: io.github.sakurajay.lyra.data.settings.AppSettings? = null
+
+    fun settings(context: Context): io.github.sakurajay.lyra.data.settings.AppSettings = settings
+        ?: synchronized(this) {
+            settings ?: io.github.sakurajay.lyra.data.settings.AppSettings(context).also { settings = it }
+        }
+
+    @Volatile
     private var qualityStore: io.github.sakurajay.lyra.player.PlaybackQualityStore? = null
 
     fun qualityStore(): io.github.sakurajay.lyra.player.PlaybackQualityStore = qualityStore

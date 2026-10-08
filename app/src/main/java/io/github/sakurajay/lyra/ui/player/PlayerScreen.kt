@@ -68,6 +68,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val requested by viewModel.requestedQuality.collectAsStateWithLifecycle()
     val effective by viewModel.effectiveQuality.collectAsStateWithLifecycle()
+    val lyricSize by viewModel.lyricTextSize.collectAsStateWithLifecycle()
     val pagerState = rememberPagerState(initialPage = 0) { 2 }
 
     // 背景要铺到状态栏与底部手势条后面，所以这一页自己处理 insets；
@@ -98,7 +99,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
             HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
                 when (page) {
                     0 -> DetailPage(state, requested, effective, viewModel)
-                    else -> LyricPage(state, viewModel)
+                    else -> LyricPage(state, lyricSize, viewModel)
                 }
             }
 
@@ -177,7 +178,11 @@ private fun DetailPage(
 }
 
 @Composable
-private fun LyricPage(state: PlayerViewModel.UiState, viewModel: PlayerViewModel) {
+private fun LyricPage(
+    state: PlayerViewModel.UiState,
+    lyricSize: io.github.sakurajay.lyra.domain.lyric.LyricTextSize,
+    viewModel: PlayerViewModel,
+) {
     Column(modifier = Modifier.fillMaxSize()) {
         LyricPanel(
             doc = state.lyric,
@@ -185,10 +190,36 @@ private fun LyricPage(state: PlayerViewModel.UiState, viewModel: PlayerViewModel
             isPlaying = state.isPlaying,
             offsetMs = state.lyricOffsetMs,
             loading = state.lyricLoading,
+            textSize = lyricSize,
             onSeekToLine = viewModel::seekToLine,
             modifier = Modifier.weight(1f),
         )
+        LyricSizeRow(current = lyricSize, onPick = viewModel::setLyricTextSize)
         OffsetRow(offsetMs = state.lyricOffsetMs, onNudge = viewModel::nudgeLyricOffset)
+    }
+}
+
+/** 歌词字号三档：字号会改变一行是否折行，所以放歌词页而不是全局设置里 */
+@Composable
+private fun LyricSizeRow(current: io.github.sakurajay.lyra.domain.lyric.LyricTextSize, onPick: (io.github.sakurajay.lyra.domain.lyric.LyricTextSize) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.player_lyric_size),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        io.github.sakurajay.lyra.domain.lyric.LyricTextSize.entries.forEach { size ->
+            FilterChip(
+                selected = size == current,
+                onClick = { onPick(size) },
+                label = { Text(size.label) },
+                shape = RoundedCornerShape(999.dp),
+            )
+        }
     }
 }
 

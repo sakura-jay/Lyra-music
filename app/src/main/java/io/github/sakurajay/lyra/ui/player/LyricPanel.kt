@@ -35,9 +35,11 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.domain.lyric.LyricDoc
 import io.github.sakurajay.lyra.domain.lyric.LyricLine
+import io.github.sakurajay.lyra.domain.lyric.LyricTextSize
 import io.github.sakurajay.lyra.domain.lyric.LyricTimeline
 
 
@@ -57,6 +59,7 @@ fun LyricPanel(
     isPlaying: Boolean,
     offsetMs: Long,
     loading: Boolean,
+    textSize: LyricTextSize,
     onSeekToLine: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -106,6 +109,7 @@ fun LyricPanel(
                         active = index == activeIndex,
                         sweep = if (index == activeIndex) sweepState else null,
                         onClick = { onSeekToLine(index) },
+                        textSize = textSize,
                     )
                 }
             }
@@ -123,11 +127,21 @@ private fun PanelHint(text: String) {
 }
 
 @Composable
-private fun LyricLineRow(line: LyricLine, active: Boolean, sweep: State<Float>?, onClick: () -> Unit) {
+private fun LyricLineRow(
+    line: LyricLine,
+    active: Boolean,
+    sweep: State<Float>?,
+    textSize: LyricTextSize,
+    onClick: () -> Unit,
+) {
     val spacing by animateDpAsState(if (active) 10.dp else 4.dp, label = "lyricLineSpacing")
     val scheme = MaterialTheme.colorScheme
     val dim = scheme.onSurfaceVariant.copy(alpha = if (active) 0.45f else 0.55f)
-    val activeStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+    val activeStyle = MaterialTheme.typography.titleLarge.copy(
+        fontSize = textSize.activeSp.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+    val inactiveStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = textSize.inactiveSp.sp)
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     Column(
@@ -153,7 +167,7 @@ private fun LyricLineRow(line: LyricLine, active: Boolean, sweep: State<Float>?,
         } else {
             Text(
                 text = line.text,
-                style = MaterialTheme.typography.bodyLarge,
+                style = inactiveStyle,
                 color = dim,
                 textAlign = TextAlign.Center,
             )
