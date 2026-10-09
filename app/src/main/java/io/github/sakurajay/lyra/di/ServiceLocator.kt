@@ -58,7 +58,7 @@ object ServiceLocator {
 
     /** 取址失败会自动去别的平台找同一首歌，所以界面与服务两侧都要走这一个入口 */
     fun switchingPlayUseCase(context: Context): SwitchingPlayUseCase =
-        SwitchingPlayUseCase(playUseCase(context), sourceSearchUseCase(context))
+        SwitchingPlayUseCase(playUseCase(context), sourceSearchUseCase(context), builtinSearchProviders())
 
     /** 内置搜索适配器：每加一家就多一路聚合结果，也多为换源多一个落点 */
     @Volatile

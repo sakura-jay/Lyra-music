@@ -1,10 +1,9 @@
 package io.github.sakurajay.lyra.core.source
 
+import io.github.sakurajay.lyra.data.provider.builtin.BuiltinSearchProvider
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
 import kotlin.math.abs
-
-private const val SEARCH_LIMIT = 10
 
 /** 时长都已知且差这么多秒以上，就不认为是同一首 */
 private const val DURATION_TOLERANCE_SEC = 10
@@ -21,6 +20,7 @@ private const val DURATION_TOLERANCE_SEC = 10
 class SwitchingPlayUseCase(
     private val play: SourcePlayUseCase,
     private val search: SourceSearchUseCase,
+    private val builtin: List<BuiltinSearchProvider> = emptyList(),
 ) {
 
     suspend fun playUrlFor(song: Song, requested: Quality): PlayUrl = try {
@@ -36,10 +36,9 @@ class SwitchingPlayUseCase(
         }.trim()
         if (keyword.isBlank()) return null
 
-        for (provider in search.providers().filter { it.platform != song.source }) {
-            val candidates = runCatching { search.search(provider, keyword, page = 1, limit = SEARCH_LIMIT) }
-                .getOrDefault(emptyList())
-            val match = candidates.firstOrNull { isSameSong(it, song) } ?: continue
+        for (candidate in candidatesExcluding(song.source)) {
+            val matches = runCatching { candidate.search(keyword) }.getOrDefault(emptyList())
+            val match = matches.firstOrNull { isSameSong(it, song) } ?: continue
             val resolved = runCatching { play.playUrlFor(match, requested) }.getOrNull() ?: continue
             return resolved.copy(
                 switchedFrom = song.source,
@@ -47,6 +46,25 @@ class SwitchingPlayUseCase(
             )
         }
         return null
+    }
+
+    /**
+     * 换源落点：内置适配器与音源搜索都算，但排除原平台。
+     *
+     * 内置那一半是后加的——绝大多数音源只声明 musicUrl，光靠音源搜索，
+     * 单音源用户永远换不了源。
+     */
+    private data class Candidate(val platform: String, val search: suspend (String) -> List<Song>)
+
+    private fun candidatesExcluding(platform: String): List<Candidate> {
+        val fromBuiltin = builtin.filter { it.source != platform }.map { provider ->
+            Candidate(provider.source) { keyword -> provider.search(keyword).songs }
+        }
+        val fromSources = search.providers().filter { it.platform != platform }.map { provider ->
+            Candidate(provider.platform) { keyword -> search.search(provider, keyword) }
+        }
+        // 内置排在前面：它不依赖音源实现 search，命中率更高
+        return fromBuiltin + fromSources
     }
 }
 

@@ -93,8 +93,13 @@ class AggregateSearchTest {
         },
     )
 
-    private fun builtin(label: String, songs: List<Song>, fail: Boolean = false) = object : BuiltinSearchProvider {
-        override val source: String = "kw"
+    private fun builtin(
+        label: String,
+        songs: List<Song>,
+        platform: String = "kw",
+        fail: Boolean = false,
+    ) = object : BuiltinSearchProvider {
+        override val source: String = platform
         override val label: String = label
         override suspend fun search(keyword: String, page: Int, limit: Int): SearchResult {
             if (fail) throw IllegalStateException("接口挂了")
@@ -157,6 +162,33 @@ class AggregateSearchTest {
         val failure = runCatching { SwitchingPlayUseCase(play, search).playUrlFor(kwSong, Quality.LOSSLESS) }.exceptionOrNull()
         assertTrue("应把原始取址失败抛回来，而不是编一个原因", failure is PlayUrlException)
         assertEquals("全部拿不到", failure?.message?.substringAfterLast(": "))
+    }
+
+    /**
+     * 只有一条音源、它又没实现 search 时，换源要能靠内置适配器找到另一家的同一首歌。
+     *
+     * 这是真实用户的形态：星海源只声明 musicUrl/lyric/pic。没有这条路径，换源对
+     * 单音源用户等于不存在。
+     */
+    @Test
+    fun switchesThroughBuiltinProviderWhenNoSourceImplementsSearch() = runBlocking {
+        importSource("只会取址的源", mapOf("kw" to listOf("musicUrl"), "kg" to listOf("musicUrl")))
+        val play = SourcePlayUseCase(repo, invoker { _, source, _ ->
+            if (source == "kw") throw IllegalStateException("kw 拿不到地址")
+            JSONObject().put("url", "https://cdn.example.com/kg.mp3").put("type", "flac")
+        })
+        // 音源一条 search 都没声明，候选只能来自内置
+        val sourceSearch = SourceSearchUseCase(repo, invoker { _, _, _ -> throw IllegalStateException("不支持 search") })
+
+        val resolved = SwitchingPlayUseCase(
+            play,
+            sourceSearch,
+            listOf(builtin("内置酷狗", listOf(kwSong.copy(source = "kg", id = "9")), platform = "kg")),
+        ).playUrlFor(kwSong, Quality.LOSSLESS)
+
+        assertEquals("kw", resolved.switchedFrom)
+        assertEquals("https://cdn.example.com/kg.mp3", resolved.url)
+        assertTrue("换源后要说清落到哪个平台：${resolved.viaSourceName}", "kg" in resolved.viaSourceName)
     }
 
     @Test
