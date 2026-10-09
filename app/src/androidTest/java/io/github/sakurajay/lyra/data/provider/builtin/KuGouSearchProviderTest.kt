@@ -29,9 +29,13 @@ class KuGouSearchProviderTest {
 
         val withHash = song.qualities.filter { !it.hash.isNullOrBlank() }
         assertTrue("档位必须各自带 hash，实际=${song.qualities}", withHash.isNotEmpty())
+        // 真机反馈：酷狗搜到的歌没有封面。AlbumImage 这一版接口常回空串，
+        // 图在 Image/union_cover 里且带 {size} 占位
+        assertTrue("酷狗的歌必须带封面，实际=${song.artworkUrl}", song.artworkUrl.startsWith("https://"))
+        assertTrue("封面地址不能留着 {size} 占位：${song.artworkUrl}", "{size}" !in song.artworkUrl)
         println(
             "酷狗 ${result.total} 条，第一首=${song.name} / ${song.artists} / " +
-                "档位=${song.qualities.map { "${it.quality.id}:${it.hash?.take(6)}" }}"
+                "档位=${song.qualities.map { "${it.quality.id}:${it.hash?.take(6)}" }} / 封面=${song.artworkUrl.take(46)}"
         )
 
         // musicInfo 的 _types 里也要带上 hash，音源读的就是这个

@@ -2,14 +2,13 @@ package io.github.sakurajay.lyra.ui.library
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -32,7 +31,6 @@ import io.github.sakurajay.lyra.ui.common.TrackRow
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
-    onOpenSources: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory),
@@ -74,16 +72,13 @@ fun LibraryScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    // 音源管理的入口在设置页里，这里不再放按钮：空态只说"怎么开始"，
+                    // 不放一个会把人从音乐库带去别处的按钮
                     Text(
                         text = stringResource(R.string.library_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Row {
-                        Button(onClick = onOpenSources) {
-                            Text(stringResource(R.string.library_open_sources))
-                        }
-                    }
                 }
             } else {
                 Row(

@@ -40,12 +40,15 @@ object LyraMotion {
      *
      * 原来用的是"位移 1/6 屏 + 淡出"，退回时那一点点位移看着像页面被抽走。
      * 整页下落朝的是迷你播放条的方向，观感上更像把播放条拉开又缩回去。
+     *
+     * 入场**不能带淡入**：底下的 Tab 页在入场期间是不动的（见 LyraApp 的 ExitTransition.None），
+     * 播放页半透明就等于能透过它看见原页面（真机反馈"已经展开了还能看到原页面"）。
+     * 出场保留淡出——那是在往下走，露出底下的页面本来就是对的。
      */
-    fun expandFromBar(): EnterTransition =
-        slideInVertically(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-            initialOffsetY = { it },
-        ) + fadeIn(tween(200))
+    fun expandFromBar(): EnterTransition = slideInVertically(
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        initialOffsetY = { it },
+    )
 
     fun collapseToBar(): ExitTransition =
         slideOutVertically(

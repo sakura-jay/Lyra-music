@@ -15,6 +15,9 @@ import androidx.compose.ui.platform.LocalContext
 /**
  * 预设主题：按 CONTEXT.md 的定义，主题仅指配色方案，不含背景图/字体/圆角。
  * 动态取色可用时优先动态取色，预设用于关闭动态取色的场景与设备不支持时的兜底。
+ *
+ * 每套都必须同时写 `background`：外层 Scaffold 画的是 background，顶栏画的是 surface，
+ * 只改 surface 的话状态栏那一条会留着 Material 基线的颜色——真机反馈"用预设配色时顶部没适配"。
  */
 enum class PresetTheme(val label: String, val light: ColorScheme, val dark: ColorScheme) {
     Spectrum(
@@ -26,6 +29,7 @@ enum class PresetTheme(val label: String, val light: ColorScheme, val dark: Colo
             onPrimaryContainer = Color(0xFF002020),
             secondary = Color(0xFF4A6363),
             tertiary = Color(0xFF525E7C),
+            background = Color(0xFFDAE5E5),
             surface = Color(0xFFDAE5E5),
             surfaceContainer = Color(0xFFC9D4D4),
             surfaceContainerHigh = Color(0xFFCAD2D5),
@@ -37,6 +41,7 @@ enum class PresetTheme(val label: String, val light: ColorScheme, val dark: Colo
             onPrimaryContainer = Color(0xFF6FF6F7),
             secondary = Color(0xFFB0CBCA),
             tertiary = Color(0xFFBAC6E7),
+            background = Color(0xFF0E1414),
             surface = Color(0xFF0E1414),
             surfaceContainer = Color(0xFF1A2020),
             surfaceContainerHigh = Color(0xFF243030),
@@ -51,6 +56,7 @@ enum class PresetTheme(val label: String, val light: ColorScheme, val dark: Colo
             onPrimaryContainer = Color(0xFF2D1400),
             secondary = Color(0xFF725A46),
             tertiary = Color(0xFF5C6430),
+            background = Color(0xFFFFEDE0),
             surface = Color(0xFFFFEDE0),
             surfaceContainer = Color(0xFFF7DFCF),
             surfaceContainerHigh = Color(0xFFF1DADA),
@@ -62,6 +68,7 @@ enum class PresetTheme(val label: String, val light: ColorScheme, val dark: Colo
             onPrimaryContainer = Color(0xFFFFDCC2),
             secondary = Color(0xFFD0C4B8),
             tertiary = Color(0xFFC3CC8A),
+            background = Color(0xFF1A130E),
             surface = Color(0xFF1A130E),
             surfaceContainer = Color(0xFF261F18),
             surfaceContainerHigh = Color(0xFF30271F),

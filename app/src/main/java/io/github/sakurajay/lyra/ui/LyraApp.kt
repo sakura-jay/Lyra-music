@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -130,7 +133,12 @@ fun LyraApp() {
             // 播放页占满整屏不需要条；其余页面（含详情页）都要能一眼跳回正在播的那首。
             // 之前只在顶层 Tab 显示，结果在专辑/歌单页点了歌就没有任何入口回到播放页。
             if (currentRoute != ROUTE_PLAYER) {
-                Column {
+                // 顶层 Tab 下 NavigationBar 自己会吃系统安全区；详情页只剩播放条，
+                // 不垫上就会被手势条与大力角切掉一半（真机反馈）
+                Column(
+                    modifier = if (onTopLevelDestination) Modifier
+                    else Modifier.windowInsetsPadding(WindowInsets.navigationBars),
+                ) {
                     MiniPlayerBar(
                         viewModel = playerViewModel,
                         onOpen = { navController.navigate(ROUTE_PLAYER) },
@@ -199,7 +207,6 @@ fun LyraApp() {
                             )
 
                             TopDestination.Library -> LibraryScreen(
-                                onOpenSources = { navController.navigate(ROUTE_SOURCES) },
                                 onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                             )

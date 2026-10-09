@@ -53,6 +53,7 @@ class KuGouSearchProvider(
 
     companion object {
         private const val ENDPOINT = "https://songsearch.kugou.com/song_search_v2"
+        private const val COVER_SIZE = "480"
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
@@ -119,9 +120,22 @@ class KuGouSearchProvider(
                 albumId = optString("AlbumID"),
                 durationSec = optInt("Duration"),
                 hash = optString("FileHash"),
-                artworkUrl = KuwoSearchProvider.firstHttpUrl(optString("AlbumImage")),
+                artworkUrl = coverUrl(this),
                 qualities = readQualities(this),
             )
+        }
+
+        /**
+         * 酷狗搜索结果的封面在 `Image`/`union_cover` 里，而且带一个 `{size}` 占位；
+         * `AlbumImage` 这一版接口经常回空串（真机现象：点了酷狗的歌没有封面）。
+         */
+        internal fun coverUrl(item: JSONObject): String {
+            val template = listOf("Image", "union_cover", "AlbumImage")
+                .map { item.optString(it) }
+                .firstOrNull { it.isNotBlank() }
+                ?: return ""
+            val sized = template.replace("{size}", COVER_SIZE)
+            return if (sized.startsWith("http://")) "https" + sized.removePrefix("http") else sized
         }
 
         private fun readSingers(singers: JSONArray?): List<String> {

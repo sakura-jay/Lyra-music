@@ -10,13 +10,17 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -74,15 +78,25 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
     val pagerState = rememberPagerState(initialPage = 0) { 2 }
 
     // 背景要铺到状态栏与底部手势条后面，所以这一页自己处理 insets；
-    // 外层 NavHost 已经不再给播放页加内边距
-    Box(Modifier.fillMaxSize()) {
+    // 外层 NavHost 已经不再给播放页加内边距。
+    //
+    // insets 只吃上下：safeDrawing 在大力角机器上会把圆角算进左右，
+    // 结果整页内容比屏幕窄一截（真机反馈"宽度没顶满"）。左右本来就有 20dp 呼吸，
+    // 不需要系统再替我们留。
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
         BlurBackdrop(state.artwork, Modifier.matchParentSize())
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical))
                 .padding(horizontal = 20.dp),
         ) {
+            val song = state.song
+            val favorite = song != null && FavoritesRepository.keyOf(song) in state.favoriteKeys
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -94,8 +108,15 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                 )
-                // 占位保持标题居中：播放顺序已挪到详情页下部
-                Spacer(Modifier.size(48.dp))
+                // 收藏放这里而不是详情页正文里：那一列本来就不够高，
+                // 多占一行会把最下面的播放顺序挤出屏幕
+                IconButton(onClick = viewModel::toggleFavorite, enabled = song != null) {
+                    HeartGlyph(
+                        modifier = Modifier.size(22.dp),
+                        tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        filled = favorite,
+                    )
+                }
             }
 
             HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
@@ -119,7 +140,7 @@ private fun DetailPage(
     viewModel: PlayerViewModel,
 ) {
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -161,32 +182,6 @@ private fun DetailPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        val song = state.song
-        val favorite = song != null && FavoritesRepository.keyOf(song) in state.favoriteKeys
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .clickable(enabled = song != null, onClick = viewModel::toggleFavorite),
-                contentAlignment = Alignment.Center,
-            ) {
-                HeartGlyph(
-                    modifier = Modifier.size(20.dp),
-                    tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    filled = favorite,
-                )
-            }
-            Text(
-                text = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
