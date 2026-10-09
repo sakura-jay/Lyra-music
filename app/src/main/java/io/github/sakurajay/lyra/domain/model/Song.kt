@@ -13,9 +13,16 @@ enum class Quality(val id: String, val label: String) {
     }
 }
 
+/**
+ * 一个档位的可用性。
+ *
+ * [hash] 是给酷狗这种"每个档位各有自己的 hash"的平台用的：它的高品质与无损是两个
+ * 不同的文件、不同的 hash，只有一个顶层 hash 时音源会拿 128k 的文件去交 320k 的差。
+ */
 data class QualityAvailability(
     val quality: Quality,
     val sizeLabel: String? = null,
+    val hash: String? = null,
 )
 
 /**

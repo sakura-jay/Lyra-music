@@ -24,7 +24,7 @@ object SongCodec {
             song.albumName, song.albumId,
             song.durationSec.toString(),
             song.hash, song.mediaMid, song.artworkUrl,
-            song.qualities.joinToString(",") { "${it.quality.id}:${it.sizeLabel ?: ""}" },
+            song.qualities.joinToString(",") { "${it.quality.id}:${it.sizeLabel ?: ""}:${it.hash ?: ""}" },
         ).forEach { append(SEPARATOR).append(escape(it)) }
     }
 
@@ -44,10 +44,15 @@ object SongCodec {
             mediaMid = parts[8],
             artworkUrl = parts[9],
             qualities = parts.getOrNull(10)?.split(',')?.filter { it.isNotBlank() }?.mapNotNull { entry ->
-                val (qualityId, size) = entry.split(':', limit = 2).let {
-                    it.firstOrNull().orEmpty() to it.getOrNull(1).orEmpty()
+                // 第 3 段是档位自己的 hash，旧串只有两段，读不到就留空
+                val segments = entry.split(':', limit = 3)
+                Quality.fromId(segments.firstOrNull().orEmpty())?.let { quality ->
+                    QualityAvailability(
+                        quality,
+                        segments.getOrNull(1)?.ifBlank { null },
+                        segments.getOrNull(2)?.ifBlank { null },
+                    )
                 }
-                Quality.fromId(qualityId)?.let { QualityAvailability(it, size.ifBlank { null }) }
             }.orEmpty(),
         )
     }

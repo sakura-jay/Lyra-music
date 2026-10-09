@@ -27,7 +27,16 @@ fun Song.toMusicInfo(requested: Quality): JSONObject {
     if (mediaMid.isNotBlank()) info.put("strMediaMid", mediaMid)
 
     val types = JSONObject()
-    qualities.forEach { types.put(it.quality.id, JSONObject().put("size", it.sizeLabel ?: "")) }
+    qualities.forEach { availability ->
+        types.put(
+            availability.quality.id,
+            JSONObject().apply {
+                // 空值不写键：音源用 ?? 链取值，写一个空串会让它停在空上
+                availability.sizeLabel?.takeIf { it.isNotBlank() }?.let { put("size", it) }
+                availability.hash?.takeIf { it.isNotBlank() }?.let { put("hash", it) }
+            },
+        )
+    }
     info.put("types", JSONArray(qualities.map { it.quality.id }))
     info.put("_types", types)
     return info

@@ -60,8 +60,20 @@ object ServiceLocator {
     fun switchingPlayUseCase(context: Context): SwitchingPlayUseCase =
         SwitchingPlayUseCase(playUseCase(context), sourceSearchUseCase(context))
 
+    /** 内置搜索适配器：每加一家就多一路聚合结果，也多为换源多一个落点 */
+    @Volatile
+    private var builtinSearchProviders: List<io.github.sakurajay.lyra.data.provider.builtin.BuiltinSearchProvider>? = null
+
+    fun builtinSearchProviders(): List<io.github.sakurajay.lyra.data.provider.builtin.BuiltinSearchProvider> =
+        builtinSearchProviders ?: synchronized(this) {
+            builtinSearchProviders ?: listOf(
+                io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider(),
+                io.github.sakurajay.lyra.data.provider.builtin.KuGouSearchProvider(),
+            ).also { builtinSearchProviders = it }
+        }
+
     fun aggregateSearch(context: Context): AggregateSearch =
-        AggregateSearch(listOf(KuwoSearchProvider()), sourceSearchUseCase(context))
+        AggregateSearch(builtinSearchProviders(), sourceSearchUseCase(context))
 
     @Volatile
     private var settings: io.github.sakurajay.lyra.data.settings.AppSettings? = null

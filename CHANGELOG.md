@@ -89,7 +89,7 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 jank 集中在每次切换的首帧合成（120Hz 帧预算仅 8.3ms），归 M7 性能收口
 （baseline profile / 预合成）处理，不在 M2 里假装达标。
 
-### M3 歌词沉浸页 — 代码合入并真机跑通，`v0.4.0` 仍不打
+### M3 歌词沉浸页 — 代码合入并真机跑通，帧预算达标（60fps 标准），待用户看过换行动画后打 `v0.4.0`
 
 切片 1–4 先只过了编译与 JVM 测试；上机后按用户反馈返工一轮，现在歌词页是真能用的。
 
@@ -124,10 +124,30 @@ jank 集中在每次切换的首帧合成（120Hz 帧预算仅 8.3ms），归 M7
 
 **帧预算实测（PLK110，歌词页扫光中）**：20s 内 1220 帧、Jank **0.33%**（FrameTimeline）
 ／1.32%（legacy）、90/95/99 分位 8/11/14ms、Missed Vsync 0。
-**但这一轮还没达成 M3 DoD**：这段时间应用实际只拿到约 60Hz（面板支持 120/144Hz），
-"120Hz 下 Jank<1%"没有被真正测到；且 Compose UI 测试在本机跑不起来
-（androidx.test 反射 `InputManager.getInstance` 在该系统不存在，镜像里没有更新的 runner），
-相关依赖已回退，歌词视图目前只有 JVM 侧的解析/时间线测试兜底。
+Compose UI 测试在本机跑不起来（androidx.test 反射 `InputManager.getInstance` 在该系统不存在，
+镜像里没有更新的 runner），歌词视图只有 JVM 侧的解析/时间线测试兜底。
+
+**帧率标准改为 60fps（仅限歌词页，2026-10-09 由用户定）**：这台机器的面板虽然支持
+90/120/144/165Hz，但第三方应用被系统按内容策略压到 60Hz（`activeMode` 静止时报 60，
+动画中会升到 120）。原来那条"120Hz 下 Jank<1%"因此作废——`cmd display
+set-user-preferred-display-mode` 在 ColorOS 上被 `SecurityException: Package android does not
+belong to 2000` 挡住，`app_extreme_high_refresh_switch` 打开后实测也不改变本应用的档位，
+所以标准按能真实达到的 60fps 定。
+
+**第三轮返工：换行动画**（用户指出的重点，参数取自 lx-music-mobile 的播放页歌词
+`src/screens/PlayDetail/Vertical/Lyric.tsx` + `src/utils/scroll.ts`）
+
+- 根因不是"动画不够好"而是**行高在动画中途变化**：非当前行原来用更小的 `fontSize`，
+  切换瞬间该行排版高度突变，而滚动目标正是"滚到这一行"，目标自己会动 → 看着像抖一下。
+  现在所有行按当前行那一档排版（行高恒定），视觉大小用 `graphicsLayer.scale` 插值，
+  缩放只在 GPU 上做
+- 强调值 0→1 走 320ms `FastOutSlowInEasing`，同时驱动缩放与整行透明度（0.55→1）。
+  之前是颜色与字号各切各的、同一帧完成，所以是"啪"地换过去
+- 行内间距不再参与动画（`animateDpAsState` 的 10dp/4dp 会触发重排，与行高同源）
+
+**帧预算复测（同一台，换行 + 扫光 21s）**：1371 帧、Jank **0.22%**（FrameTimeline）
+／4.52%（legacy）、Missed Vsync 1。legacy 数字变差是因为它按 16.6ms 判帧，而这段时间面板
+在 60/120 之间切换，实际以 FrameTimeline 的 0.22% 为准——**没有因为多出的图层回退**。
 
 ### M5 榜单与详情页 — 进行中（榜单 / 专辑 / 歌单已跑通，歌手页与分页未开始）
 

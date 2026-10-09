@@ -20,6 +20,30 @@ class SongCodecTest {
     )
 
     /**
+     * 酷狗每个档位有自己的 hash，编码必须带得回来。
+     *
+     * 丢了它，音源拿 128k 的 FileHash 去交 320k 的差——听感上是"能播"，
+     * 但用户选的档位是假的。
+     */
+    @Test
+    fun keepsPerTierHashes() {
+        val kg = sample.copy(
+            source = "kg",
+            qualities = listOf(
+                QualityAvailability(Quality.LOSSLESS, "31.6Mb", "0A69169202DE95AAF24A9944CCF0730D"),
+                QualityAvailability(Quality.HIGH, "10.79Mb", "1B56126A8A03924F1DD066259C095CBC"),
+                QualityAvailability(Quality.STANDARD, "4.3Mb", "7C0E1A2B3C4D5E6F708192A3B4C5D6E7"),
+            ),
+        )
+        val decoded = SongCodec.decode(SongCodec.encode(kg))!!
+        assertEquals(kg, decoded)
+        assertEquals(
+            listOf("0A69169202DE95AAF24A9944CCF0730D", "1B56126A8A03924F1DD066259C095CBC", "7C0E1A2B3C4D5E6F708192A3B4C5D6E7"),
+            decoded.qualities.map { it.hash },
+        )
+    }
+
+    /**
      * 往返后与"归一化版本"相等：codec 有意把空 sizeLabel 收成 null，
      * 所以它不是逐字节无损，而是语义无损。这一点必须由测试说清楚。
      */

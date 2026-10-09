@@ -1,8 +1,9 @@
 package io.github.sakurajay.lyra.ui.player
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextLayoutResult
@@ -36,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.domain.lyric.LyricDoc
 import io.github.sakurajay.lyra.domain.lyric.LyricLine
@@ -134,27 +137,44 @@ private fun LyricLineRow(
     textSize: LyricTextSize,
     onClick: () -> Unit,
 ) {
-    val spacing by animateDpAsState(if (active) 10.dp else 4.dp, label = "lyricLineSpacing")
     val scheme = MaterialTheme.colorScheme
-    val dim = scheme.onSurfaceVariant.copy(alpha = if (active) 0.45f else 0.55f)
-    val activeStyle = MaterialTheme.typography.titleLarge.copy(
-        fontSize = textSize.activeSp.sp,
-        fontWeight = FontWeight.SemiBold,
-    )
-    val inactiveStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = textSize.inactiveSp.sp)
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+    /**
+     * 换行的全部视觉差异都走这一个 0→1 的强调值：缩放与透明度一起插值。
+     *
+     * 关键是**排版尺寸固定用当前行那一档**，非当前行靠 scale 缩小而不是改 fontSize。
+     * 改字号会让行高在动画中途变化，而滚动目标正是"滚到这一行"——目标自己会移动，
+     * 看起来就是切换瞬间整屏抖一下。缩放只在 GPU 上做，行高始终稳定。
+     */
+    val emphasis by animateFloatAsState(
+        targetValue = if (active) 1f else 0f,
+        animationSpec = tween(EMPHASIS_MS, easing = FastOutSlowInEasing),
+        label = "lyricEmphasis",
+    )
+    val inactiveRatio = textSize.inactiveSp / textSize.activeSp
+    val scale = inactiveRatio + (1f - inactiveRatio) * emphasis
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                alpha = lerp(INACTIVE_ALPHA, 1f, emphasis)
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(spacing),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        val activeStyle = MaterialTheme.typography.titleLarge.copy(
+            fontSize = textSize.activeSp.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
         if (active && sweep != null) {
             // 两层同一个 Text：底层是未唱到的颜色，上层按进度裁出已唱的部分
             Box(contentAlignment = Alignment.Center) {
-                Text(text = line.text, style = activeStyle, color = dim, textAlign = TextAlign.Center)
+                Text(text = line.text, style = activeStyle, color = scheme.onSurfaceVariant, textAlign = TextAlign.Center)
                 Text(
                     text = line.text,
                     style = activeStyle,
@@ -167,8 +187,8 @@ private fun LyricLineRow(
         } else {
             Text(
                 text = line.text,
-                style = inactiveStyle,
-                color = dim,
+                style = activeStyle,
+                color = scheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
         }
@@ -177,12 +197,18 @@ private fun LyricLineRow(
             Text(
                 text = line.translation,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (active) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.45f),
+                color = if (active) scheme.primary else scheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
         }
     }
 }
+
+/** 换行时强调值走完的时间，与 lx-music 的动画时长同一量级 */
+private const val EMPHASIS_MS = 320
+
+/** 非当前行的透明度：与当前行的 1f 之间插值 */
+private const val INACTIVE_ALPHA = 0.55f
 
 /**
  * 按视觉行逐行裁剪，读的是 State，所以只重绘不重组。
