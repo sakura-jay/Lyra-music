@@ -77,8 +77,17 @@ class KuGouSearchProvider(
                 val item = lists.optJSONObject(index) ?: continue
                 // Grp 是同一首的其它版本（现场版/DJ版），与官方移动端一致一起收进结果
                 flatten(item).forEach { entry ->
-                    val key = "${entry.optString("Audioid")}-${entry.optString("FileHash")}"
-                    if (seen.add(key)) entry.toSong()?.let { songs.add(it) }
+                    /**
+                     * 去重按 `source:id`，不按 Audioid+FileHash。
+                     *
+                     * 同一个 Audioid 常挂着多条不同 FileHash 的记录（许嵩这类歌手尤其多），
+                     * 按 hash 去重会把它们全留下——而全应用的歌曲身份就是 source:id：
+                     * 队列、收藏 key、lyra:// 惰性地址都按它算；重复项还会让列表的
+                     * LazyColumn key 撞车，测量阶段直接崩溃（真机搜"许嵩"必崩）。
+                     */
+                    entry.toSong()?.let { song ->
+                        if (seen.add("${song.source}:${song.id}")) songs.add(song)
+                    }
                 }
             }
             val allPage = if (limit <= 0) 1 else kotlin.math.ceil(total.toDouble() / limit).toInt().coerceAtLeast(page)

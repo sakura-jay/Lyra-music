@@ -126,7 +126,8 @@ fun HomeScreen(
             }
 
             LazyColumn {
-                itemsIndexed(state.songs, key = { _, song -> "${song.source}-${song.id}" }) { index, song ->
+                // 不传 key：榜单/平台可能返回同 id 的多条记录，key 撞车会直接崩
+                itemsIndexed(state.songs) { index, song ->
                     TrackRow(
                         rank = index + 1,
                         song = song,

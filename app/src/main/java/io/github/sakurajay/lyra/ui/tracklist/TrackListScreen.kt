@@ -147,7 +147,9 @@ fun TrackListScreen(
             }
 
             LazyColumn {
-                itemsIndexed(list?.songs.orEmpty(), key = { _, song -> "${song.source}-${song.id}" }) { index, song ->
+                // 不传 key：同一首歌在一份列表里出现两次是合法数据（歌单重复曲目），
+                // 而 LazyColumn 的 key 撞车会直接崩
+                itemsIndexed(list?.songs.orEmpty()) { index, song ->
                     TrackRow(
                         rank = index + 1,
                         song = song,

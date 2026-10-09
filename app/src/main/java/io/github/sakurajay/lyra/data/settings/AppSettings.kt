@@ -31,8 +31,8 @@ class AppSettings(context: Context) {
     private val _useDynamicColor = MutableStateFlow(prefs.getBoolean(KEY_DYNAMIC, true))
     val useDynamicColor: StateFlow<Boolean> = _useDynamicColor.asStateFlow()
 
-    /** 存枚举名而不是中文标签：标签会随文案改，名字不会 */
-    private val _presetName = MutableStateFlow(prefs.getString(KEY_PRESET, null) ?: "SPECTRUM")
+    /** 存预设名而不是中文标签：标签会随文案改，名字不会 */
+    private val _presetName = MutableStateFlow(prefs.getString(KEY_PRESET, null) ?: "TEAL")
     val presetName: StateFlow<String> = _presetName.asStateFlow()
 
     /** 默认音质：以前只活在内存里，重开应用就回到无损 */

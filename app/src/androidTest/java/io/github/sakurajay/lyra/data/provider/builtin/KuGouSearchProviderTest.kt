@@ -47,4 +47,21 @@ class KuGouSearchProviderTest {
         }
         println("musicInfo._types=${info.optJSONObject("_types")}")
     }
+
+    /**
+     * 一份结果里不能出现两条同 id 的歌。
+     *
+     * 真机闪退回归：搜"许嵩"必崩——酷狗对同一个 Audioid 挂多条不同 FileHash 的记录，
+     * 旧的按 hash 去重会把它们全留下，列表 key 撞车就在测量阶段抛
+     * `Key "酷狗-kg-328926" was already used`。
+     */
+    @Test
+    fun neverReturnsDuplicateSongIdentity() = runBlocking {
+        val result = runCatching { provider.search("许嵩", page = 1, limit = 30) }.getOrNull()
+        assumeTrue("酷狗搜索接口不可达", result != null && result.songs.isNotEmpty())
+
+        val keys = result!!.songs.map { "${it.source}-${it.id}" }
+        assertTrue("结果里有重复身份（会撞列表 key）：$keys", keys.size == keys.distinct().size)
+        println("许嵩 ${result.songs.size} 条，身份唯一 ${keys.size} 条，前 5=${keys.take(5)}")
+    }
 }

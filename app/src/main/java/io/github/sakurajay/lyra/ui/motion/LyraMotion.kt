@@ -4,13 +4,18 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.Alignment
 
 /**
  * 全局动效规格。
@@ -22,6 +27,9 @@ import androidx.compose.animation.core.tween
  * 而 slide 需要的是 FiniteAnimationSpec<IntOffset>。
  */
 object LyraMotion {
+
+    /** 变换原点钉在底边中点：长出来与缩回去都围着迷你播放条那条线，而不是从屏幕外推入 */
+    private val BOTTOM_ORIGIN = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
 
     fun slideInto(forward: Boolean = true): EnterTransition =
         slideInHorizontally(
@@ -36,23 +44,29 @@ object LyraMotion {
         ) + fadeOut(tween(140))
 
     /**
-     * 播放页：整页从底部升起、整页落回底部。
+     * 播放页：从迷你播放条那里长出来，退回时缩回那条里。
      *
-     * 原来用的是"位移 1/6 屏 + 淡出"，退回时那一点点位移看着像页面被抽走。
-     * 整页下落朝的是迷你播放条的方向，观感上更像把播放条拉开又缩回去。
+     * 观感要点是**朝底部收窄**而不是整页滑走：位移只走 1/4 屏并配 0.9 的缩放，
+     * 变换中心钉在底边中点，于是页面的上边缘先收、底边几乎不动——看着就像被吸回播放条。
      *
-     * 入场**不能带淡入**：底下的 Tab 页在入场期间是不动的（见 LyraApp 的 ExitTransition.None），
-     * 播放页半透明就等于能透过它看见原页面（真机反馈"已经展开了还能看到原页面"）。
-     * 出场保留淡出——那是在往下走，露出底下的页面本来就是对的。
+     * 入场不能带淡入：底下的 Tab 页在入场期间是不动的（见 LyraApp 的 ExitTransition.None），
+     * 半透明就等于能透过它看见原页面（真机反馈）。出场保留淡出，那是在往下走。
      */
     fun expandFromBar(): EnterTransition = slideInVertically(
-        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-        initialOffsetY = { it },
+        animationSpec = tween(280, easing = LinearOutSlowInEasing),
+        initialOffsetY = { it / 4 },
+    ) + scaleIn(
+        animationSpec = tween(280, easing = LinearOutSlowInEasing),
+        initialScale = 0.9f,
+        transformOrigin = BOTTOM_ORIGIN,
     )
 
-    fun collapseToBar(): ExitTransition =
-        slideOutVertically(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-            targetOffsetY = { it },
-        ) + fadeOut(tween(170, delayMillis = 40))
+    fun collapseToBar(): ExitTransition = slideOutVertically(
+        animationSpec = tween(240, easing = FastOutLinearInEasing),
+        targetOffsetY = { it / 4 },
+    ) + scaleOut(
+        animationSpec = tween(240, easing = FastOutLinearInEasing),
+        targetScale = 0.9f,
+        transformOrigin = BOTTOM_ORIGIN,
+    ) + fadeOut(tween(160, delayMillis = 60))
 }

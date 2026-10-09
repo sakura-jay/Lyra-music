@@ -220,7 +220,9 @@ fun SearchScreen(
             LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 state.shownGroups.forEach { group ->
                     item(key = "header-${group.label}") { GroupHeader(group) }
-                    items(group.songs, key = { "${group.label}-${it.source}-${it.id}" }) { song ->
+                    // 不传 key：同一首歌在一份结果里出现两次是合法数据（歌单重复曲目、
+                    // 平台返回同 id 的不同版本），而 LazyColumn 的 key 撞车会直接崩
+                    items(group.songs) { song ->
                         SongRow(
                             song = song,
                             highlighted = "${song.source}-${song.id}" == state.playingKey,

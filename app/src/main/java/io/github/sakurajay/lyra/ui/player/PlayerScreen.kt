@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.HorizontalPager
@@ -92,13 +93,15 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical))
-                .padding(horizontal = 20.dp),
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical)),
         ) {
             val song = state.song
             val favorite = song != null && FavoritesRepository.keyOf(song) in state.favoriteKeys
+            // 顶栏只吃 8dp，正文吃 20dp：IconButton 的 48dp 触摸区里图标自带 12dp 内缩，
+            // 两层都用 20dp 的话返回箭头的视觉左边缘会比正文多缩 12dp——
+            // 真机反馈的"宽度不对、看返回按钮的位置"就是这个错位
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) { BackGlyph(tint = MaterialTheme.colorScheme.onSurface) }
@@ -119,14 +122,16 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
                 }
             }
 
-            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-                when (page) {
-                    0 -> DetailPage(state, requested, effective, viewModel)
-                    else -> LyricPage(state, lyricSize, viewModel)
+            Column(Modifier.weight(1f).padding(horizontal = 20.dp)) {
+                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+                    when (page) {
+                        0 -> DetailPage(state, requested, effective, viewModel)
+                        else -> LyricPage(state, lyricSize, viewModel)
+                    }
                 }
-            }
 
-            PageIndicator(pages = 2, current = pagerState.currentPage)
+                PageIndicator(pages = 2, current = pagerState.currentPage)
+            }
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -188,6 +193,8 @@ private fun DetailPage(
         SeekRow(positionMs = state.positionMs, durationMs = state.durationMs, onSeek = viewModel::seekTo)
 
         ControlRow(
+            mode = state.playMode,
+            onCycleMode = viewModel::cyclePlayMode,
             isPlaying = state.isPlaying,
             onPlayPause = viewModel::playPause,
             onPrevious = viewModel::previous,
@@ -195,8 +202,6 @@ private fun DetailPage(
         )
 
         QualityRow(requested = requested, effective = effective, onPick = viewModel::setQuality)
-
-        ModeRow(current = state.playMode, onPick = viewModel::setPlayMode)
     }
 }
 
@@ -240,24 +245,6 @@ private fun LyricSizeRow(current: io.github.sakurajay.lyra.domain.lyric.LyricTex
                 selected = size == current,
                 onClick = { onPick(size) },
                 label = { Text(size.label) },
-                shape = RoundedCornerShape(999.dp),
-            )
-        }
-    }
-}
-
-/** 播放顺序：四种模式并排，当前项高亮 */
-@Composable
-private fun ModeRow(current: PlayMode, onPick: (PlayMode) -> Unit) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-    ) {
-        PlayMode.entries.forEach { mode ->
-            FilterChip(
-                selected = mode == current,
-                onClick = { onPick(mode) },
-                label = { Text(modeLabel(mode)) },
                 shape = RoundedCornerShape(999.dp),
             )
         }
@@ -328,26 +315,53 @@ private fun SeekRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) 
 }
 
 @Composable
-private fun ControlRow(isPlaying: Boolean, onPlayPause: () -> Unit, onPrevious: () -> Unit, onNext: () -> Unit) {
+private fun ControlRow(
+    mode: PlayMode,
+    onCycleMode: () -> Unit,
+    isPlaying: Boolean,
+    onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onPrevious) { PreviousGlyph(tint = MaterialTheme.colorScheme.onSurface) }
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp)) {
-            Box(
-                modifier = Modifier.fillMaxSize().clickable(onClick = onPlayPause),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (isPlaying) {
-                    PauseGlyph(tint = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    PlayGlyph(tint = MaterialTheme.colorScheme.onPrimary)
+        // 播放顺序点一下换一种，不铺开四个 chip：一排 chip 既占高度，
+        // 也让人误以为"要在这四个里挑"，而实际用法就是循环切换
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp)) {
+            IconButton(onClick = onCycleMode) {
+                ModeGlyph(tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                text = modeLabel(mode),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onPrevious) { PreviousGlyph(tint = MaterialTheme.colorScheme.onSurface) }
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp)) {
+                Box(
+                    modifier = Modifier.fillMaxSize().clickable(onClick = onPlayPause),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isPlaying) {
+                        PauseGlyph(tint = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        PlayGlyph(tint = MaterialTheme.colorScheme.onPrimary)
+                    }
                 }
             }
+            IconButton(onClick = onNext) { NextGlyph(tint = MaterialTheme.colorScheme.onSurface) }
         }
-        IconButton(onClick = onNext) { NextGlyph(tint = MaterialTheme.colorScheme.onSurface) }
+        // 右侧等宽占位，否则传输键会被左边的模式按钮挤偏
+        Spacer(Modifier.width(64.dp))
     }
 }
 

@@ -4,89 +4,76 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * 预设主题：按 CONTEXT.md 的定义，主题仅指配色方案，不含背景图/字体/圆角。
- * 动态取色可用时优先动态取色，预设用于关闭动态取色的场景与设备不支持时的兜底。
+ * 预设配色：一个色相生成整套明暗方案。
  *
- * 每套都必须同时写 `background`：外层 Scaffold 画的是 background，顶栏画的是 surface，
- * 只改 surface 的话状态栏那一条会留着 Material 基线的颜色——真机反馈"用预设配色时顶部没适配"。
+ * 名字与色相取自系统设置的"配色方案"选择器（青色/蓝色/靛蓝色/紫罗兰色/粉红色/黄色/橙色/深橙色），
+ * 用户对那套的直觉已经建立，这里没必要自创"光谱/余烬"这种要重新理解的词。
+ *
+ * 主题仅指配色方案，不含背景图/字体/圆角（见 CONTEXT.md）。
  */
-enum class PresetTheme(val label: String, val light: ColorScheme, val dark: ColorScheme) {
-    Spectrum(
-        label = "光谱",
-        light = lightColorScheme(
-            primary = Color(0xFF00696B),
-            onPrimary = Color.White,
-            primaryContainer = Color(0xFF6FF6F7),
-            onPrimaryContainer = Color(0xFF002020),
-            secondary = Color(0xFF4A6363),
-            tertiary = Color(0xFF525E7C),
-            background = Color(0xFFDAE5E5),
-            surface = Color(0xFFDAE5E5),
-            surfaceContainer = Color(0xFFC9D4D4),
-            surfaceContainerHigh = Color(0xFFCAD2D5),
-        ),
-        dark = darkColorScheme(
-            primary = Color(0xFF4CD9DA),
-            onPrimary = Color(0xFF003737),
-            primaryContainer = Color(0xFF004F50),
-            onPrimaryContainer = Color(0xFF6FF6F7),
-            secondary = Color(0xFFB0CBCA),
-            tertiary = Color(0xFFBAC6E7),
-            background = Color(0xFF0E1414),
-            surface = Color(0xFF0E1414),
-            surfaceContainer = Color(0xFF1A2020),
-            surfaceContainerHigh = Color(0xFF243030),
-        ),
-    ),
-    Ember(
-        label = "余烬",
-        light = lightColorScheme(
-            primary = Color(0xFF8A4A00),
-            onPrimary = Color.White,
-            primaryContainer = Color(0xFFFFDCC2),
-            onPrimaryContainer = Color(0xFF2D1400),
-            secondary = Color(0xFF725A46),
-            tertiary = Color(0xFF5C6430),
-            background = Color(0xFFFFEDE0),
-            surface = Color(0xFFFFEDE0),
-            surfaceContainer = Color(0xFFF7DFCF),
-            surfaceContainerHigh = Color(0xFFF1DADA),
-        ),
-        dark = darkColorScheme(
-            primary = Color(0xFFFFB86C),
-            onPrimary = Color(0xFF492600),
-            primaryContainer = Color(0xFF683900),
-            onPrimaryContainer = Color(0xFFFFDCC2),
-            secondary = Color(0xFFD0C4B8),
-            tertiary = Color(0xFFC3CC8A),
-            background = Color(0xFF1A130E),
-            surface = Color(0xFF1A130E),
-            surfaceContainer = Color(0xFF261F18),
-            surfaceContainerHigh = Color(0xFF30271F),
-        ),
-    ),
+data class PresetTheme(val name: String, val label: String, val accent: Color) {
+
+    val light: ColorScheme get() = schemeFrom(accent, dark = false)
+    val dark: ColorScheme get() = schemeFrom(accent, dark = true)
+
+    /**
+     * 选择器色板的三段色：上半淡、左下中、右下浓。
+     *
+     * 不是装饰——用户要在圆里一眼看出"这个方案的主色偏什么"，
+     * 单色圆点在浅色系（黄/橙）上几乎和背景分不开。
+     */
+    val swatchTones: SwatchTones
+        get() {
+            val (hue, saturation, _) = hslOf(accent)
+            val chroma = saturation.coerceAtMost(0.85f)
+            return SwatchTones(
+                pale = hsl(hue, chroma * 0.45f, 0.82f),
+                mid = hsl(hue, chroma * 0.85f, 0.62f),
+                deep = hsl(hue, chroma, 0.33f),
+            )
+        }
+
+    companion object {
+        val All: List<PresetTheme> = listOf(
+            PresetTheme("TEAL", "青色", Color(0xFF00897B)),
+            PresetTheme("BLUE", "蓝色", Color(0xFF1E88E5)),
+            PresetTheme("INDIGO", "靛蓝色", Color(0xFF3949AB)),
+            PresetTheme("VIOLET", "紫罗兰色", Color(0xFF7E57C2)),
+            PresetTheme("PINK", "粉红色", Color(0xFFD81B60)),
+            PresetTheme("YELLOW", "黄色", Color(0xFFB28704)),
+            PresetTheme("ORANGE", "橙色", Color(0xFFEF6C00)),
+            PresetTheme("DEEP_ORANGE", "深橙色", Color(0xFFD84315)),
+        )
+
+        /** 存的是枚举名；不认识的名字（旧版本留下的）退回第一个，而不是崩 */
+        fun byName(name: String?): PresetTheme = All.firstOrNull { it.name == name } ?: All.first()
+    }
 }
+
+/** 色板的三段色调，见 [PresetTheme.swatchTones] */
+data class SwatchTones(val pale: Color, val mid: Color, val deep: Color)
 
 @Composable
 fun LyraTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     useDynamicColor: Boolean = true,
-    preset: PresetTheme = PresetTheme.Spectrum,
+    preset: PresetTheme = PresetTheme.All.first(),
     content: @Composable () -> Unit,
 ) {
     // minSdk 31（ADR-0005），动态取色无需版本判断
     val context = LocalContext.current
     val colorScheme = when {
-        useDynamicColor -> if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        useDynamicColor -> if (darkTheme) {
+            runCatching { androidx.compose.material3.dynamicDarkColorScheme(context) }.getOrDefault(preset.dark)
+        } else {
+            runCatching { androidx.compose.material3.dynamicLightColorScheme(context) }.getOrDefault(preset.light)
+        }
+
         darkTheme -> preset.dark
         else -> preset.light
     }

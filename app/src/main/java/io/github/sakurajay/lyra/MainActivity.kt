@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
                     DarkMode.DARK -> true
                 },
                 useDynamicColor = useDynamicColor,
-                preset = PresetTheme.entries.firstOrNull { it.name == presetName } ?: PresetTheme.Spectrum,
+                preset = PresetTheme.byName(presetName),
             ) {
                 LyraApp()
             }
