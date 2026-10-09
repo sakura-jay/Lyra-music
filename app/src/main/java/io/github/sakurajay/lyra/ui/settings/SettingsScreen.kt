@@ -65,6 +65,7 @@ fun SettingsScreen(
     val presetName by viewModel.presetName.collectAsStateWithLifecycle()
     val quality by viewModel.requestedQuality.collectAsStateWithLifecycle()
     val lyricSize by viewModel.lyricTextSize.collectAsStateWithLifecycle()
+    val autoSwitch by viewModel.autoSwitch.collectAsStateWithLifecycle()
     val cacheBytes by viewModel.cacheBytes.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
@@ -103,17 +104,11 @@ fun SettingsScreen(
                     enabled = true,
                     onPick = { name -> viewModel.setDarkMode(DarkMode.valueOf(name)) },
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_dynamic),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Switch(checked = dynamic, onCheckedChange = viewModel::setUseDynamicColor)
-                }
+                SwitchRow(
+                    label = stringResource(R.string.settings_dynamic),
+                    checked = dynamic,
+                    onChecked = viewModel::setUseDynamicColor,
+                )
                 PresetSwatchRow(
                     label = stringResource(R.string.settings_color_scheme),
                     // 存的名字可能来自旧版本，选择器要和实际渲染的那一套一致
@@ -138,6 +133,11 @@ fun SettingsScreen(
                     selected = lyricSize.name,
                     enabled = true,
                     onPick = { name -> viewModel.setLyricTextSize(LyricTextSize.valueOf(name)) },
+                )
+                SwitchRow(
+                    label = stringResource(R.string.settings_auto_switch),
+                    checked = autoSwitch,
+                    onChecked = viewModel::setAutoSwitch,
                 )
             }
 
@@ -188,6 +188,17 @@ private fun Section(labelRes: Int, content: @Composable () -> Unit) {
             modifier = Modifier.padding(bottom = 4.dp),
         )
         content()
+    }
+}
+
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = checked, onCheckedChange = onChecked)
     }
 }
 

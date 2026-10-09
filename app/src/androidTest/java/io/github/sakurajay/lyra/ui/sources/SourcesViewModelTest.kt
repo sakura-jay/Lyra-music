@@ -74,7 +74,9 @@ class SourcesViewModelTest {
         assertEquals("导入成功", state.message)
         assertEquals(1, repo.list().size)
         assertEquals("链接导入测试源", repo.list().first().name)
-        assertEquals(listOf("musicUrl", "lyric"), repo.list().first().capabilities["wy"])
+        val stored = repo.list().first().capabilities.getValue("wy")
+        assertEquals(listOf("musicUrl", "lyric"), stored.actions)
+        assertEquals("档位要一起落库，取址时才知道不该向它要 FLAC", listOf("320k"), stored.qualitys)
     }
 
     @Test

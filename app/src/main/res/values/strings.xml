@@ -8,6 +8,7 @@
 
     <string name="home_title">首页</string>
     <string name="home_total">共 %1$d 首</string>
+    <string name="home_end_of_list">已显示全部 %1$d / %2$d 首</string>
     <string name="home_empty">这个榜暂时没有内容。可能是接口没返回歌曲，点右上角重载或换一个榜。</string>
     <string name="action_reload">重载</string>
     <string name="song_unknown_artist">未知歌手</string>
@@ -35,6 +36,7 @@
     <string name="settings_playback">播放</string>
     <string name="settings_default_quality">默认音质</string>
     <string name="settings_lyric_size">歌词字号</string>
+    <string name="settings_auto_switch">取不到地址时自动换源</string>
     <string name="settings_storage">存储</string>
     <string name="settings_cache">播放缓存 %1$s / 上限 %2$d MB</string>
     <string name="settings_clear_cache">清除缓存</string>
@@ -58,7 +60,6 @@
     <string name="sources_url_hint">音源链接（https…）</string>
     <string name="sources_validating">正在试跑脚本，校验 inited 握手…</string>
     <string name="sources_empty">还没有可用音源。导入一个 .js 音源后即可播放。</string>
-    <string name="sources_actions_count">声明 %1$d 类能力</string>
     <string name="action_back">返回</string>
     <string name="action_delete">删除</string>
 

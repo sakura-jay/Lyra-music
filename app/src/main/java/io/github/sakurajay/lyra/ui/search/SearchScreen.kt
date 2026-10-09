@@ -47,6 +47,7 @@ import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.LaunchOutcome
+import io.github.sakurajay.lyra.player.SongPlayController
 import io.github.sakurajay.lyra.player.SongQueueLauncher
 import io.github.sakurajay.lyra.player.describe
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -83,6 +84,7 @@ class SearchViewModel(
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
+    private val playController = SongPlayController(launcher)
 
     fun onQueryChange(value: String) = _uiState.update { it.copy(query = value) }
 
@@ -106,22 +108,26 @@ class SearchViewModel(
 
     /** 点歌：队列取它所在那一组，上下曲就都在同一条供给路径上 */
     fun play(song: Song, queue: List<Song>) {
-        if (_uiState.value.loadingSongId != null) return
-        viewModelScope.launch {
-            _uiState.update { it.copy(loadingSongId = song.id, message = null) }
-            val outcome = launcher.launch(song, queue)
-            _uiState.update { state ->
-                when (outcome) {
-                    is LaunchOutcome.Playing -> state.copy(
-                        loadingSongId = null,
-                        playingKey = "${song.source}-${song.id}",
-                        message = outcome.describe(),
-                    )
+        _uiState.update { it.copy(loadingSongId = song.id, message = "正在取址…") }
+        playController.play(
+            scope = viewModelScope,
+            song = song,
+            queue = queue,
+            onStage = { stage -> _uiState.update { it.copy(message = stage) } },
+            onSettled = { outcome ->
+                _uiState.update { state ->
+                    when (outcome) {
+                        is LaunchOutcome.Playing -> state.copy(
+                            loadingSongId = null,
+                            playingKey = "${song.source}-${song.id}",
+                            message = outcome.describe(),
+                        )
 
-                    is LaunchOutcome.Failed -> state.copy(loadingSongId = null, message = outcome.describe())
+                        is LaunchOutcome.Failed -> state.copy(loadingSongId = null, message = outcome.describe())
+                    }
                 }
-            }
-        }
+            },
+        )
     }
 
     override fun onCleared() {

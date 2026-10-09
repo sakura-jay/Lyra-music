@@ -80,7 +80,25 @@ class SourceRepositoryTest {
             mapOf("wy" to SourceCapability("网易", "music", listOf("musicUrl", "lyric"), listOf("320k", "flac"))),
         )
         val reread = repo.list().first { it.id == stored.id }
-        assertEquals(mapOf("wy" to listOf("musicUrl", "lyric")), reread.capabilities)
+        // 档位要一起回读：只存 action 的话，取址时不知道对方有什么，只能逐档空等
+        assertEquals(
+            mapOf("wy" to SourceCapability("网易", "music", listOf("musicUrl", "lyric"), listOf("320k", "flac"))),
+            reread.capabilities,
+        )
+    }
+
+    /** 旧格式（值是 action 数组）仍要能读，否则升级后已导入的音源能力表会凭空消失 */
+    @Test
+    fun legacyCapabilityArrayIsStillReadable() {
+        val stored = repo.import(scriptA)
+        val index = java.io.File(repoDir, "sources.json")
+        val rows = org.json.JSONArray(index.readText())
+        rows.getJSONObject(0).put("capabilities", org.json.JSONObject().put("kw", org.json.JSONArray(listOf("musicUrl"))))
+        index.writeText(rows.toString())
+
+        val reread = repo.list().first { it.id == stored.id }
+        assertEquals(mapOf("kw" to listOf("musicUrl")), reread.capabilities.mapValues { it.value.actions })
+        assertEquals(emptyList<String>(), reread.capabilities.getValue("kw").qualitys)
     }
 
     @Test

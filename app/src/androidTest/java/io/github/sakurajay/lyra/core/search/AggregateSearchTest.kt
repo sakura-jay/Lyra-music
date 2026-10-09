@@ -152,6 +152,33 @@ class AggregateSearchTest {
         assertTrue("换源后要能看出走的是哪条路：${resolved.viaSourceName}", "tx" in resolved.viaSourceName)
     }
 
+    /**
+     * 关掉自动换源后不许再去问别家：直取失败就立刻把错误抛回来。
+     *
+     * 换源是"一家不行问三家"，代价是一首播不出来要多等好几轮，所以设置里给了开关。
+     * 这里用 search 一被调用就 fail 的假实现来证明"真的没去问"。
+     */
+    @Test
+    fun doesNotSwitchWhenAutoSwitchIsOff() = runBlocking {
+        importSource("假源丙", mapOf("kw" to listOf("musicUrl"), "tx" to listOf("search")))
+        var searched = false
+        val play = SourcePlayUseCase(repo, invoker { _, source, _ ->
+            if (source == "kw") throw IllegalStateException("kw 拿不到地址")
+            JSONObject().put("url", "https://cdn.example.com/a.mp3").put("type", "flac")
+        })
+        val search = SourceSearchUseCase(repo, invoker { _, _, _ ->
+            searched = true
+            searchBody(listOf(txSong))
+        })
+
+        val failure = runCatching {
+            SwitchingPlayUseCase(play, search, autoSwitch = { false }).playUrlFor(kwSong, Quality.LOSSLESS)
+        }.exceptionOrNull()
+
+        assertTrue("应把直取的失败原样抛回来，实际=$failure", failure is PlayUrlException)
+        assertTrue("关掉换源后不该再调用任何 search", !searched)
+    }
+
     @Test
     fun keepsOriginalErrorWhenNoEquivalentSongExistsElsewhere() = runBlocking {
         importSource("假源丁", mapOf("kw" to listOf("musicUrl"), "tx" to listOf("search")))

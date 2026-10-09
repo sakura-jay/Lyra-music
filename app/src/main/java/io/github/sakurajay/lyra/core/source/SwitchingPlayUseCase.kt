@@ -4,9 +4,15 @@ import io.github.sakurajay.lyra.data.provider.builtin.BuiltinSearchProvider
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
 import kotlin.math.abs
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** 时长都已知且差这么多秒以上，就不认为是同一首 */
 private const val DURATION_TOLERANCE_SEC = 10
+
+/** 一个换源落点的预算：搜索 + 取址加起来超过这段就不再等它 */
+private const val CANDIDATE_BUDGET_MS = 8_000L
 
 /**
  * 取址失败时换供给方。
@@ -21,28 +27,41 @@ class SwitchingPlayUseCase(
     private val play: SourcePlayUseCase,
     private val search: SourceSearchUseCase,
     private val builtin: List<BuiltinSearchProvider> = emptyList(),
+    /** 关掉之后只做直取。换源是"一家不行问三家"，代价是一首播不出来要等很久才能看到失败 */
+    private val autoSwitch: () -> Boolean = { true },
 ) {
 
-    suspend fun playUrlFor(song: Song, requested: Quality): PlayUrl = try {
-        play.playUrlFor(song, requested)
+    suspend fun playUrlFor(song: Song, requested: Quality, onStage: (String) -> Unit = {}): PlayUrl = try {
+        play.playUrlFor(song, requested, onStage)
     } catch (e: PlayUrlException) {
-        switchAndResolve(song, requested) ?: throw e
+        if (!autoSwitch()) throw e
+        switchAndResolve(song, requested, onStage) ?: throw e
     }
 
-    private suspend fun switchAndResolve(song: Song, requested: Quality): PlayUrl? {
+    private suspend fun switchAndResolve(song: Song, requested: Quality, onStage: (String) -> Unit): PlayUrl? {
         val keyword = buildString {
             append(song.name)
             song.artists.firstOrNull()?.let { append(' ').append(it) }
         }.trim()
         if (keyword.isBlank()) return null
 
-        for (candidate in candidatesExcluding(song.source)) {
-            val matches = runCatching { candidate.search(keyword) }.getOrDefault(emptyList())
-            val match = matches.firstOrNull { isSameSong(it, song) } ?: continue
-            val resolved = runCatching { play.playUrlFor(match, requested) }.getOrNull() ?: continue
+        val candidates = candidatesExcluding(song.source)
+        if (candidates.isEmpty()) return null
+
+        candidates.forEachIndexed { index, candidate ->
+            // 外层总预算到点时立刻收手，不要带着已取消的协程把剩下的候选空跑一遍
+            currentCoroutineContext().ensureActive()
+            onStage(
+                "直取不到地址，正在换源找同一首（${index + 1}/${candidates.size}：${song.source} → ${candidate.platform}）…",
+            )
+            val resolved = withTimeoutOrNull(CANDIDATE_BUDGET_MS) {
+                val match = runCatching { candidate.search(keyword) }.getOrDefault(emptyList())
+                    .firstOrNull { isSameSong(it, song) } ?: return@withTimeoutOrNull null
+                runCatching { play.playUrlFor(match, requested, onStage) }.getOrNull()
+            } ?: return@forEachIndexed
             return resolved.copy(
                 switchedFrom = song.source,
-                viaSourceName = "${resolved.viaSourceName} · ${match.source}",
+                viaSourceName = "${resolved.viaSourceName} · ${candidate.platform}",
             )
         }
         return null

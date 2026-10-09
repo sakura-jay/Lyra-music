@@ -1,8 +1,12 @@
 package io.github.sakurajay.lyra.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,17 +22,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +45,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,9 +54,12 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.ui.common.TrackRow
+import io.github.sakurajay.lyra.ui.common.UpGlyph
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     onOpenAlbum: (String) -> Unit,
@@ -55,6 +68,20 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val board = state.boards.firstOrNull { it.id == state.selectedBoardId } ?: state.boards.firstOrNull()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    // 倒数 6 行就发下一页请求：等滚到最后一行才加载，用户一定会先看见空白。
+    // 必须用 snapshotFlow 观察——layoutInfo 不是 State，只在 Effect 重启时读一次的话，
+    // 滚动过程中根本不会再检查（模拟器上就表现为滚到底也不翻页）。
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+            .distinctUntilChanged()
+            .collect { last ->
+                val total = listState.layoutInfo.totalItemsCount
+                if (total > 0 && last >= total - 6) viewModel.loadMore()
+            }
+    }
 
     Scaffold(
         // 外层 Scaffold 已经把状态栏算进 innerPadding，内层不能再叠一次
@@ -71,62 +98,52 @@ fun HomeScreen(
             )
         },
     ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            PlaylistSection(
-                playlists = state.playlists,
-                loading = state.playlistsLoading,
-                failed = state.playlistsFailed,
-                onOpen = onOpenPlaylist,
-            )
-
-            BoardSelector(
-                boards = state.boards,
-                selectedId = state.selectedBoardId,
-                onSelect = viewModel::select,
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = board?.name.orEmpty(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                if (state.total > 0) {
-                    Text(
-                        text = stringResource(R.string.home_total, state.total),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            // 整页一条 LazyColumn：以前推荐歌单和榜名都钉在顶上，能滚的只剩下面
+            // 小半屏（真机反馈"只有那一小块会动"）。歌单跟着滚走，只有换榜那排芯片吸顶——
+            // 它要是也滚走了，在第 200 首想换榜就得先一路滚回顶部。
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                item {
+                    PlaylistSection(
+                        playlists = state.playlists,
+                        loading = state.playlistsLoading,
+                        failed = state.playlistsFailed,
+                        onOpen = onOpenPlaylist,
                     )
                 }
-                if (state.loading) {
-                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+
+                stickyHeader {
+                    BoardSelector(
+                        boards = state.boards,
+                        selectedId = state.selectedBoardId,
+                        onSelect = viewModel::select,
+                    )
                 }
-            }
 
-            state.message?.let {
-                Text(
-                    text = it,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
+                item { BoardTitleRow(name = board?.name.orEmpty(), total = state.total, loading = state.loading) }
 
-            if (state.songs.isEmpty() && !state.loading) {
-                Text(
-                    text = stringResource(R.string.home_empty),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+                state.message?.let { text ->
+                    item {
+                        Text(
+                            text = text,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
 
-            LazyColumn {
-                // 不传 key：榜单/平台可能返回同 id 的多条记录，key 撞车会直接崩
+                if (state.songs.isEmpty() && !state.loading) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.home_empty),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
                 itemsIndexed(state.songs) { index, song ->
                     TrackRow(
                         rank = index + 1,
@@ -137,14 +154,71 @@ fun HomeScreen(
                         onOpenAlbum = onOpenAlbum,
                     )
                 }
+
+                item {
+                    when {
+                        state.loadingMore -> Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) }
+
+                        state.noMore && state.songs.isNotEmpty() -> Text(
+                            text = stringResource(R.string.home_end_of_list, state.songs.size, state.total),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = listState.firstVisibleItemIndex >= BACK_TO_TOP_AFTER,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            ) {
+                SmallFloatingActionButton(
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ) {
+                    UpGlyph(modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+                }
             }
         }
     }
 }
 
 @Composable
+private fun BoardTitleRow(name: String, total: Int, loading: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(text = name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        if (total > 0) {
+            Text(
+                text = stringResource(R.string.home_total, total),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (loading) {
+            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+        }
+    }
+}
+
+private const val BACK_TO_TOP_AFTER = 10
+
+@Composable
 private fun BoardSelector(boards: List<Board>, selectedId: String, onSelect: (Board) -> Unit) {
     LazyRow(
+        // 吸顶的那一行必须有底：透明会让列表从芯片缝里透出来，糊成一片
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {

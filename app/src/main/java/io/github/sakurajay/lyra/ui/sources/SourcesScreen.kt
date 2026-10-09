@@ -168,10 +168,17 @@ private fun SourceCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
+                    // 直接列出平台与档位：换源失败时这一行就是最直接的诊断信息
+                    // （野花只给得出 128k，写在脸上就不用去猜）
                     text = buildString {
                         append(source.version.ifBlank { "—" })
                         if (source.author.isNotBlank()) append(" · ${source.author}")
-                        append(" · ${stringResource(R.string.sources_actions_count, source.capabilities.values.flatten().distinct().size)}")
+                        if (source.capabilities.isNotEmpty()) {
+                            append(" · ${source.capabilities.keys.joinToString("/")}")
+                            source.capabilities.values.flatMap { it.qualitys }.distinct()
+                                .takeIf { it.isNotEmpty() }
+                                ?.let { append(" · ${it.joinToString("/")}") }
+                        }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

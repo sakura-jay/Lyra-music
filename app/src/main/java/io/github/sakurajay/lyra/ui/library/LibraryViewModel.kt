@@ -12,6 +12,7 @@ import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.LaunchOutcome
+import io.github.sakurajay.lyra.player.SongPlayController
 import io.github.sakurajay.lyra.player.SongQueueLauncher
 import io.github.sakurajay.lyra.player.describe
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,24 +43,29 @@ class LibraryViewModel(
     )
 
     private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
+    private val playController = SongPlayController(launcher)
 
     init {
         viewModelScope.launch { runCatching { favorites.refresh() } }
     }
 
     fun play(song: Song, queue: List<Song>) {
-        if (_uiState.value.loadingSongId != null) return
-        viewModelScope.launch {
-            _uiState.update { it.copy(loadingSongId = song.id, message = null) }
-            val outcome = launcher.launch(song, queue)
-            _uiState.update {
-                it.copy(
-                    loadingSongId = null,
-                    playingKey = (outcome as? LaunchOutcome.Playing)?.let { "${song.source}-${song.id}" } ?: it.playingKey,
-                    message = outcome.describe(),
-                )
-            }
-        }
+        _uiState.update { it.copy(loadingSongId = song.id, message = "正在取址…") }
+        playController.play(
+            scope = viewModelScope,
+            song = song,
+            queue = queue,
+            onStage = { stage -> _uiState.update { it.copy(message = stage) } },
+            onSettled = { outcome ->
+                _uiState.update {
+                    it.copy(
+                        loadingSongId = null,
+                        playingKey = (outcome as? LaunchOutcome.Playing)?.let { "${song.source}-${song.id}" } ?: it.playingKey,
+                        message = outcome.describe(),
+                    )
+                }
+            },
+        )
     }
 
     fun toggle(song: Song) {

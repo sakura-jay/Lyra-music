@@ -57,5 +57,9 @@ object SourceHosting {
             }
         }
 
-    private const val VALIDATE_TIMEOUT_MS = 30_000L
+    /**
+     * 握手预算。脚本可能在 inited 之前先打一次自己的服务器（野花就是这么干的），
+     * 所以不能压得太短；但 30s 静等也不是导入体验。
+     */
+    private const val VALIDATE_TIMEOUT_MS = 20_000L
 }

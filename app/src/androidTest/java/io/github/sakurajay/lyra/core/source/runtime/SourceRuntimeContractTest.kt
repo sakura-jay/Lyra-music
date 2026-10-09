@@ -100,6 +100,74 @@ class SourceRuntimeContractTest {
         }
     }
 
+    /**
+     * 只报能力、不表态的脚本要能收。
+     *
+     * 野花系脚本写的是 `send(inited, {sources})`，压根没有 status 字段。
+     * lx 的 host 在 handleInit 里把 status 判断整段注释掉了（见 user-api-preload.js），
+     * 我们以前用 `optBoolean("status", false)` 把这类脚本直接拒了——真机反馈
+     * "导入其它源提示校验失败，LX 里却能正常导入"。
+     */
+    @Test
+    fun initedWithoutStatusIsAccepted() = runBlocking {
+        val runtime = load(
+            """
+            const { EVENT_NAMES, on, send } = globalThis.lx;
+            on(EVENT_NAMES.request, async () => { throw new Error('unused'); });
+            send(EVENT_NAMES.inited, { sources: { kw: { type: 'music', actions: ['musicUrl'], qualitys: ['128k'] } } });
+            """.trimIndent(),
+        )
+        runtime.use {
+            assertEquals(setOf("kw"), it.capabilities.keys)
+            assertEquals(listOf("musicUrl"), it.capabilities.getValue("kw").actions)
+            assertEquals(listOf("128k"), it.capabilities.getValue("kw").qualitys)
+        }
+    }
+
+    /** 一个能播的平台都没有：这才是真失败，而且要说清楚为什么 */
+    @Test
+    fun initedWithoutAnyPlayableSourceIsRejected() {
+        val error = assertThrows(Exception::class.java) {
+            runBlocking {
+                load(
+                    """
+                    const { EVENT_NAMES, on, send } = globalThis.lx;
+                    on(EVENT_NAMES.request, async () => 'x');
+                    send(EVENT_NAMES.inited, { status: false, message: '服务器异常' });
+                    """.trimIndent(),
+                )
+            }
+        }
+        assertTrue(
+            "应把脚本自己说的话带回来，实际=${error.message}",
+            error.message?.contains("服务器异常") == true,
+        )
+    }
+
+    /** 未知平台与非音乐类型不进能力表；档位只认宿主支持的（与 lx 的白名单一致） */
+    @Test
+    fun unknownSourcesAndUnsupportedQualitysAreFilteredOut() = runBlocking {
+        val runtime = load(
+            """
+            const { EVENT_NAMES, on, send } = globalThis.lx;
+            on(EVENT_NAMES.request, async () => { throw new Error('unused'); });
+            send(EVENT_NAMES.inited, { sources: {
+                xm: { type: 'music', actions: ['musicUrl'], qualitys: ['128k'] },
+                kw: { type: 'radio', actions: ['musicUrl'], qualitys: ['128k'] },
+                wy: { type: 'music', actions: ['musicUrl'], qualitys: ['128k', 'ape', 'cd'] },
+            } });
+            """.trimIndent(),
+        )
+        runtime.use {
+            assertEquals("xm 不在宿主支持列表、kw 不是音乐类型", setOf("wy"), it.capabilities.keys)
+            assertEquals(
+                "ape/cd 不是宿主认识的档位，必须被过滤掉：${it.capabilities.getValue("wy").qualitys}",
+                listOf("128k"),
+                it.capabilities.getValue("wy").qualitys,
+            )
+        }
+    }
+
     @Test
     fun musicUrlFlowsThroughNativeRequestBridge() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"url":"https://cdn.example.com/song.flac"}"""))

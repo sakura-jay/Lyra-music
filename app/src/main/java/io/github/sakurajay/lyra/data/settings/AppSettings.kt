@@ -60,6 +60,20 @@ class AppSettings(context: Context) {
         prefs.edit().putString(KEY_QUALITY, quality.id).apply()
     }
 
+    /**
+     * 取不到地址时是否自动换源。
+     *
+     * 默认开——单音源用户确实需要它。但换源是"一家不行问三家"，代价是一首播不出来的歌
+     * 要等很久才知道播不出来的，所以必须能关掉。
+     */
+    private val _autoSwitch = MutableStateFlow(prefs.getBoolean(KEY_AUTO_SWITCH, true))
+    val autoSwitch: StateFlow<Boolean> = _autoSwitch.asStateFlow()
+
+    fun setAutoSwitch(enabled: Boolean) {
+        _autoSwitch.value = enabled
+        prefs.edit().putBoolean(KEY_AUTO_SWITCH, enabled).apply()
+    }
+
     private fun <T : Enum<T>> write(key: String, value: String, apply: () -> Unit) {
         apply()
         prefs.edit().putString(key, value).apply()
@@ -75,5 +89,6 @@ class AppSettings(context: Context) {
         const val KEY_DYNAMIC = "use_dynamic_color"
         const val KEY_PRESET = "preset_theme"
         const val KEY_QUALITY = "requested_quality"
+        const val KEY_AUTO_SWITCH = "auto_switch_source"
     }
 }

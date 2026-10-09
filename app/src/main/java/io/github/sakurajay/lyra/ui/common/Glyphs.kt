@@ -76,6 +76,16 @@ fun BackGlyph(modifier: Modifier = Modifier, tint: Color) {
 }
 
 @Composable
+fun UpGlyph(modifier: Modifier = Modifier, tint: Color) {
+    Canvas(modifier = modifier.size(20.dp)) {
+        val stroke = size.width * 0.1f
+        drawLine(tint, Offset(size.width * 0.28f, size.height * 0.42f), Offset(size.width * 0.5f, size.height * 0.2f), stroke, StrokeCap.Round)
+        drawLine(tint, Offset(size.width * 0.5f, size.height * 0.2f), Offset(size.width * 0.72f, size.height * 0.42f), stroke, StrokeCap.Round)
+        drawLine(tint, Offset(size.width * 0.5f, size.height * 0.2f), Offset(size.width * 0.5f, size.height * 0.8f), stroke, StrokeCap.Round)
+    }
+}
+
+@Composable
 fun ModeGlyph(modifier: Modifier = Modifier, tint: Color) {
     Canvas(modifier = modifier.size(20.dp)) {
         val stroke = size.width * 0.09f

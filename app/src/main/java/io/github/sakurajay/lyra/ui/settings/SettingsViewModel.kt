@@ -26,6 +26,7 @@ class SettingsViewModel(
     val darkMode: StateFlow<DarkMode> = settings.darkMode
     val useDynamicColor: StateFlow<Boolean> = settings.useDynamicColor
     val presetName: StateFlow<String> = settings.presetName
+    val autoSwitch: StateFlow<Boolean> = settings.autoSwitch
     val lyricTextSize: StateFlow<LyricTextSize> = settings.lyricTextSize
     val requestedQuality: StateFlow<Quality> = ServiceLocator.qualityStore(application).requested
 
@@ -44,6 +45,8 @@ class SettingsViewModel(
     fun setUseDynamicColor(enabled: Boolean) = settings.setUseDynamicColor(enabled)
 
     fun setPreset(name: String) = settings.setPresetName(name)
+
+    fun setAutoSwitch(enabled: Boolean) = settings.setAutoSwitch(enabled)
 
     fun setLyricTextSize(size: LyricTextSize) = settings.setLyricTextSize(size)
 

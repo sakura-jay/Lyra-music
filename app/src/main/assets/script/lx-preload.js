@@ -43,6 +43,12 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
     log: 'log',
   }
   const EVENT_NAMES = { request: 'request', inited: 'inited', updateAlert: 'updateAlert' }
+  // 能力白名单，与官方 host 的 handleInit 对齐
+  const ALL_SOURCES = ['kw', 'kg', 'tx', 'wy', 'mg', 'local']
+  const MUSIC_QUALITYS = ['128k', '320k', 'flac', 'flac24bit']
+  const SUPPORT_QUALITYS = { kw: MUSIC_QUALITYS, kg: MUSIC_QUALITYS, tx: MUSIC_QUALITYS, wy: MUSIC_QUALITYS, mg: MUSIC_QUALITYS, local: [] }
+  // 官方只留 musicUrl；Lyra 额外认 lyric/pic，因为歌词与封面确实有源在实现它们
+  const SUPPORT_ACTIONS = ['musicUrl', 'lyric', 'pic']
   const RSA_PADDING = { NOPAD: 'RSA/ECB/NoPadding', OAEP: 'RSA/ECB/OAEPWithSHA1AndMGF1Padding', PKCS1: 'RSA/ECB/PKCS1Padding' }
   const KEY_PREFIX = {
     publicStart: '-----BEGIN PUBLIC KEY-----',
@@ -263,12 +269,51 @@ globalThis.lx_setup = (key, id, name, description, version, author, homepage, ra
   const events = { request: null }
   let initedSent = false
 
+  /**
+   * inited 载荷归一化。
+   *
+   * 脚本写法不止一种：有的 send({status:true, sources})，有的只 send({sources})
+   * （野花系就是后者，压根不表态）。官方 host 明确不看 status，只按 sources 归一化
+   * ——我们以前拿 `status` 当门禁，结果就是"能报出能力表的脚本被判成校验失败"。
+   * 现在同样只看能力表：一个能路由的平台都没有，才算失败。
+   */
+  const handleInit = (info) => {
+    if (!info || typeof info !== 'object') {
+      callNative(NATIVE_EVENTS.init, { status: false, message: '音源 send(inited) 没有带参数' })
+      return
+    }
+    const declared = info.sources
+    const sources = {}
+    try {
+      for (const sourceName of ALL_SOURCES) {
+        const userSource = declared && declared[sourceName]
+        if (!userSource || userSource.type !== 'music') continue
+        const actions = (userSource.actions || []).filter((a) => SUPPORT_ACTIONS.includes(a))
+        if (actions.length === 0) continue
+        const qualitys = SUPPORT_QUALITYS[sourceName].filter((q) => (userSource.qualitys || []).includes(q))
+        sources[sourceName] = { name: userSource.name || sourceName, type: 'music', actions, qualitys }
+      }
+    } catch (err) {
+      callNative(NATIVE_EVENTS.init, { status: false, message: '解析能力表失败：' + (err && err.message ? err.message : String(err)) })
+      return
+    }
+    if (Object.keys(sources).length === 0) {
+      // 脚本自己说了原因就用它的，别把"服务器异常"换成一句通用文案
+      const message = typeof info.message === 'string' && info.message
+        ? info.message
+        : '音源没有声明任何可用平台（send(inited) 里 sources 为空，或不含 kw/kg/tx/wy/mg 的 musicUrl）'
+      callNative(NATIVE_EVENTS.init, { status: false, message })
+      return
+    }
+    callNative(NATIVE_EVENTS.init, { status: true, sources })
+  }
+
   const send = (eventName, data = {}) => new Promise((resolve, reject) => {
     switch (eventName) {
       case EVENT_NAMES.inited:
         if (initedSent) return reject(new Error('Script is already inited'))
         initedSent = true
-        callNative(NATIVE_EVENTS.init, data)
+        handleInit(data)
         return resolve()
       case EVENT_NAMES.updateAlert:
         callNative(NATIVE_EVENTS.showUpdateAlert, {

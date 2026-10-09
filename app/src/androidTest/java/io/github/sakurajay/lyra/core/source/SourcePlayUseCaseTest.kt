@@ -78,6 +78,52 @@ class SourcePlayUseCaseTest {
         assertEquals(listOf(Quality.STANDARD), useCase.qualityChain(Quality.STANDARD))
     }
 
+    /**
+     * 音源只报 128k 时不要向它要 FLAC。
+     *
+     * 档位链以前不看自报能力，请求无损就要先白等几轮超时——真机"点歌一直转圈"里
+     * 最耗时的就是这几轮（野花整条源只有 128k）。
+     */
+    @Test
+    fun asksOnlyForQualitysTheSourceDeclared() {
+        repo.import(
+            script("只有128k的源", """{ kw: { name: '酷我', type: 'music', actions: ['musicUrl'], qualitys: ['128k'] } }"""),
+            mapOf("kw" to cap(listOf("128k"))),
+        )
+        val asked = mutableListOf<String>()
+        val useCase = SourcePlayUseCase(repo, invokerFactory { _, info ->
+            asked += info.optString("type")
+            urlBody("https://cdn.example/128.mp3")
+        })
+
+        val result = runBlocking { useCase.playUrlFor(song, Quality.LOSSLESS) }
+
+        assertEquals("只该问它报过的那一档：$asked", listOf("128k"), asked)
+        assertEquals(Quality.STANDARD, result.effective)
+    }
+
+    /** 每一次重试都得说得出口：界面靠这个回调把"正在试哪一档"写给用户看 */
+    @Test
+    fun reportsStageOnEachRetry() {
+        repo.import(
+            script(
+                "两档源",
+                """{ kw: { name: '酷我', type: 'music', actions: ['musicUrl'], qualitys: ['320k', '128k'] } }""",
+            ),
+            mapOf("kw" to cap(listOf("320k", "128k"))),
+        )
+        val stages = mutableListOf<String>()
+        var attempts = 0
+        val useCase = SourcePlayUseCase(repo, invokerFactory { _, _ ->
+            if (++attempts == 1) throw IllegalStateException("这一档没有") else urlBody("https://cdn.example/ok.mp3")
+        })
+
+        val result = runBlocking { useCase.playUrlFor(song, Quality.HIGH) { stages += it } }
+
+        assertEquals(Quality.STANDARD, result.effective)
+        assertTrue("退到下一档要提醒用户正在重试：$stages", stages.size >= 2 && stages[1].contains("正在试"))
+    }
+
     @Test
     fun refusesWhenNoEnabledSourceCoversThePlatform() {
         repo.import(
@@ -240,5 +286,6 @@ class SourcePlayUseCaseTest {
         assertTrue("地址应是 http(s)，实际: ${result.getOrNull()}", result.getOrThrow().url.startsWith("http"))
     }
 
-    private fun cap() = io.github.sakurajay.lyra.core.source.runtime.SourceCapability("酷我", "music", listOf("musicUrl"), listOf("320k"))
+    private fun cap(qualitys: List<String> = listOf("320k")) =
+        io.github.sakurajay.lyra.core.source.runtime.SourceCapability("酷我", "music", listOf("musicUrl"), qualitys)
 }

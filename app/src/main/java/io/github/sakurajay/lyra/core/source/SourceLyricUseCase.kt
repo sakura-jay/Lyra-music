@@ -23,7 +23,7 @@ class SourceLyricUseCase(
 
     suspend fun lyricFor(song: Song): LyricDoc {
         val candidates = repository.enabledSources().filter { stored ->
-            stored.capabilities[song.source]?.contains(ACTION_LYRIC) == true
+            stored.capabilities[song.source]?.actions?.contains(ACTION_LYRIC) == true
         }
         if (candidates.isEmpty()) {
             Log.i(TAG, "没有启用中的音源声明 ${song.source} 的 lyric 能力，跳过取词")

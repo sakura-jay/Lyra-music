@@ -17,8 +17,13 @@ data class StoredSource(
     val fileName: String,
     val enabled: Boolean,
     val importedAt: Long,
-    /** 来源标识 → 该来源声明支持的 action，由音源自己在 inited 里上报后回填 */
-    val capabilities: Map<String, List<String>> = emptyMap(),
+    /**
+     * 来源标识 → 该来源声明的能力（action 与档位），由音源自己在 inited 里上报后回填。
+     *
+     * 档位必须一起存：野花只给得出 128k，星海能给出 flac24bit。不知道对方有什么还照着
+     * 请求档位从高往低试，等于对每个音源都先白等几次超时（真机反馈的"点歌一直转圈"）。
+     */
+    val capabilities: Map<String, SourceCapability> = emptyMap(),
 )
 
 /**
@@ -76,7 +81,7 @@ class SourceRepository(rootDir: File) {
         )
         writeIndex(index)
 
-        return StoredSource(id, info.name, info.version, info.author, fileName, true, System.currentTimeMillis(), capabilitiesToActions(capabilities))
+        return StoredSource(id, info.name, info.version, info.author, fileName, true, System.currentTimeMillis(), capabilities)
     }
 
     fun setEnabled(id: String, enabled: Boolean) = mutate(id) { it.put("enabled", enabled) }
@@ -143,19 +148,39 @@ private fun JSONArray.toSequence(): Sequence<Any?> = sequence {
 
 private fun capabilitiesToJson(capabilities: Map<String, SourceCapability>): JSONObject =
     JSONObject().apply {
-        // 必须显式建 JSONArray：把 Kotlin List 直接交给 put 会被序列化成空数组
-        capabilities.forEach { (source, cap) -> put(source, JSONArray(cap.actions)) }
+        capabilities.forEach { (source, cap) ->
+            put(
+                source,
+                JSONObject()
+                    .put("name", cap.name)
+                    // 必须显式建 JSONArray：把 Kotlin List 直接交给 put 会被序列化成空数组
+                    .put("actions", JSONArray(cap.actions))
+                    .put("qualitys", JSONArray(cap.qualitys)),
+            )
+        }
     }
 
-private fun capabilitiesToActions(capabilities: Map<String, SourceCapability>): Map<String, List<String>> =
-    capabilities.mapValues { (_, cap) -> cap.actions }
-
-private fun jsonToCapabilitiesMap(obj: JSONObject?): Map<String, List<String>> {
+private fun jsonToCapabilitiesMap(obj: JSONObject?): Map<String, SourceCapability> {
     obj ?: return emptyMap()
     return buildMap {
         obj.keys().forEach { key ->
-            val array = obj.optJSONArray(key)
-            put(key, if (array == null) emptyList() else List(array.length()) { i -> array.optString(i) })
+            val value = obj.opt(key)
+            when (value) {
+                // 旧格式：只有 action 数组，档位信息当时没存
+                is JSONArray -> put(key, SourceCapability(key, "music", value.toStringList(), emptyList()))
+                is JSONObject -> put(
+                    key,
+                    SourceCapability(
+                        name = value.optString("name").ifBlank { key },
+                        type = value.optString("type").ifBlank { "music" },
+                        actions = value.optJSONArray("actions").toStringList(),
+                        qualitys = value.optJSONArray("qualitys").toStringList(),
+                    ),
+                )
+            }
         }
     }
 }
+
+private fun JSONArray?.toStringList(): List<String> =
+    this?.let { arr -> List(arr.length()) { i -> arr.optString(i) } } ?: emptyList()

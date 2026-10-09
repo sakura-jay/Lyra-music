@@ -5,6 +5,9 @@ import io.github.sakurajay.lyra.core.source.repo.StoredSource
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.domain.model.toMusicInfo
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import org.json.JSONObject
 
 class PlayUrlException(message: String) : Exception(message)
@@ -49,18 +52,22 @@ class SourcePlayUseCase(
     private val runtimeLoader: RuntimeLoader,
 ) {
 
-    suspend fun playUrlFor(song: Song, requested: Quality): PlayUrl {
+    /**
+     * @param onStage 每次"再试一次"都要说一声。静默重试是真机反馈的坑：
+     *   界面只有一圈转轮，用户不知道是在等网络还是在等第四个档位，只能一直等下去。
+     */
+    suspend fun playUrlFor(song: Song, requested: Quality, onStage: (String) -> Unit = {}): PlayUrl {
         val candidates = repository.enabledSources().filter { stored ->
-            stored.capabilities[song.source]?.contains(ACTION_MUSIC_URL) == true
+            stored.capabilities[song.source]?.actions?.contains(ACTION_MUSIC_URL) == true
         }
         if (candidates.isEmpty()) {
             throw PlayUrlException("没有启用的音源声明支持「${song.source}」的播放地址获取，请先导入能播该平台的音源")
         }
 
-        val chain = qualityChain(requested)
         var lastError: String? = null
 
-        for (stored in candidates) {
+        for ((sourceIndex, stored) in candidates.withIndex()) {
+            if (sourceIndex > 0) onStage("「${candidates[sourceIndex - 1].name}」给不出地址，正在试「${stored.name}」…")
             val invoker = try {
                 runtimeLoader.load(stored)
             } catch (e: Exception) {
@@ -68,10 +75,23 @@ class SourcePlayUseCase(
                 continue
             }
 
+            val chain = qualityChain(requested, stored.capabilities[song.source]?.qualitys.orEmpty())
+            var previous: Quality? = null
             for (quality in chain) {
+                onStage(
+                    previous?.let { "「${stored.name}」没有 ${it.label} 的地址，正在试 ${quality.label}…" }
+                        ?: "正在向「${stored.name}」取址（${quality.label}）…",
+                )
+                previous = quality
                 val info = JSONObject().put("musicInfo", song.toMusicInfo(quality)).put("type", quality.id)
                 val outcome = try {
                     Result.success(invoker.invoke(song.source, ACTION_MUSIC_URL, info))
+                } catch (e: TimeoutCancellationException) {
+                    // 外层总预算到点时会把协程一起取消，那时不能把"超时"记成这个源的毛病
+                    if (!currentCoroutineContext().isActive) throw e
+                    lastError = "${stored.name}: 音源超时无响应"
+                    // 后端无响应时沿档位链再等几轮是纯浪费：它不是"这一档没有"，是"它不回话"
+                    break
                 } catch (e: Exception) {
                     Result.failure<JSONObject>(e)
                 }
@@ -114,11 +134,19 @@ class SourcePlayUseCase(
     }
 
     private fun supportsAction(stored: StoredSource, source: String, action: String): Boolean =
-        stored.capabilities[source]?.contains(action) == true
+        stored.capabilities[source]?.actions?.contains(action) == true
 
-    /** 请求档位及其下位，从高到低：FLAC 拿不到就退 320k 再退 128k。 */
-    fun qualityChain(requested: Quality): List<Quality> =
-        Quality.entries.filter { it.ordinal <= requested.ordinal }.sortedByDescending { it.ordinal }
+    /**
+     * 请求档位及其下位，从高到低：FLAC 拿不到就退 320k 再退 128k。
+     *
+     * [supported] 是该音源自报有的档位（与 lx 的 host 一样按白名单过滤）。不传或
+     * 过滤后为空时退回完整链——音源报了一堆我们不认识的档位字符串，不该因此播不了。
+     */
+    fun qualityChain(requested: Quality, supported: List<String> = emptyList()): List<Quality> {
+        val full = Quality.entries.filter { it.ordinal <= requested.ordinal }.sortedByDescending { it.ordinal }
+        if (supported.isEmpty()) return full
+        return full.filter { it.id in supported }.ifEmpty { full }
+    }
 
     private companion object {
         const val ACTION_MUSIC_URL = "musicUrl"

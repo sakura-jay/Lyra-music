@@ -27,7 +27,7 @@ class SourceSearchUseCase(
         val seen = mutableSetOf<String>()
         return repository.enabledSources().flatMap { stored ->
             stored.capabilities
-                .filter { (_, actions) -> ACTION_SEARCH in actions }
+                .filter { (_, capability) -> ACTION_SEARCH in capability.actions }
                 .keys
                 .filter { seen.add("${stored.id}:$it") }
                 .map { Provider(stored, it) }

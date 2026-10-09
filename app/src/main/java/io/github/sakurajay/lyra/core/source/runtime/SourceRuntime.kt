@@ -51,7 +51,14 @@ class SourceRuntime private constructor(
 
     companion object {
         private const val INIT_TIMEOUT_SECONDS = 30L
-        private const val INVOKE_TIMEOUT_SECONDS = 30L
+
+        /**
+         * 单次 action 调用给 10s，不是 30s。
+         *
+         * 音源正常回话是 1–3s；30s 的意义只在于"后端死了也要等满"，
+         * 而一次点歌可能要沿档位链试好几轮（真机就踩过这个：几十分钟不出结果）。
+         */
+        private const val INVOKE_TIMEOUT_SECONDS = 10L
 
         /**
          * 加载一条音源。
