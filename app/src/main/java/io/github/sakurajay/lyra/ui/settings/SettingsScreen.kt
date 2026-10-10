@@ -32,6 +32,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +68,7 @@ import java.util.Locale
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenSources: () -> Unit,
+    onOpenCache: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
@@ -170,12 +172,17 @@ fun SettingsScreen(
                     Text(
                         text = stringResource(
                             R.string.settings_cache,
-                            formatMegabytes(cacheBytes),
+                            formatBytes(cacheBytes),
                             LyraCache.MAX_BYTES / (1024 * 1024),
                         ),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    // 整行可点进详情：只有一个总字节数时，用户想腾某一首的位置只能全清，
+                    // 把另外几十首的下载一起赔掉
+                    TextButton(onClick = onOpenCache) {
+                        Text(stringResource(R.string.settings_cache_detail))
+                    }
                     OutlinedButton(onClick = viewModel::clearCache) {
                         Text(stringResource(R.string.settings_clear_cache))
                     }
@@ -335,9 +342,6 @@ private fun PresetSwatchRow(
 /** 备份文件名带上时间：一天导第二次时，SAF 默认名撞车会让人以为没导成功 */
 private fun backupFileName(): String =
     "lyra-backup-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.getDefault()).format(Date()) + ".json"
-
-private fun formatMegabytes(bytes: Long): String =
-    if (bytes >= 1024 * 1024) "%.1f MB".format(bytes / 1024.0 / 1024.0) else "%.0f KB".format(bytes / 1024.0)
 
 @Composable
 private fun versionName(): String {

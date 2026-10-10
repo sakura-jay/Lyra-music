@@ -7,6 +7,8 @@ import androidx.media3.datasource.cache.CacheDataSink
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
+import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.domain.model.SongCodec
 import java.io.File
 
 /**
@@ -48,4 +50,43 @@ object LyraCache {
                 CacheDataSink.Factory().setCache(simpleCache).setFragmentSize(FRAGMENT_BYTES),
             )
     }
+
+    /**
+     * 缓存里现存的每一条。
+     *
+     * 键就是当初交给 CacheDataSource 的那个 URI 字符串。队列里除当前曲外都是
+     * `lyra://` 占位地址，所以**键是"这首歌"而不是"某次解析出的 CDN 直链"**——
+     * 直链每次都变，用稳定键才谈得上命中，也才认得出这条缓存是谁的。
+     */
+    fun entries(context: Context): List<CacheEntry> {
+        val simpleCache = get(context)
+        return simpleCache.keys
+            .map { key -> CacheEntry(key, simpleCache.getCachedBytes(key, 0, Long.MAX_VALUE), decodeKey(key)) }
+            .sortedWith(compareByDescending<CacheEntry> { it.bytes }.thenBy { it.key })
+    }
+
+    /**
+     * 删掉一条。正在播的那条可能删不动（SimpleCache 不允许在读写锁持有期间删），
+     * 所以返回成功与否而不是假设一定成。键本来就不存在也算失败——界面要据此决定
+     * 说"已释放 X"还是什么都不说。
+     */
+    fun remove(context: Context, key: String): Boolean {
+        val simpleCache = get(context)
+        if (!simpleCache.keys.contains(key)) return false
+        return runCatching { simpleCache.removeResource(key) }.isSuccess
+    }
+
+    /** 全部清空：逐条删，不碰目录——播放器可能正开着这些文件 */
+    fun clear(context: Context) {
+        val simpleCache = get(context)
+        simpleCache.keys.toList().forEach { key -> runCatching { simpleCache.removeResource(key) } }
+    }
+
+    private fun decodeKey(key: String): Song? = runCatching { SongCodec.fromLazyUri(key) }.getOrNull()
 }
+
+/**
+ * 一条缓存。[song] 为空表示这个键反解不回任何曲目——多半是以前某个版本的键格式，
+ * 也必须照样列出来，不能因为认不出就当它不存在（那笔占用是真实的）。
+ */
+data class CacheEntry(val key: String, val bytes: Long, val song: Song?)

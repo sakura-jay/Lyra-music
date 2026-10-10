@@ -61,6 +61,7 @@ import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
 import io.github.sakurajay.lyra.ui.search.SearchScreen
+import io.github.sakurajay.lyra.ui.settings.CacheScreen
 import io.github.sakurajay.lyra.ui.settings.SettingsScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import io.github.sakurajay.lyra.ui.tracklist.AlbumRoute
@@ -100,6 +101,7 @@ private const val ROUTE_ALBUM = "album/{albumId}"
 private const val ROUTE_PLAYLIST = "playlist/{listId}"
 private const val ROUTE_MY_PLAYLIST = "my-playlist/{playlistId}"
 private const val ROUTE_LOCAL_MUSIC = "local-music"
+private const val ROUTE_CACHE = "cache"
 
 /**
  * 详情页的参数直接拼进路径：专辑 id 只有数字，歌单 id 是 `digest-8__123` 这种
@@ -109,7 +111,10 @@ private fun albumRoute(albumId: String) = "album/$albumId"
 private fun playlistRoute(listId: String) = "playlist/$listId"
 
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
-private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_MY_PLAYLIST, ROUTE_LOCAL_MUSIC)
+private val DETAIL_ROUTES = setOf(
+    ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_MY_PLAYLIST,
+    ROUTE_LOCAL_MUSIC, ROUTE_CACHE,
+)
 
 @Composable
 fun LyraApp() {
@@ -258,7 +263,19 @@ fun LyraApp() {
                     SettingsScreen(
                         onBack = { navController.popBackStack() },
                         onOpenSources = { navController.navigate(ROUTE_SOURCES) },
+                        onOpenCache = { navController.navigate(ROUTE_CACHE) },
                     )
+                }
+            }
+            composable(
+                ROUTE_CACHE,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    CacheScreen(onBack = { navController.popBackStack() })
                 }
             }
             composable(

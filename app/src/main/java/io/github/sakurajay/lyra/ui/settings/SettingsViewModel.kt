@@ -13,8 +13,8 @@ import io.github.sakurajay.lyra.data.settings.DarkMode
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.lyric.LyricTextSize
 import io.github.sakurajay.lyra.domain.model.Quality
+import io.github.sakurajay.lyra.player.CacheEntry
 import io.github.sakurajay.lyra.player.LyraCache
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +35,9 @@ class SettingsViewModel(
 
     private val _cacheBytes = MutableStateFlow(0L)
     val cacheBytes: StateFlow<Long> = _cacheBytes.asStateFlow()
+
+    private val _cacheEntries = MutableStateFlow<List<CacheEntry>>(emptyList())
+    val cacheEntries: StateFlow<List<CacheEntry>> = _cacheEntries.asStateFlow()
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
@@ -58,26 +61,49 @@ class SettingsViewModel(
         _message.value = "默认音质已设为 ${quality.label}"
     }
 
+    /**
+     * 刷新缓存概览。
+     *
+     * 总字节改从 SimpleCache 的索引读，不再 walk 目录：目录里还有 index.bin，
+     * 按文件数出来的总数比真正缓存的媒体字节要大。
+     */
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun refreshCacheSize() {
-        viewModelScope.launch(Dispatchers.IO) { _cacheBytes.value = cacheSize() }
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val listed = LyraCache.entries(context)
+            _cacheEntries.value = listed
+            _cacheBytes.value = listed.sumOf { it.bytes }
+        }
     }
 
-    /**
-     * 清空播放缓存。
-     *
-     * 走 SimpleCache 自己的 removeResource 而不是删目录：播放器可能正开着这些文件，
-     * 直接从磁盘抹掉等于让缓存索引与文件失配。
-     */
+    /** 清空播放缓存。见 [LyraCache.clear]：逐条删，不碰目录 */
     @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun clearCache() {
         val context = getApplication<Application>()
         viewModelScope.launch(Dispatchers.IO) {
-            val cache = LyraCache.get(context)
-            runCatching { cache.keys.toList().forEach { cache.removeResource(it) } }
-                .onFailure { _message.value = "清缓存失败：${it.message ?: it.javaClass.simpleName}" }
-            _cacheBytes.value = cacheSize()
+            val freed = LyraCache.entries(context).sumOf { it.bytes }
+            LyraCache.clear(context)
+            if (freed > 0) _message.value = "已释放 ${formatBytes(freed)}"
+            refreshCacheSize()
         }
     }
+
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
+    fun removeCacheEntry(entry: CacheEntry) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            if (LyraCache.remove(context, entry.key)) {
+                _message.value = "已释放 ${formatBytes(entry.bytes)}"
+            } else {
+                // 正在播的那条删不动，说清楚而不是静默失败
+                _message.value = "这条删不掉，可能正在播放"
+            }
+            refreshCacheSize()
+        }
+    }
+
+    fun clearAllCacheEntries() = clearCache()
 
     /**
      * 导出备份。
@@ -147,11 +173,6 @@ class SettingsViewModel(
     fun clearMessage() {
         _message.value = null
     }
-
-    private fun cacheSize(): Long = File(getApplication<Application>().cacheDir, "media")
-        .walkBottomUp()
-        .filter { it.isFile }
-        .sumOf { it.length() }
 
     companion object {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
