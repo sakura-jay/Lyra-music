@@ -35,6 +35,16 @@
     <string name="library_rename">改名</string>
     <string name="library_delete_playlist">删除歌单</string>
     <string name="library_manage_hint">这个歌单里有 %1$d 首。删除只删歌单和它的成员，收藏不受影响。</string>
+    <string name="library_local_music">本地音乐</string>
+    <string name="library_local_count">本地音乐 %1$d 首</string>
+    <string name="library_local_subtitle">手机上的音频文件</string>
+    <string name="library_rescan">重新扫描</string>
+    <string name="library_grant">授权</string>
+    <string name="library_local_need_permission">需要音频文件权限才能列出手机里的歌。点右上角授权。</string>
+    <string name="library_local_scanning">正在扫描手机里的音频…</string>
+    <string name="library_local_empty">没有找到可播放的音频文件。</string>
+    <string name="library_local_hint">直接播放手机里的文件，不经过任何音源。</string>
+    <string name="library_open_local">查看全部 %1$d 首</string>
     <string name="action_confirm">确定</string>
     <string name="action_cancel">取消</string>
     <string name="player_favorite">收藏</string>
@@ -59,6 +69,7 @@
 
     <string name="mini_player_idle">未在播放</string>
     <string name="mini_player_idle_hint">导入音源后即可播放</string>
+    <string name="mini_player_unknown_artist">未知歌手</string>
 
     <string name="search_hint">搜索歌曲（内置曲库 + 音源）</string>
     <string name="search_action">搜索</string>

@@ -49,7 +49,7 @@ class LyraMediaService : MediaSessionService() {
      * 而且有时效，提前批量解析既浪费又容易在播到时已过期。播放到这里才解析。
      */
     private fun lazyResolvingFactory(): ResolvingDataSource.Factory = ResolvingDataSource.Factory(
-        LyraPlayerFactory.httpDataSourceFactory(),
+        LyraPlayerFactory.mediaDataSourceFactory(this),
         object : ResolvingDataSource.Resolver {
             override fun resolveDataSpec(dataSpec: androidx.media3.datasource.DataSpec): androidx.media3.datasource.DataSpec {
                 val song = SongCodec.fromLazyUri(dataSpec.uri.toString()) ?: return dataSpec

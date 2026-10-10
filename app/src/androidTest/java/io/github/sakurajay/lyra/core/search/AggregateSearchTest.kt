@@ -233,4 +233,50 @@ class AggregateSearchTest {
             .exceptionOrNull()
         assertTrue("时长差这么多还换源就是换错歌了：$failure", failure is PlayUrlException)
     }
+
+    /**
+     * 本地文件不许进换源链。
+     *
+     * 用户点的是手机里的那个文件，换成别家曲库的"同一首"就是播错了东西；
+     * 而且音源都不声明 local，直取必然失败，失败又会触发换源。
+     */
+    @Test
+    fun localSongPlaysItsOwnFileWithoutTouchingSources() = runBlocking {
+        importSource("假源己", mapOf("kw" to listOf("musicUrl")))
+        var consulted = false
+        val play = SourcePlayUseCase(repo, invoker { _, _, _ -> consulted = true; JSONObject() })
+        val search = SourceSearchUseCase(repo, invoker { _, _, _ -> consulted = true; searchBody(emptyList()) })
+        val local = Song(
+            id = "42",
+            source = Song.LOCAL_SOURCE,
+            name = "本地晴天",
+            artists = listOf("周杰伦"),
+            qualities = listOf(io.github.sakurajay.lyra.domain.model.QualityAvailability(Quality.LOSSLESS)),
+            localUri = "content://media/external/audio/media/42",
+        )
+
+        val resolved = SwitchingPlayUseCase(play, search).playUrlFor(local, Quality.HIGH)
+
+        assertEquals(local.localUri, resolved.url)
+        assertEquals("本地文件", resolved.viaSourceName)
+        assertNull("本地文件不存在换源", resolved.switchedFrom)
+        assertEquals("档位按文件自己是什么报什么", Quality.LOSSLESS, resolved.effective)
+        assertTrue("一条音源都不该被问到", !consulted)
+    }
+
+    /** 文件被删了但 MediaStore 还没自愈：要说人话，不能报"没有音源声明 local" */
+    @Test
+    fun localSongWithoutUriFailsWithAReadableReason() = runBlocking {
+        importSource("假源庚", mapOf("kw" to listOf("musicUrl")))
+        val play = SourcePlayUseCase(repo, invoker { _, _, _ -> JSONObject() })
+        val search = SourceSearchUseCase(repo, invoker { _, _, _ -> searchBody(emptyList()) })
+        val local = Song(id = "43", source = Song.LOCAL_SOURCE, name = "没了的歌", artists = emptyList())
+
+        val failure = runCatching {
+            SwitchingPlayUseCase(play, search).playUrlFor(local, Quality.LOSSLESS)
+        }.exceptionOrNull()
+
+        assertTrue("实际=$failure", failure is PlayUrlException)
+        assertTrue("要提到文件，实际=${failure?.message}", "文件" in failure!!.message!!)
+    }
 }

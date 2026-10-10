@@ -31,11 +31,27 @@ class SwitchingPlayUseCase(
     private val autoSwitch: () -> Boolean = { true },
 ) {
 
-    suspend fun playUrlFor(song: Song, requested: Quality, onStage: (String) -> Unit = {}): PlayUrl = try {
-        play.playUrlFor(song, requested, onStage)
-    } catch (e: PlayUrlException) {
-        if (!autoSwitch()) throw e
-        switchAndResolve(song, requested, onStage) ?: throw e
+    suspend fun playUrlFor(song: Song, requested: Quality, onStage: (String) -> Unit = {}): PlayUrl {
+        // 本地文件自己就是地址，不需要取址。走音源那条链会先报"没有声明 local 的音源"，
+        // 再触发换源去别家找同一首——用户点的是手机里的这个文件，不能给他播别家的版本。
+        if (song.isLocal) return song.localPlayUrl(requested)
+        return try {
+            play.playUrlFor(song, requested, onStage)
+        } catch (e: PlayUrlException) {
+            if (!autoSwitch()) throw e
+            switchAndResolve(song, requested, onStage) ?: throw e
+        }
+    }
+
+    private fun Song.localPlayUrl(requested: Quality): PlayUrl {
+        if (localUri.isBlank()) throw PlayUrlException("本地文件地址是空的，文件可能已经被删掉")
+        return PlayUrl(
+            url = localUri,
+            requested = requested,
+            effective = qualities.firstOrNull()?.quality ?: requested,
+            viaSourceName = "本地文件",
+            artworkUrl = artworkUrl.takeIf { it.isNotBlank() },
+        )
     }
 
     private suspend fun switchAndResolve(song: Song, requested: Quality, onStage: (String) -> Unit): PlayUrl? {

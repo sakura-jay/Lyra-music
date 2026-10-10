@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -25,6 +26,16 @@ object LyraPlayerFactory {
         .setAllowCrossProtocolRedirects(true)
         .setConnectTimeoutMs(15_000)
         .setReadTimeoutMs(20_000)
+
+    /**
+     * 既能读 http 也能读 `content://` 与 `file://` 的组合工厂。
+     *
+     * 纯 HTTP 工厂播不了本地文件。`DefaultDataSource` 自己认 asset/content/file/…
+     * 这些 scheme，其余（http 与 https）才交给 base——所以把调过 UA 与超时的
+     * HTTP 工厂作为 base 传进去，两条路各走各的配置，互不影响。
+     */
+    fun mediaDataSourceFactory(context: Context): DataSource.Factory =
+        DefaultDataSourceFactory(context, httpDataSourceFactory())
 
     /**
      * 只能在拥有 Looper 的线程（通常是主线程）上调用：ExoPlayer 会记住创建它的线程，

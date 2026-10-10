@@ -75,7 +75,8 @@ class TrackListViewModel(
             try {
                 val list = loader()
                 _uiState.update { it.copy(loading = false, list = list) }
-                val bitmap = ArtworkLoader.load(list.coverUrl)?.let { ArtworkLoader.decodeDownsampled(it, maxEdgePx = 320) }
+                val bitmap = ArtworkLoader.load(getApplication(), list.coverUrl)
+                    ?.let { ArtworkLoader.decodeDownsampled(it, maxEdgePx = 320) }
                 _uiState.update { it.copy(artwork = bitmap) }
             } catch (e: CancellationException) {
                 throw e

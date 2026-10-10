@@ -99,4 +99,31 @@ class SongCodecTest {
         val bare = Song(id = "1", source = "tx", name = "n", artists = emptyList())
         assertEquals(bare, SongCodec.decode(SongCodec.encode(bare)))
     }
+
+    /** 本地文件的 content:// 地址必须和别的字段一样活得过收藏、歌单与备份 */
+    @Test
+    fun keepsLocalUri() {
+        val local = Song(
+            id = "42",
+            source = Song.LOCAL_SOURCE,
+            name = "晴天的现场",
+            artists = listOf("周杰伦"),
+            durationSec = 265,
+            localUri = "content://media/external/images/media/42",
+        )
+        assertEquals(local, SongCodec.decode(SongCodec.encode(local)))
+        assertEquals(local, SongCodec.fromLazyUri(SongCodec.toLazyUri(local)))
+    }
+
+    /**
+     * 加 localUri 之前存出去的串还在用户手机里（收藏表、歌单表、他手上的备份文件），
+     * 解不开就等于把人家的收藏删了。
+     */
+    @Test
+    fun preLocalUriPayloadStillDecodes() {
+        val legacy = SongCodec.encode(sample).substringBeforeLast('|')
+        val decoded = SongCodec.decode(legacy)!!
+        assertEquals(sample.copy(qualities = sample.qualities.map { it.copy(sizeLabel = it.sizeLabel?.ifBlank { null }) }), decoded)
+        assertEquals("", decoded.localUri)
+    }
 }

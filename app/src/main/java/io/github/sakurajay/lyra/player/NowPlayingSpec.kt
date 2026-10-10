@@ -25,6 +25,15 @@ data class NowPlayingSpec(
     val songUri: String? = null,
 )
 
+/**
+ * 能不能把这个地址原样交给系统去取图。
+ *
+ * `content://` 认：本地音乐的专辑图就是 MediaStore 的 content 地址，系统侧带着
+ * 媒体权限读得到。`file://` 不认——别的进程拿到这个路径也打不开，只会显示占位图。
+ */
+private fun resolvableArtwork(url: String): Boolean =
+    url.startsWith("http://") || url.startsWith("https://") || url.startsWith("content://")
+
 fun Song.toNowPlayingSpec(artworkUrl: String? = null, sourceLabel: String? = null): NowPlayingSpec =
     NowPlayingSpec(
         title = name.ifBlank { "未知歌曲" },
@@ -32,7 +41,7 @@ fun Song.toNowPlayingSpec(artworkUrl: String? = null, sourceLabel: String? = nul
             .ifBlank { sourceLabel?.let { "未知（$it）" } ?: "未知" },
         album = albumName,
         durationMs = durationSec.toLong() * 1000L,
-        artworkUrl = (artworkUrl ?: this.artworkUrl).takeIf { it.startsWith("http://") || it.startsWith("https://") },
+        artworkUrl = (artworkUrl ?: this.artworkUrl).takeIf(::resolvableArtwork),
         mediaId = "$source:$id",
         songUri = SongCodec.toLazyUri(this),
     )

@@ -65,6 +65,7 @@ import io.github.sakurajay.lyra.ui.settings.SettingsScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import io.github.sakurajay.lyra.ui.tracklist.AlbumRoute
 import io.github.sakurajay.lyra.ui.tracklist.MyPlaylistRoute
+import io.github.sakurajay.lyra.ui.tracklist.LocalMusicRoute
 import io.github.sakurajay.lyra.ui.tracklist.PlaylistRoute
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
@@ -98,6 +99,7 @@ private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_ALBUM = "album/{albumId}"
 private const val ROUTE_PLAYLIST = "playlist/{listId}"
 private const val ROUTE_MY_PLAYLIST = "my-playlist/{playlistId}"
+private const val ROUTE_LOCAL_MUSIC = "local-music"
 
 /**
  * 详情页的参数直接拼进路径：专辑 id 只有数字，歌单 id 是 `digest-8__123` 这种
@@ -107,7 +109,7 @@ private fun albumRoute(albumId: String) = "album/$albumId"
 private fun playlistRoute(listId: String) = "playlist/$listId"
 
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
-private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_MY_PLAYLIST)
+private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_MY_PLAYLIST, ROUTE_LOCAL_MUSIC)
 
 @Composable
 fun LyraApp() {
@@ -218,6 +220,7 @@ fun LyraApp() {
                                 onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                                 onOpenMyPlaylist = { id -> navController.navigate("my-playlist/$id") },
+                                onOpenLocalMusic = { navController.navigate(ROUTE_LOCAL_MUSIC) },
                                 onMore = picker::open,
                             )
                         }
@@ -305,6 +308,20 @@ fun LyraApp() {
                     )
                 }
             }
+            composable(
+                ROUTE_LOCAL_MUSIC,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    LocalMusicRoute(
+                        onBack = { navController.popBackStack() },
+                        onMore = picker::open,
+                    )
+                }
+            }
         }
     }
 
@@ -356,7 +373,10 @@ private fun MiniPlayerBar(viewModel: PlayerViewModel, onOpen: () -> Unit) {
                 )
                 Text(
                     text = song?.let { s ->
-                        s.artists.filter { it.isNotBlank() }.joinToString(" / ").ifBlank { null }
+                        // 没有艺术家不等于"没在播"：本地文件常常就没有标签。
+                        // 以前这一句直接落到"导入音源后即可播放"，正在播本地歌也那么写
+                        s.artists.filter { it.isNotBlank() }.joinToString(" / ")
+                            .ifBlank { stringResource(R.string.mini_player_unknown_artist) }
                     } ?: stringResource(R.string.mini_player_idle_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

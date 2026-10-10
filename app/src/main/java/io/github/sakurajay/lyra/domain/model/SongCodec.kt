@@ -25,6 +25,7 @@ object SongCodec {
             song.durationSec.toString(),
             song.hash, song.mediaMid, song.artworkUrl,
             song.qualities.joinToString(",") { "${it.quality.id}:${it.sizeLabel ?: ""}:${it.hash ?: ""}" },
+            song.localUri,
         ).forEach { append(SEPARATOR).append(escape(it)) }
     }
 
@@ -43,6 +44,8 @@ object SongCodec {
             hash = parts[7],
             mediaMid = parts[8],
             artworkUrl = parts[9],
+            // 第 12 段是本地文件地址，v1 的旧串没有这一段（平台曲目本来也不该有）
+            localUri = parts.getOrNull(11).orEmpty(),
             qualities = parts.getOrNull(10)?.split(',')?.filter { it.isNotBlank() }?.mapNotNull { entry ->
                 // 第 3 段是档位自己的 hash，旧串只有两段，读不到就留空
                 val segments = entry.split(':', limit = 3)

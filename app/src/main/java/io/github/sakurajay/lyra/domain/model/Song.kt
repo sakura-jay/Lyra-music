@@ -45,8 +45,23 @@ data class Song(
     val mediaMid: String = "",
     /** 由内置搜索直接给出的封面地址；不依赖音源的 pic action */
     val artworkUrl: String = "",
+    /**
+     * 本地文件的地址（content:// 或 file://），只有 [LOCAL_SOURCE] 用得上。
+     *
+     * 平台曲目永远为空。它跟着 Song 一起进收藏、歌单和备份，所以"收藏了一首本地歌"
+     * 不需要另设一张表。
+     */
+    val localUri: String = "",
 ) {
     /** 用于跨来源匹配同一首歌 */
     val matchKey: String
         get() = "${name.lowercase().trim()}|${artists.joinToString(",").lowercase().trim()}"
+
+    /** 本地设备上的文件，不经过任何音源 */
+    val isLocal: Boolean get() = source == LOCAL_SOURCE
+
+    companion object {
+        /** 与音源协议里 `local` 这个 source 名一致，不另起一个 */
+        const val LOCAL_SOURCE = "local"
+    }
 }

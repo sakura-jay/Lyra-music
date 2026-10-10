@@ -93,7 +93,7 @@ class SongQueueLauncher(
         val artworkUrl = playUrl.artworkUrl ?: song.artworkUrl
         // 封面拿不到不影响播放，别让它把起播时间再拖长一截
         val artwork = runCatching {
-            withTimeoutOrNull(ARTWORK_BUDGET_MS) { ArtworkLoader.load(artworkUrl) }
+            withTimeoutOrNull(ARTWORK_BUDGET_MS) { ArtworkLoader.load(context, artworkUrl) }
         }.getOrNull()
         Log.i(
             TAG,

@@ -7,8 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 
@@ -45,6 +47,50 @@ fun PlaylistRoute(listId: String, onBack: () -> Unit, onOpenAlbum: (String) -> U
         onBack = onBack,
         onPlay = viewModel::play,
         onOpenAlbum = onOpenAlbum,
+    )
+}
+
+/**
+ * 本地音乐：同一份列表页，数据来自 MediaStore。
+ *
+ * 重扫之后曲目数会变，靠仓库的列表变化驱动重读——不然"重新扫描"点了列表不动。
+ */
+@Composable
+fun LocalMusicRoute(onBack: () -> Unit, onMore: (Song) -> Unit) {
+    val context = LocalContext.current
+    val repository = ServiceLocator.localMusicRepository(context)
+    val title = stringResource(R.string.library_local_music)
+    val subtitle = stringResource(R.string.library_local_subtitle)
+    val viewModel: TrackListViewModel = viewModel(
+        key = "local-music",
+        factory = TrackListViewModel.factory {
+            val songs = repository.songs.value
+            TrackList(
+                title = title,
+                subtitle = subtitle,
+                description = "",
+                coverUrl = "",
+                songCount = songs.size,
+                playCountLabel = "",
+                songs = songs,
+            )
+        },
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val songs by repository.songs.collectAsStateWithLifecycle()
+    var seen by remember { mutableStateOf(songs.size) }
+    LaunchedEffect(songs.size) {
+        if (seen != songs.size) {
+            seen = songs.size
+            viewModel.reload()
+        }
+    }
+    TrackListScreen(
+        state = state,
+        onBack = onBack,
+        onPlay = viewModel::play,
+        onOpenAlbum = null,
+        onMore = onMore,
     )
 }
 

@@ -1,7 +1,9 @@
 package io.github.sakurajay.lyra.player
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,8 +38,10 @@ object ArtworkLoader {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>) = size > MAX_CACHE_ENTRIES
     }
 
-    suspend fun load(url: String?): ByteArray? {
+    /** `content://` 与 `file://` 也认：本地音乐的专辑图在 MediaStore 里就是这么寻址的。 */
+    suspend fun load(context: Context, url: String?): ByteArray? {
         if (url.isNullOrBlank()) return null
+        if (url.startsWith("content://") || url.startsWith("file://")) return loadLocal(context, url)
         if (!url.startsWith("http://") && !url.startsWith("https://")) return null
         synchronized(memoryCache) { memoryCache[url]?.let { return it } }
         return withContext(Dispatchers.IO) {
@@ -51,6 +55,14 @@ object ArtworkLoader {
                 }
             }.getOrNull()
         }
+    }
+
+    /** 本地封面无网络往返，也就不值得进那八个格子的内存缓存 */
+    private suspend fun loadLocal(context: Context, url: String): ByteArray? = withContext(Dispatchers.IO) {
+        runCatching {
+            context.contentResolver.openInputStream(Uri.parse(url))?.use { it.readBytes() }
+                ?.takeIf { it.size in 1..MAX_BYTES }
+        }.getOrNull()
     }
 
     /**

@@ -11,6 +11,12 @@
     <!-- Android 13+ 通知是运行时权限；没有它，锁屏与通知栏播控都不会出现 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 本地音乐库：33+ 用细分的媒体权限，32 及以下只有 READ_EXTERNAL_STORAGE 可发 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"

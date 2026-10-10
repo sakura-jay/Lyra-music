@@ -42,6 +42,11 @@ class NowPlayingSpecTest {
         assertEquals("https://cdn/x.jpg", song().toNowPlayingSpec(artworkUrl = "https://cdn/x.jpg").artworkUrl)
         assertEquals("http://cdn/x.jpg", song().toNowPlayingSpec(artworkUrl = "http://cdn/x.jpg").artworkUrl)
         assertNull("file:// 不能作为封面地址", song().toNowPlayingSpec(artworkUrl = "file:///sdcard/x.jpg").artworkUrl)
+        assertEquals(
+            "content:// 要留着：本地音乐的专辑图就是这么寻址的",
+            "content://media/external/audio/albums/7/cover",
+            song().toNowPlayingSpec(artworkUrl = "content://media/external/audio/albums/7/cover").artworkUrl,
+        )
         assertNull(song().toNowPlayingSpec(artworkUrl = "   ").artworkUrl)
         assertNull(song().toNowPlayingSpec().artworkUrl)
     }

@@ -1,5 +1,8 @@
 package io.github.sakurajay.lyra.ui.library
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.local.FavoritesRepository
+import io.github.sakurajay.lyra.data.local.LocalMusicRepository
 import io.github.sakurajay.lyra.data.local.UserPlaylist
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.TrackRow
@@ -46,15 +50,21 @@ fun LibraryScreen(
     onOpenSettings: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     onOpenMyPlaylist: (Int) -> Unit,
+    onOpenLocalMusic: () -> Unit,
     onMore: (Song) -> Unit,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val saved by viewModel.saved.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val localSongs by viewModel.localSongs.collectAsStateWithLifecycle()
     val queue = saved.map { it.song }
     var showCreate by rememberSaveable { mutableStateOf(false) }
     var managed by remember { mutableStateOf<UserPlaylist?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (granted) viewModel.scanLocal() }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -153,6 +163,48 @@ fun LibraryScreen(
                 }
                 item { Spacer(Modifier.size(8.dp)) }
             }
+
+            item {
+                SectionHeader(
+                    title = if (localSongs.isEmpty()) {
+                        stringResource(R.string.library_local_music)
+                    } else {
+                        stringResource(R.string.library_local_count, localSongs.size)
+                    },
+                    actionLabel = stringResource(
+                        if (state.localPermissionGranted) R.string.library_rescan else R.string.library_grant
+                    ),
+                    onAction = {
+                        if (state.localPermissionGranted) {
+                            viewModel.scanLocal()
+                        } else {
+                            permissionLauncher.launch(LocalMusicRepository.requiredPermission)
+                        }
+                    },
+                )
+            }
+
+            item {
+                Text(
+                    text = when {
+                        !state.localPermissionGranted -> stringResource(R.string.library_local_need_permission)
+                        state.localLoading -> stringResource(R.string.library_local_scanning)
+                        localSongs.isEmpty() -> stringResource(R.string.library_local_empty)
+                        else -> stringResource(R.string.library_local_hint, localSongs.size)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (localSongs.isNotEmpty()) {
+                item {
+                    LocalMusicRow(count = localSongs.size, onOpen = onOpenLocalMusic)
+                }
+            }
         }
     }
 
@@ -224,6 +276,23 @@ private fun PlaylistRow(playlist: UserPlaylist, onOpen: () -> Unit, onManage: ()
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun LocalMusicRow(count: Int, onOpen: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.library_open_local, count),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

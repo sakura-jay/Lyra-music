@@ -146,7 +146,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch {
             val bitmap = runCatching {
-                ArtworkLoader.load(song.artworkUrl)?.let { ArtworkLoader.decodeDownsampled(it) }
+                ArtworkLoader.load(getApplication(), song.artworkUrl)?.let { ArtworkLoader.decodeDownsampled(it) }
             }.getOrNull()
             // 取回来时可能已经切歌了，别把上一首的封面糊到这一首上
             _uiState.update { if (it.song?.id == song.id && it.song.source == song.source) it.copy(artwork = bitmap) else it }

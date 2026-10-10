@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.data.local.Favorite
 import io.github.sakurajay.lyra.data.local.FavoritesRepository
+import io.github.sakurajay.lyra.data.local.LocalMusicRepository
 import io.github.sakurajay.lyra.data.local.PlaylistRepository
 import io.github.sakurajay.lyra.data.local.UserPlaylist
 import io.github.sakurajay.lyra.di.ServiceLocator
@@ -29,6 +30,7 @@ class LibraryViewModel(
     application: Application,
     private val favorites: FavoritesRepository,
     private val playlistsRepository: PlaylistRepository,
+    private val localMusic: LocalMusicRepository,
     playUseCase: SwitchingPlayUseCase,
 ) : AndroidViewModel(application) {
 
@@ -36,6 +38,8 @@ class LibraryViewModel(
         val loadingSongId: String? = null,
         val playingKey: String? = null,
         val message: String? = null,
+        val localLoading: Boolean = false,
+        val localPermissionGranted: Boolean = false,
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -49,6 +53,10 @@ class LibraryViewModel(
         viewModelScope, SharingStarted.Eagerly, emptyList(),
     )
 
+    val localSongs: StateFlow<List<Song>> = localMusic.songs.stateIn(
+        viewModelScope, SharingStarted.Eagerly, emptyList(),
+    )
+
     private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
     private val playController = SongPlayController(launcher)
 
@@ -56,6 +64,23 @@ class LibraryViewModel(
         viewModelScope.launch {
             runCatching { favorites.refresh() }
             runCatching { playlistsRepository.refresh() }
+        }
+        scanLocal()
+    }
+
+    /**
+     * 重扫本地曲目。
+     *
+     * 没授权时不去查 MediaStore——查不报错但返回空，界面就会显示"本地没有音乐"，
+     * 而真话是"我还没被允许看"。这两种空态必须分开。
+     */
+    fun scanLocal() {
+        val granted = LocalMusicRepository.hasPermission(getApplication())
+        _uiState.update { it.copy(localPermissionGranted = granted, localLoading = granted) }
+        if (!granted) return
+        viewModelScope.launch {
+            runCatching { localMusic.refresh() }
+            _uiState.update { it.copy(localLoading = false) }
         }
     }
 
@@ -124,6 +149,7 @@ class LibraryViewModel(
                     application,
                     ServiceLocator.favoritesRepository(application),
                     ServiceLocator.playlistRepository(application),
+                    ServiceLocator.localMusicRepository(application),
                     ServiceLocator.switchingPlayUseCase(application),
                 ) as T
             }
