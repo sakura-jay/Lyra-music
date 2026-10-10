@@ -10,6 +10,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 /**
@@ -19,9 +21,16 @@ import androidx.compose.ui.unit.dp
  * 在那之前用几何图形画，至少不会出现"这里一个播放键那里一个"的不一致。
  */
 
+/**
+ * Canvas 直绘的东西对读屏是不存在的——不给它一句话，TalkBack 只会念"按钮"，
+ * 用户根本不知道自己按的是播放还是下一首。
+ */
+private fun Modifier.glyphLabel(label: String?): Modifier =
+    if (label == null) this else semantics(mergeDescendants = true) { contentDescription = label }
+
 @Composable
-fun PlayGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun PlayGlyph(modifier: Modifier = Modifier, tint: Color, label: String? = null) {
+    Canvas(modifier = modifier.glyphLabel(label).size(20.dp)) {
         drawPath(
             path = Path().apply {
                 moveTo(size.width * 0.22f, size.height * 0.14f)
@@ -35,8 +44,8 @@ fun PlayGlyph(modifier: Modifier = Modifier, tint: Color) {
 }
 
 @Composable
-fun PauseGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun PauseGlyph(modifier: Modifier = Modifier, tint: Color, label: String? = null) {
+    Canvas(modifier = modifier.glyphLabel(label).size(20.dp)) {
         val bar = size.width * 0.16f
         listOf(0.28f, 0.62f).forEach { left ->
             drawRoundRect(
@@ -50,24 +59,24 @@ fun PauseGlyph(modifier: Modifier = Modifier, tint: Color) {
 }
 
 @Composable
-fun NextGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun NextGlyph(modifier: Modifier = Modifier, tint: Color, label: String? = null) {
+    Canvas(modifier = modifier.glyphLabel(label).size(20.dp)) {
         drawTriangle(tint, from = 0.14f, to = 0.68f)
         drawRect(color = tint, topLeft = Offset(size.width * 0.74f, size.height * 0.18f), size = androidx.compose.ui.geometry.Size(size.width * 0.12f, size.height * 0.64f))
     }
 }
 
 @Composable
-fun PreviousGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun PreviousGlyph(modifier: Modifier = Modifier, tint: Color, label: String? = null) {
+    Canvas(modifier = modifier.glyphLabel(label).size(20.dp)) {
         drawRect(color = tint, topLeft = Offset(size.width * 0.14f, size.height * 0.18f), size = androidx.compose.ui.geometry.Size(size.width * 0.12f, size.height * 0.64f))
         drawTriangle(tint, from = 0.86f, to = 0.32f)
     }
 }
 
 @Composable
-fun BackGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun BackGlyph(modifier: Modifier = Modifier, tint: Color, label: String? = null) {
+    Canvas(modifier = modifier.glyphLabel(label).size(20.dp)) {
         val stroke = size.width * 0.1f
         drawLine(tint, Offset(size.width * 0.58f, size.height * 0.2f), Offset(size.width * 0.3f, size.height * 0.5f), stroke, StrokeCap.Round)
         drawLine(tint, Offset(size.width * 0.3f, size.height * 0.5f), Offset(size.width * 0.58f, size.height * 0.8f), stroke, StrokeCap.Round)
@@ -76,8 +85,8 @@ fun BackGlyph(modifier: Modifier = Modifier, tint: Color) {
 }
 
 @Composable
-fun UpGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun UpGlyph(modifier: Modifier = Modifier, tint: Color, label: String? = null) {
+    Canvas(modifier = modifier.glyphLabel(label).size(20.dp)) {
         val stroke = size.width * 0.1f
         drawLine(tint, Offset(size.width * 0.28f, size.height * 0.42f), Offset(size.width * 0.5f, size.height * 0.2f), stroke, StrokeCap.Round)
         drawLine(tint, Offset(size.width * 0.5f, size.height * 0.2f), Offset(size.width * 0.72f, size.height * 0.42f), stroke, StrokeCap.Round)
@@ -86,8 +95,8 @@ fun UpGlyph(modifier: Modifier = Modifier, tint: Color) {
 }
 
 @Composable
-fun ModeGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun ModeGlyph(modifier: Modifier = Modifier, tint: Color, label: String? = null) {
+    Canvas(modifier = modifier.glyphLabel(label).size(20.dp)) {
         val stroke = size.width * 0.09f
         drawArc(
             color = tint,
@@ -115,8 +124,8 @@ private fun DrawScope.drawTriangle(tint: Color, from: Float, to: Float) {
 
 /** 收藏心形：没收藏时只描边，否则两种状态看起来是一样的 */
 @Composable
-fun HeartGlyph(modifier: Modifier = Modifier, tint: Color, filled: Boolean = true) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun HeartGlyph(modifier: Modifier = Modifier, tint: Color, filled: Boolean = true, label: String? = null) {
+    Canvas(modifier = modifier.glyphLabel(label).size(20.dp)) {
         val w = size.width
         val h = size.height
         val heart = Path().apply {

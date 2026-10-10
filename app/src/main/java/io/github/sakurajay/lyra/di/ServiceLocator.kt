@@ -141,8 +141,9 @@ object ServiceLocator {
     /** 全进程一份：扫一次 MediaStore 不便宜，界面来回切不该来回扫 */
     fun localMusicRepository(context: Context): io.github.sakurajay.lyra.data.local.LocalMusicRepository =
         localMusic ?: synchronized(this) {
-            localMusic ?: io.github.sakurajay.lyra.data.local.LocalMusicRepository(context.applicationContext)
-                .also { localMusic = it }
+            localMusic ?: io.github.sakurajay.lyra.data.local.LocalMusicRepository(
+                context.applicationContext.contentResolver,
+            ).also { localMusic = it }
         }
 
     fun lyricLookup(context: Context): LyricLookup =

@@ -2,7 +2,6 @@ package io.github.sakurajay.lyra.ui.sources
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
@@ -36,9 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.core.source.repo.StoredSource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +73,7 @@ fun SourcesScreen(
                         BackGlyph(
                             modifier = Modifier.size(22.dp),
                             tint = MaterialTheme.colorScheme.onSurface,
+                            label = stringResource(R.string.action_back),
                         )
                     }
                 },
@@ -191,19 +189,5 @@ private fun SourceCard(
                 Text(stringResource(R.string.action_delete))
             }
         }
-    }
-}
-
-/** 返回箭头：与 LyraApp 里的 Tab 图标同样用 Canvas 直绘，不引 material-icons。 */
-@Composable
-private fun BackGlyph(modifier: Modifier = Modifier, tint: Color) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val stroke = w * 0.11f
-        val tip = Offset(w * 0.14f, h * 0.5f)
-        drawLine(tint, tip, Offset(w * 0.86f, h * 0.5f), stroke, cap = StrokeCap.Round)
-        drawLine(tint, tip, Offset(w * 0.46f, h * 0.18f), stroke, cap = StrokeCap.Round)
-        drawLine(tint, tip, Offset(w * 0.46f, h * 0.82f), stroke, cap = StrokeCap.Round)
     }
 }

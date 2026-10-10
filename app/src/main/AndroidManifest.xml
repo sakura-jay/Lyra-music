@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- 音源的 lx.request、在线播放与内置搜索都需要 -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -17,6 +18,11 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!--
+      allowBackup=false 已经同时关掉了云备份与设备迁移，所以 12+ 的 dataExtractionRules
+      在这里是同一件事的第二种写法，不再叠一层配置。
+      预测式返回（enableOnBackInvokedCallback）只在 33+ 生效，31/32 上会被忽略。
+    -->
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -25,24 +31,32 @@
         android:supportsRtl="true"
         android:enableOnBackInvokedCallback="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.Lyra">
+        android:theme="@style/Theme.Lyra"
+        tools:ignore="DataExtractionRules,UnusedAttribute">
 
+        <!-- 锁定竖屏是有意的：布局按手机竖屏做，平板与折叠屏双栏明确排在二期之外。 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.Lyra">
+            android:theme="@style/Theme.Lyra"
+            tools:ignore="LockedOrientationActivity,DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
+        <!--
+          exported 是 MediaSession 的硬性要求：锁屏、通知栏、蓝牙线控、车载与厂商实况胶囊
+          都要从进程外绑定这个服务，加权限就等于把这些入口全部关掉。
+        -->
         <service
             android:name=".player.LyraMediaService"
             android:exported="true"
-            android:foregroundServiceType="mediaPlayback">
+            android:foregroundServiceType="mediaPlayback"
+            tools:ignore="ExportedService">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>

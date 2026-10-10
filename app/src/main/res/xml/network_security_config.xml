@@ -6,9 +6,12 @@
 
   边界：这只影响播放取到的媒体流；App 自身的接口请求（内置搜索等）仍走 https，
   且音源脚本发起的 request 也受此约束——这是这类聚合播放器的固有取舍。
+  InsecureBaseConfiguration 是这条取舍的名字，压掉它等于在报告里签下同一句话。
 -->
-<network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

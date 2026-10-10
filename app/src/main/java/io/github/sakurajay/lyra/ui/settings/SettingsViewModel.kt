@@ -67,7 +67,6 @@ class SettingsViewModel(
      * 总字节改从 SimpleCache 的索引读，不再 walk 目录：目录里还有 index.bin，
      * 按文件数出来的总数比真正缓存的媒体字节要大。
      */
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun refreshCacheSize() {
         val context = getApplication<Application>()
         viewModelScope.launch(Dispatchers.IO) {
@@ -78,7 +77,6 @@ class SettingsViewModel(
     }
 
     /** 清空播放缓存。见 [LyraCache.clear]：逐条删，不碰目录 */
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun clearCache() {
         val context = getApplication<Application>()
         viewModelScope.launch(Dispatchers.IO) {
@@ -89,7 +87,6 @@ class SettingsViewModel(
         }
     }
 
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun removeCacheEntry(entry: CacheEntry) {
         val context = getApplication<Application>()
         viewModelScope.launch(Dispatchers.IO) {

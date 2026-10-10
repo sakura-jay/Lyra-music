@@ -1,5 +1,6 @@
 package io.github.sakurajay.lyra.data.local
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import io.github.sakurajay.lyra.domain.model.Song
@@ -112,6 +113,8 @@ class PlaylistRepository(private val helper: FavoritesDatabase) : Closeable {
         refresh()
     }
 
+    // Cursor 由下面的 rows.use 关；lint 认不出 Kotlin 的 use，只能明确告诉它
+    @SuppressLint("Recycle")
     suspend fun songsOf(id: Int): List<Song> = withContext(Dispatchers.IO) {
         val rows = helper.readableDatabase.query(
             "playlist_items",
@@ -176,7 +179,11 @@ class PlaylistRepository(private val helper: FavoritesDatabase) : Closeable {
      * 备份导入：同名歌单**并入**同一个，成员靠主键自然去重。
      *
      * 不并同名的话，拿同一份备份导两次就会得到两个"深夜"，用户只会以为导入坏了。
+     *
+     * UseKtx 建议换 `db.transaction {}`，那是 `androidx.sqlite:sqlite-ktx` 里的扩展——
+     * 为一条风格建议引一个新依赖不划算，显式的 begin/try/finally 也没错。
      */
+    @SuppressLint("UseKtx")
     suspend fun importPlaylists(entries: List<Pair<String, List<Song>>>): PlaylistImport = mutex.withLock {
         // 按名字并入靠的是内存态，没刷过就是空的——那样同一份备份导两次会建出两个同名歌单
         refresh()

@@ -1,6 +1,7 @@
 package io.github.sakurajay.lyra.data.settings
 
 import android.content.Context
+import androidx.core.content.edit
 import io.github.sakurajay.lyra.domain.lyric.LyricTextSize
 import io.github.sakurajay.lyra.domain.model.Quality
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,17 +48,17 @@ class AppSettings(context: Context) {
 
     fun setUseDynamicColor(enabled: Boolean) {
         _useDynamicColor.value = enabled
-        prefs.edit().putBoolean(KEY_DYNAMIC, enabled).apply()
+        prefs.edit { putBoolean(KEY_DYNAMIC, enabled) }
     }
 
     fun setPresetName(name: String) {
         _presetName.value = name
-        prefs.edit().putString(KEY_PRESET, name).apply()
+        prefs.edit { putString(KEY_PRESET, name) }
     }
 
     fun setRequestedQuality(quality: Quality) {
         _requestedQuality.value = quality
-        prefs.edit().putString(KEY_QUALITY, quality.id).apply()
+        prefs.edit { putString(KEY_QUALITY, quality.id) }
     }
 
     /**
@@ -71,12 +72,12 @@ class AppSettings(context: Context) {
 
     fun setAutoSwitch(enabled: Boolean) {
         _autoSwitch.value = enabled
-        prefs.edit().putBoolean(KEY_AUTO_SWITCH, enabled).apply()
+        prefs.edit { putBoolean(KEY_AUTO_SWITCH, enabled) }
     }
 
     private fun <T : Enum<T>> write(key: String, value: String, apply: () -> Unit) {
         apply()
-        prefs.edit().putString(key, value).apply()
+        prefs.edit { putString(key, value) }
     }
 
     private inline fun <reified T : Enum<T>> readEnum(key: String, entries: List<T>, fallback: T): T =

@@ -3,6 +3,7 @@ package io.github.sakurajay.lyra.ui.tracklist
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -78,7 +79,7 @@ fun LocalMusicRoute(onBack: () -> Unit, onMore: (Song) -> Unit) {
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val songs by repository.songs.collectAsStateWithLifecycle()
-    var seen by remember { mutableStateOf(songs.size) }
+    var seen by remember { mutableIntStateOf(songs.size) }
     LaunchedEffect(songs.size) {
         if (seen != songs.size) {
             seen = songs.size

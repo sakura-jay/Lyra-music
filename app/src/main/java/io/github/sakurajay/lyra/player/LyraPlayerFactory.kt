@@ -3,6 +3,7 @@ package io.github.sakurajay.lyra.player
 import android.content.Context
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -15,6 +16,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
  * 播放服务与本地测试都必须用同一套 HTTP 配置，否则"测试能播、真机点歌失败"
  * 这类差异会永远说不清——音源给的 CDN 地址就同时踩过 UA 与明文两个坑。
  */
+@androidx.annotation.OptIn(UnstableApi::class)
 object LyraPlayerFactory {
 
     /** 音乐 CDN 普遍对 Media3 默认 UA 返回 403 */

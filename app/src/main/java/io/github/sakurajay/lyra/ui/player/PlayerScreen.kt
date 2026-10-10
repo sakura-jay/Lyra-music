@@ -104,7 +104,9 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onBack) { BackGlyph(tint = MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = onBack) {
+                    BackGlyph(tint = MaterialTheme.colorScheme.onSurface, label = stringResource(R.string.action_back))
+                }
                 Text(
                     text = stringResource(R.string.player_title),
                     modifier = Modifier.weight(1f),
@@ -118,6 +120,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
                         modifier = Modifier.size(22.dp),
                         tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         filled = favorite,
+                        label = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
                     )
                 }
             }
@@ -331,7 +334,7 @@ private fun ControlRow(
         // 也让人误以为"要在这四个里挑"，而实际用法就是循环切换
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp)) {
             IconButton(onClick = onCycleMode) {
-                ModeGlyph(tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                ModeGlyph(tint = MaterialTheme.colorScheme.onSurfaceVariant, label = modeLabel(mode))
             }
             Text(
                 text = modeLabel(mode),
@@ -345,20 +348,24 @@ private fun ControlRow(
             horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onPrevious) { PreviousGlyph(tint = MaterialTheme.colorScheme.onSurface) }
+            IconButton(onClick = onPrevious) {
+                PreviousGlyph(tint = MaterialTheme.colorScheme.onSurface, label = stringResource(R.string.action_previous))
+            }
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp)) {
                 Box(
                     modifier = Modifier.fillMaxSize().clickable(onClick = onPlayPause),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (isPlaying) {
-                        PauseGlyph(tint = MaterialTheme.colorScheme.onPrimary)
+                        PauseGlyph(tint = MaterialTheme.colorScheme.onPrimary, label = stringResource(R.string.action_pause))
                     } else {
-                        PlayGlyph(tint = MaterialTheme.colorScheme.onPrimary)
+                        PlayGlyph(tint = MaterialTheme.colorScheme.onPrimary, label = stringResource(R.string.action_play))
                     }
                 }
             }
-            IconButton(onClick = onNext) { NextGlyph(tint = MaterialTheme.colorScheme.onSurface) }
+            IconButton(onClick = onNext) {
+                NextGlyph(tint = MaterialTheme.colorScheme.onSurface, label = stringResource(R.string.action_next))
+            }
         }
         // 右侧等宽占位，否则传输键会被左边的模式按钮挤偏
         Spacer(Modifier.width(64.dp))

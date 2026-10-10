@@ -54,7 +54,11 @@ fun CacheScreen(
                 title = { Text(stringResource(R.string.cache_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        BackGlyph(modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurface)
+                        BackGlyph(
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            label = stringResource(R.string.action_back),
+                        )
                     }
                 },
                 actions = {

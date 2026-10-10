@@ -3,7 +3,7 @@ package io.github.sakurajay.lyra.player
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
+import androidx.core.net.toUri
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -60,7 +60,7 @@ object ArtworkLoader {
     /** 本地封面无网络往返，也就不值得进那八个格子的内存缓存 */
     private suspend fun loadLocal(context: Context, url: String): ByteArray? = withContext(Dispatchers.IO) {
         runCatching {
-            context.contentResolver.openInputStream(Uri.parse(url))?.use { it.readBytes() }
+            context.contentResolver.openInputStream(url.toUri())?.use { it.readBytes() }
                 ?.takeIf { it.size in 1..MAX_BYTES }
         }.getOrNull()
     }

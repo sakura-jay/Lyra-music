@@ -1,6 +1,8 @@
 package io.github.sakurajay.lyra.data.local
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -25,8 +27,11 @@ import kotlinx.coroutines.withContext
  *
  * 映射成 [Song] 而不是另立一种类型：列表行、收藏、歌单、备份、播放链全都已经认 Song，
  * 再开一条本地曲目的平行通路等于把这些能力在本地那一半全部重做一遍。
+ *
+ * 收 [ContentResolver] 而不是 Context：这个仓库由进程级单例持有，存 Context 会被 lint
+ * 判成静态泄漏，而它本来就只需要一个解析器。
  */
-class LocalMusicRepository(private val context: Context) {
+class LocalMusicRepository(private val resolver: ContentResolver) {
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
@@ -37,18 +42,19 @@ class LocalMusicRepository(private val context: Context) {
 
     private val mutex = Mutex()
 
-    /** @return 授权与否：没授权时界面要去申请，而不是显示"本地没有音乐" */
+    /**
+     * 重扫。调用方必须先确认 [hasPermission]——没授权时 MediaStore 只回一个空游标，
+     * 分不出"用户不让看"和"手机上确实没歌"，这两种空态在界面上是两回事。
+     */
     suspend fun refresh(): List<Song> = mutex.withLock {
-        if (!hasPermission(context)) {
-            _songs.value = emptyList()
-            return@withLock emptyList()
-        }
         val read = withContext(Dispatchers.IO) { query() }
         _songs.value = read
         scanned.value = true
         read
     }
 
+    // Cursor 由下面的 rows.use 关；lint 认不出 Kotlin 的 use，只能明确告诉它
+    @SuppressLint("Recycle")
     private fun query(): List<Song> {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -60,7 +66,7 @@ class LocalMusicRepository(private val context: Context) {
             MediaStore.Audio.Media.BITRATE,
             MediaStore.Audio.Media.MIME_TYPE,
         )
-        val rows = context.contentResolver.query(
+        val rows = resolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
             "${MediaStore.Audio.Media.IS_MUSIC} != 0",

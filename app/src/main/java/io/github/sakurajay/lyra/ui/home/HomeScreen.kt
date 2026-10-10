@@ -35,7 +35,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -83,6 +85,13 @@ fun HomeScreen(
                 val total = listState.layoutInfo.totalItemsCount
                 if (total > 0 && last >= total - 6) viewModel.loadMore()
             }
+    }
+
+    // 回顶按钮的可见性。firstVisibleItemIndex 是 @FrequentlyChangingValue，直接在
+    // composition 里读等于每滚一行就把整块重组一遍；derivedStateOf 只在"跨没跨过阈值"
+    // 这件事真的变了时才发新值。
+    val showBackToTop by remember {
+        derivedStateOf { listState.firstVisibleItemIndex >= BACK_TO_TOP_AFTER }
     }
 
     Scaffold(
@@ -177,7 +186,7 @@ fun HomeScreen(
             }
 
             AnimatedVisibility(
-                visible = listState.firstVisibleItemIndex >= BACK_TO_TOP_AFTER,
+                visible = showBackToTop,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
@@ -187,7 +196,11 @@ fun HomeScreen(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ) {
-                    UpGlyph(modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+                    UpGlyph(
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        label = stringResource(R.string.action_top),
+                    )
                 }
             }
         }

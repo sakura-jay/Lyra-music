@@ -83,7 +83,7 @@ class LocalMusicRepositoryTest {
     @Test
     fun mapsMediaStoreRowsIntoSongs() = runBlocking {
         val uri = insertTrack("本地晴天", "周杰伦", durationMs = 240_000)
-        val songs = LocalMusicRepository(context).refresh()
+        val songs = LocalMusicRepository(context.contentResolver).refresh()
 
         val song = songs.first { it.localUri == uri.toString() }
         assertEquals(Song.LOCAL_SOURCE, song.source)
@@ -101,7 +101,7 @@ class LocalMusicRepositoryTest {
     @Test
     fun skipsNonMusicAndZeroDuration() = runBlocking {
         insertTrack("一段铃声", "系统", durationMs = 3_000, isMusic = 0)
-        val songs = LocalMusicRepository(context).refresh()
+        val songs = LocalMusicRepository(context.contentResolver).refresh()
         assertTrue("IS_MUSIC=0 不该出现", songs.none { it.name == "一段铃声" })
     }
 

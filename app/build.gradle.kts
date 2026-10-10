@@ -65,6 +65,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    lint {
+        // "有新版本可用"这类提示对本项目是噪音：compileSdk 被 AGP 8.13.2 卡在 36，
+        // compose-bom 2026.09 / core-ktx 1.19 / okhttp 5.x 全部要求 37，升不动。
+        // 报着只会让人以为"该升但没升"，真实约束记在 CHANGELOG 的工具链一节。
+        disable += "GradleDependency"
+    }
 }
 
 kotlin {

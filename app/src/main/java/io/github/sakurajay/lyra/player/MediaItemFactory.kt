@@ -1,6 +1,6 @@
 package io.github.sakurajay.lyra.player
 
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaItem.RequestMetadata
 import androidx.media3.common.MediaMetadata
@@ -17,7 +17,7 @@ fun NowPlayingSpec.toMediaItem(streamUrl: String, artworkData: ByteArray? = null
     .setMediaId(mediaId)
     .setRequestMetadata(
         RequestMetadata.Builder()
-            .setMediaUri(songUri?.let { Uri.parse(it) })
+            .setMediaUri(songUri?.toUri())
             .build(),
     )
     .setMediaMetadata(
@@ -26,7 +26,7 @@ fun NowPlayingSpec.toMediaItem(streamUrl: String, artworkData: ByteArray? = null
             .setArtist(artist)
             .setAlbumTitle(album)
             .setDurationMs(durationMs)
-            .setArtworkUri(artworkUrl?.let { Uri.parse(it) })
+            .setArtworkUri(artworkUrl?.toUri())
             .setArtworkData(artworkData, null)
             .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
             .setIsBrowsable(false)

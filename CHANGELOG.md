@@ -410,6 +410,61 @@ WAV → 详情页"共 2 条 · 1.9 MB"，本地那条显示"缓存探针 / 未�
 **未验证**：上百条缓存时的详情页滚动、正在播的那条删不掉时的提示文案（构造成本高，
 逻辑由 `remove` 的返回值保证）。
 
+### M7 lint 首跑与图标收口 — 切片完成（0 error，图标语义补齐）
+
+lint 从来没跑过。第一次跑：**18 errors / 37 warnings / 1 hint**。分诊原则是
+"能改就改，不该改的要留下为什么不该改"，不是把报告清零。
+
+**真问题，改了**
+
+- `UnsafeOptInUsageError` ×18：根因是我们自己的 `LyraCache` 挂着 `@UnstableApi`，
+  把这个标记**传染**给了每个调用方。改成它自己 `@androidx.annotation.OptIn` 吞掉，
+  调用方的注解全部消失。踩过的坑：写 `@OptIn(UnstableApi::class)` 会解析到
+  **Kotlin 自带的那个 OptIn**，压不住 AndroidX 的实验性标记，错误反而从 18 涨到 28
+- `FrequentlyChangingValue`：首页回顶按钮的可见性直接在 composition 里读
+  `listState.firstVisibleItemIndex`——那是每滚一行就把整块重组一遍。换成 `derivedStateOf`
+- `AutoboxingStateCreation`：本地列表的 `mutableStateOf(songs.size)` → `mutableIntStateOf`
+- 通知权限以前在 31/32 上也会去 `launch()` 一次：那两个版本上它根本不是运行时权限，
+  只会拿到"拒绝"。加了 SDK_INT 门槛
+- 采纳 KTX：`prefs.edit {}` ×5、`url.toUri()` ×3（`SQLiteDatabase.transaction` 没采纳，
+  见下）
+- `StaticFieldLeak`：`LocalMusicRepository` 以前存 Context 却被进程级单例持有。
+  改成只收 `ContentResolver`——它本来就只需要解析器，顺带把"没授权也查一次"的
+  冗余判断收归调用方
+
+**有意为之，压掉并写明理由**（`@SuppressLint` / `tools:ignore`，每条都带原因）
+
+- `GetInstance`：AES/ECB 是酷那侧只认这一种，换 CBC/GCM 就再也解不开它的响应
+- `InsecureBaseConfiguration`：播放地址由第三方音源给，域名枚举不完（配置文件里本来就写着）
+- `ExportedService`：MediaSession 的锁屏/通知/蓝牙/车载全都要从进程外绑定
+- `LockedOrientationActivity` / `DiscouragedApi`：锁竖屏是有意的，平板双栏在二期之外
+- `DataExtractionRules`：`allowBackup=false` 已经同时关掉云备份与设备迁移
+- `GradleDependency`：在 `lint {}` 里整条关掉——compileSdk 被 AGP 卡在 36，
+  报"有新版本"只会让人以为该升而没升
+- `UseKtx`（`db.transaction {}`）：那是 `androidx.sqlite:sqlite-ktx` 里的扩展，
+  为一条风格建议引一个新依赖不划算
+
+**试过又回退的一条**：`ObsoleteSdkInt` 说 `mipmap-anydpi-v26` 在 minSdk 31 下可以并进
+`mipmap-anydpi`——真改了 AAPT 直接报 `resource mipmap/ic_launcher not found`。
+零收益、真风险，回退，这条警告留着。
+
+**图标与无障碍收口**
+
+- `SourcesScreen` 里有一份**私有的 `BackGlyph`**，和 `ui/common` 那份长得不一样。
+  删掉，统一用共享那份——"这里一个播放键那里一个"正是这个文件开头说要避免的事
+- 8 个 Canvas 直绘图标全部加 `label: String?`，非空时挂 `semantics { contentDescription }`。
+  直绘的东西对读屏是不存在的，不给一句话，TalkBack 只会念"按钮"
+- 那 7 条 `UnusedResources`（`action_play`/`action_pause`/`action_previous`/`action_next`/
+  `action_back`/`player_favorite`/`player_favorite_on`）**没有删**：它们是早就备好、
+  但一直没挂到按钮上的文案。这一片把它们挂上了，警告因此自然消失
+
+**验收记录（2026-10-10，Pixel_8 模拟器）**：`:app:lintDebug` **0 errors / 1 warning**
+（剩的就是上面那条回退掉的 mipmap 建议）；JVM 测试 + 全量 instrumented 105 条通过；
+播放页截图确认返回/收藏/播放顺序/上一首/播放/下一首六个图标位置与外观无变化。
+
+**未验证**：读屏软件实际念出的文案（本机没有 TalkBack 环境，语义是按构造正确性接的，
+不是听出来的）；`derivedStateOf` 那处改动的帧率收益没有量化。
+
 ### 真机验收第一轮（PLK110，用户验收）— 8 项问题全部定位并修复
 
 | 现象 | 根因 | 修法 |
@@ -534,7 +589,8 @@ M2 切片1 已完成（`8cb322b`）：真机验证 isForeground=true、types=med
 - **M5 `v0.6.0`** — 榜单与详情页 — **已收口**（歌手页移到二期，分页在第三轮验收补上）
 - **M6 `v0.7.0`** — 聚合搜索与自动换源 — **已收口**
 - **M7 `v0.8.0`** — 本地音乐库、流式缓存、性能与视觉收口 — **进行中**
-  （设置页、本地音乐库、缓存可见化三片已完成；剩图标与排版收口、lint）
+  （设置页、本地音乐库、缓存可见化、lint 首跑与图标语义四片已完成；
+  剩排版走查与"要不要正式引入 material-icons"这个未决问题）
 - **发版前置**：`assembleRelease` 从没跑过——R8 对 QuickJS 反射 / Media3 / okhttp 的
   keep 规则只有真机跑一遍 release 包才算数；lint 因离线也还没跑过
 

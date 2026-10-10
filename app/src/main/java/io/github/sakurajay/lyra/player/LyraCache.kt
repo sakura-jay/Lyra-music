@@ -23,8 +23,11 @@ import java.io.File
  *
  * 用 object 而不是每次 new：SimpleCache 一个目录只允许一个实例，第二个直接抛
  * IllegalStateException。
+ *
+ * 这里自己吞掉 Media3 的 opt-in，而不是把 `@UnstableApi` 传染给调用方：缓存是内部件，
+ * 让设置页、VM、服务各挂一枚注解只会把噪音摊开。
  */
-@UnstableApi
+@androidx.annotation.OptIn(UnstableApi::class)
 object LyraCache {
 
     const val MAX_BYTES = 128L * 1024 * 1024

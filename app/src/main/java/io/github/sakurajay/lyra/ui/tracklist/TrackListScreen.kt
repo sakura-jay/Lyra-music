@@ -67,7 +67,11 @@ fun TrackListScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        BackGlyph(modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurface)
+                        BackGlyph(
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            label = stringResource(R.string.action_back),
+                        )
                     }
                 },
             )

@@ -110,6 +110,7 @@
     <string name="action_pause">暂停</string>
     <string name="action_previous">上一首</string>
     <string name="action_next">下一首</string>
+    <string name="action_top">回到顶部</string>
 
     <string name="mode_sequential">顺序播放</string>
     <string name="mode_loop_all">列表循环</string>

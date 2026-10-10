@@ -1,5 +1,6 @@
 package io.github.sakurajay.lyra.data.provider.builtin
 
+import android.annotation.SuppressLint
 import android.util.Log
 import io.github.sakurajay.lyra.domain.model.Song
 import java.net.URLDecoder
@@ -128,12 +129,17 @@ class KuwoLeaderboardProvider(
          * 加密方案以真接口实测为准，不以 lx 源码的字面写法为准：
          * 明文是**原始 JSON**（lx 里先 base64 再加密那步，服务端现在不认），填充是 PKCS5。
          * 四种组合各打过一次，只有 json+PKCS5 拿回密文，其余全是 DECRYPT_ERROR。
+         *
+         * ECB 不是我们选的：服务端只认这一种，换成 CBC/GCM 就再也解不开它的响应。
+         * 这里既不加密用户数据也不涉及身份凭据之外的内容，所以按协议照做并压掉告警。
          */
+        @SuppressLint("GetInstance")
         internal fun encrypt(plain: String): String {
             val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding").apply { init(Cipher.ENCRYPT_MODE, AES_KEY) }
             return Base64.getEncoder().encodeToString(cipher.doFinal(plain.toByteArray(Charsets.UTF_8)))
         }
 
+        @SuppressLint("GetInstance")
         internal fun decrypt(payload: String): String {
             val decoded = Base64.getDecoder().decode(URLDecoder.decode(payload, "UTF-8"))
             val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding").apply { init(Cipher.DECRYPT_MODE, AES_KEY) }

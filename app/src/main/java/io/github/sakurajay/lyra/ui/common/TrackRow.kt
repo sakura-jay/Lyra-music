@@ -117,6 +117,7 @@ fun TrackRow(
                     modifier = Modifier.size(18.dp),
                     tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     filled = favorite,
+                    label = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
                 )
             }
         }

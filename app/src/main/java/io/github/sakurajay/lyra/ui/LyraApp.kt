@@ -2,6 +2,7 @@ package io.github.sakurajay.lyra.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -410,9 +411,17 @@ private fun MiniPlayerBar(viewModel: PlayerViewModel, onOpen: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 if (state.isPlaying) {
-                    PauseGlyph(modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                    PauseGlyph(
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        label = stringResource(R.string.action_pause),
+                    )
                 } else {
-                    PlayGlyph(modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                    PlayGlyph(
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        label = stringResource(R.string.action_play),
+                    )
                 }
             }
         }
@@ -492,6 +501,9 @@ private fun RequestNotificationPermission() {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(Unit) {
+        // 31/32 上 POST_NOTIFICATIONS 根本不是运行时权限，去申请只会拿到"拒绝"，
+        // 白插一个无意义的系统调用
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@LaunchedEffect
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
         if (!granted) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
