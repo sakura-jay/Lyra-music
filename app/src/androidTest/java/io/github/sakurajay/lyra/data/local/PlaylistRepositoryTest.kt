@@ -124,9 +124,25 @@ class PlaylistRepositoryTest {
     @Test
     fun importDeduplicatesWithinOnePlaylist() = runBlocking {
         playlists().use { repo ->
-            repo.replaceAll(listOf("备份" to listOf(first, first, second)))
-            val songs = repo.songsOf(repo.playlists.value.single().id)
-            assertEquals(listOf(first, second), songs)
+            val summary = repo.importPlaylists(listOf("备份" to listOf(first, first, second)))
+            assertEquals(1, summary.created)
+            assertEquals("重复的那条不该算新增", 2, summary.addedSongs)
+            assertEquals(listOf(first, second), repo.songsOf(repo.playlists.value.single().id))
+        }
+    }
+
+    /** 同一份备份导第二次：不能得到两个同名歌单，也不能多出重复成员 */
+    @Test
+    fun importTwiceMergesByNameAndAddsNothing() = runBlocking {
+        val entries = listOf("深夜" to listOf(first, second))
+        playlists().use { repo ->
+            repo.importPlaylists(entries)
+            val second_time = repo.importPlaylists(entries)
+            assertEquals(0, second_time.created)
+            assertEquals(1, second_time.merged)
+            assertEquals(0, second_time.addedSongs)
+            assertEquals(1, repo.playlists.value.size)
+            assertEquals(listOf(first, second), repo.songsOf(repo.playlists.value.single().id))
         }
     }
 

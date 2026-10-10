@@ -16,6 +16,9 @@ import kotlinx.coroutines.withContext
 /** 一个自建歌单。songCount 随列表一起读回来，界面不再单独数一次 */
 data class UserPlaylist(val id: Int, val name: String, val songCount: Int, val createdAt: Long)
 
+/** 一次备份导入的结果，用来把话说清楚：新建了几个、并入几个、加了几首歌 */
+data class PlaylistImport(val created: Int, val merged: Int, val addedSongs: Int)
+
 /**
  * 用户自建歌单。
  *
@@ -169,41 +172,64 @@ class PlaylistRepository(private val helper: FavoritesDatabase) : Closeable {
         !exists
     }
 
-    /** 备份导入用：整份歌单一次性写入，已存在的同名成员靠主键自然去重 */
-    suspend fun replaceAll(playlists: List<Pair<String, List<Song>>>) = mutex.withLock {
-        withContext(Dispatchers.IO) {
+    /**
+     * 备份导入：同名歌单**并入**同一个，成员靠主键自然去重。
+     *
+     * 不并同名的话，拿同一份备份导两次就会得到两个"深夜"，用户只会以为导入坏了。
+     */
+    suspend fun importPlaylists(entries: List<Pair<String, List<Song>>>): PlaylistImport = mutex.withLock {
+        // 按名字并入靠的是内存态，没刷过就是空的——那样同一份备份导两次会建出两个同名歌单
+        refresh()
+        val summary = withContext(Dispatchers.IO) {
             val db = helper.writableDatabase
+            var created = 0
+            var merged = 0
+            var addedSongs = 0
+            val byName = _playlists.value.associate { it.name to it.id }.toMutableMap()
             db.beginTransaction()
             try {
-                for ((name, songs) in playlists) {
-                    val id = db.insert(
-                        "playlists",
-                        null,
-                        ContentValues().apply {
-                            put("name", name.trim())
-                            put("created_at", System.currentTimeMillis())
-                        },
-                    )
+                for ((rawName, songs) in entries) {
+                    val name = rawName.trim()
+                    if (name.isEmpty()) continue
+                    val existing = byName[name]
+                    val playlistId = if (existing == null) {
+                        created++
+                        db.insert(
+                            "playlists",
+                            null,
+                            ContentValues().apply {
+                                put("name", name)
+                                put("created_at", System.currentTimeMillis())
+                            },
+                        )
+                    } else {
+                        merged++
+                        existing.toLong()
+                    }
+                    byName.putIfAbsent(name, playlistId.toInt())
                     songs.forEach { song ->
-                        db.insertWithOnConflict(
+                        val inserted = db.insertWithOnConflict(
                             "playlist_items",
                             null,
                             ContentValues().apply {
-                                put("playlist_id", id)
+                                put("playlist_id", playlistId)
                                 put("key", FavoritesRepository.keyOf(song))
                                 put("encoded", SongCodec.encode(song))
                                 put("added_at", System.currentTimeMillis())
                             },
                             SQLiteDatabase.CONFLICT_IGNORE,
                         )
+                        if (inserted != -1L) addedSongs++
                     }
                 }
                 db.setTransactionSuccessful()
             } finally {
                 db.endTransaction()
             }
+            PlaylistImport(created, merged, addedSongs)
         }
         refresh()
+        summary
     }
 
     override fun close() {

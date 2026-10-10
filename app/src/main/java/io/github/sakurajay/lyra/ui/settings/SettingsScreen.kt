@@ -1,5 +1,7 @@
 package io.github.sakurajay.lyra.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,11 +28,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,6 +58,9 @@ import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.player.LyraCache
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.theme.PresetTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,8 +78,28 @@ fun SettingsScreen(
     val cacheBytes by viewModel.cacheBytes.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
+    // 备份读写都走 SAF：应用没有写公共目录的权限了，让用户自己挑文件比偷偷塞进
+    // Downloads 更诚实，也不会因为厂商的存储策略差异而失败
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri -> uri?.let(viewModel::exportBackup) }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let(viewModel::importBackup) }
+
+    // 结果话报在 snackbar 而不是页面顶部：导出/导入的按钮在长列表的最底下，
+    // 顶部那行字看不见就等于没反馈
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(message) {
+        message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 windowInsets = WindowInsets(0, 0, 0, 0),
@@ -87,15 +116,6 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState())
                 .padding(bottom = 24.dp),
         ) {
-            message?.let {
-                Text(
-                    text = it,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
             Section(R.string.settings_appearance) {
                 ChipRow(
                     label = stringResource(R.string.settings_dark_mode),
@@ -165,6 +185,18 @@ fun SettingsScreen(
             Section(R.string.settings_data) {
                 Button(onClick = onOpenSources, modifier = Modifier.padding(vertical = 4.dp)) {
                     Text(stringResource(R.string.library_open_sources))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(
+                        onClick = { exportLauncher.launch(backupFileName()) },
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    ) { Text(stringResource(R.string.settings_export_backup)) }
+                    OutlinedButton(
+                        onClick = {
+                            importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                        },
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    ) { Text(stringResource(R.string.settings_import_backup)) }
                 }
             }
 
@@ -299,6 +331,10 @@ private fun PresetSwatchRow(
         }
     }
 }
+
+/** 备份文件名带上时间：一天导第二次时，SAF 默认名撞车会让人以为没导成功 */
+private fun backupFileName(): String =
+    "lyra-backup-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.getDefault()).format(Date()) + ".json"
 
 private fun formatMegabytes(bytes: Long): String =
     if (bytes >= 1024 * 1024) "%.1f MB".format(bytes / 1024.0 / 1024.0) else "%.0f KB".format(bytes / 1024.0)

@@ -1,10 +1,13 @@
 package io.github.sakurajay.lyra.ui.settings
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import io.github.sakurajay.lyra.core.backup.BackupFormatException
+import io.github.sakurajay.lyra.core.backup.LibraryBackup
 import io.github.sakurajay.lyra.data.settings.AppSettings
 import io.github.sakurajay.lyra.data.settings.DarkMode
 import io.github.sakurajay.lyra.di.ServiceLocator
@@ -74,6 +77,75 @@ class SettingsViewModel(
                 .onFailure { _message.value = "清缓存失败：${it.message ?: it.javaClass.simpleName}" }
             _cacheBytes.value = cacheSize()
         }
+    }
+
+    /**
+     * 导出备份。
+     *
+     * 先 refresh 再读：两个仓库的内存态只有在被刷过之后才是磁盘态，
+     * 直接从 StateFlow 拿可能拿到空的。
+     */
+    fun exportBackup(uri: Uri) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                val favoriteRepo = favorites()
+                val playlistRepo = playlists()
+                val saved = favoriteRepo.refresh()
+                val lists = playlistRepo.refresh()
+                val songs = lists.map { playlist -> playlist to playlistRepo.songsOf(playlist.id) }
+                val json = LibraryBackup.toJson(saved, songs)
+                context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                    ?: error("打不开这个文件")
+                saved.size to lists.size
+            }
+            _message.value = result.getOrNull()?.let { (favoriteCount, playlistCount) ->
+                "已导出：收藏 $favoriteCount 首、歌单 $playlistCount 个"
+            } ?: "导出失败：${reasonOf(result.exceptionOrNull())}"
+        }
+    }
+
+    /** 导入永远是合并：备份是副本，最不能接受的是"恢复旧备份把新收藏清了" */
+    fun importBackup(uri: Uri) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                    ?: error("打不开这个文件")
+                val content = LibraryBackup.parse(text)
+                favorites().refresh()
+                val addedFavorites = favorites().addAll(content.favorites)
+                val imported = playlists().importPlaylists(content.playlists.map { it.name to it.songs })
+                Triple(addedFavorites, content, imported)
+            }
+            result.fold(
+                onSuccess = { (addedFavorites, content, imported) ->
+                    _message.value = buildString {
+                        append("导入完成：新增收藏 $addedFavorites 首")
+                        if (content.playlists.isNotEmpty()) {
+                            append("；歌单新建 ${imported.created} 个、并入 ${imported.merged} 个、加进 ${imported.addedSongs} 首")
+                        }
+                        if (content.skippedSongs > 0) append("；跳过读不出的曲目 ${content.skippedSongs} 条")
+                    }
+                },
+                onFailure = { _message.value = "导入失败：${reasonOf(it)}" },
+            )
+        }
+    }
+
+    private fun reasonOf(error: Throwable?): String = when (error) {
+        is BackupFormatException -> error.message ?: "备份格式不对"
+        null -> "未知原因"
+        else -> error.message ?: error.javaClass.simpleName
+    }
+
+    private fun favorites() = ServiceLocator.favoritesRepository(getApplication())
+
+    private fun playlists() = ServiceLocator.playlistRepository(getApplication())
+
+    /** snackbar 已经收走这条消息，清掉它：否则重复同一个动作时 StateFlow 值没变，不会重新弹 */
+    fun clearMessage() {
+        _message.value = null
     }
 
     private fun cacheSize(): Long = File(getApplication<Application>().cacheDir, "media")

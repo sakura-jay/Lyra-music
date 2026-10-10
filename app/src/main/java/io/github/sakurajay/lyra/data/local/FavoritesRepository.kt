@@ -118,20 +118,46 @@ class FavoritesRepository(private val helper: FavoritesDatabase) : Closeable {
         withContext(Dispatchers.IO) {
             val db = helper.writableDatabase
             if (exists) db.delete("favorites", "key = ?", arrayOf(key))
-            else db.insert(
-                "favorites",
-                null,
-                ContentValues().apply {
-                    put("key", key)
-                    put("encoded", SongCodec.encode(song))
-                    put("name", song.name)
-                    put("artists", song.artists.joinToString(" / "))
-                    put("added_at", System.currentTimeMillis())
-                },
-            )
+            else db.insert("favorites", null, favoriteValues(Favorite(song, System.currentTimeMillis())))
         }
         refresh()
         !exists
+    }
+
+    /**
+     * 备份导入用：只补没有的，已存在的按主键自然跳过。
+     *
+     * 导入必须是合并而不是覆盖——用户拿旧备份恢复时，最不能接受的就是"这一下把
+     * 新收藏清了"。
+     *
+     * @return 真正新增的条数
+     */
+    suspend fun addAll(favorites: List<Favorite>): Int =
+        mutex.withLock {
+            val added = withContext(Dispatchers.IO) {
+                val db = helper.writableDatabase
+                favorites.count { favorite ->
+                    db.insertWithOnConflict(
+                        "favorites",
+                        null,
+                        favoriteValues(favorite),
+                        SQLiteDatabase.CONFLICT_IGNORE,
+                    ) != -1L
+                }
+            }
+            refresh()
+            added
+        }
+
+    private fun favoriteValues(favorite: Favorite): ContentValues {
+        val song = favorite.song
+        return ContentValues().apply {
+            put("key", favorite.key)
+            put("encoded", SongCodec.encode(song))
+            put("name", song.name)
+            put("artists", song.artists.joinToString(" / "))
+            put("added_at", favorite.addedAt)
+        }
     }
 
     override fun close() {

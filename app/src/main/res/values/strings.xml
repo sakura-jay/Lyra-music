@@ -53,6 +53,8 @@
     <string name="settings_cache">播放缓存 %1$s / 上限 %2$d MB</string>
     <string name="settings_clear_cache">清除缓存</string>
     <string name="settings_data">数据</string>
+    <string name="settings_export_backup">导出备份</string>
+    <string name="settings_import_backup">导入备份</string>
     <string name="settings_version">Lyra %1$s</string>
 
     <string name="mini_player_idle">未在播放</string>
