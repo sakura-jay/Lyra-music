@@ -43,21 +43,45 @@ class FavoritesDatabase(context: Context) : SQLiteOpenHelper(context.application
             )
             """.trimIndent(),
         )
+        createPlaylistTables(db)
     }
 
     /**
-     * 目前只有 v1，还没有需要保数据的升级。
+     * v2 起多了两张自建歌单表。
      *
-     * 出现 v2 时必须换成 ALTER/迁移，不能沿用这里的删表重建——那会把用户的收藏清掉。
+     * 这里只建表，不碰 favorites：这张表里是用户资产，历史上 onUpgrade 的"删表重建"
+     * 一旦保留到 v2，升级就把收藏清空了。以后再有版本，也只允许加表/加列 + 显式迁移。
      */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS favorites")
-        onCreate(db)
+        if (oldVersion < 2) createPlaylistTables(db)
+    }
+
+    private fun createPlaylistTables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS playlists(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              created_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS playlist_items(
+              playlist_id INTEGER NOT NULL,
+              key TEXT NOT NULL,
+              encoded TEXT NOT NULL,
+              added_at INTEGER NOT NULL,
+              PRIMARY KEY(playlist_id, key)
+            )
+            """.trimIndent(),
+        )
     }
 
     private companion object {
         const val DB_NAME = "lyra-library.db"
-        const val DB_VERSION = 1
+        const val DB_VERSION = 2
     }
 }
 

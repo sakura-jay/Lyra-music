@@ -1,5 +1,6 @@
 package io.github.sakurajay.lyra.ui.common
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,9 @@ private val EMPHASIZED_RANK = 3
  *
  * 专辑名单独可点：整行点击是"播这首歌"，而"看这张专辑"是另一个意图，
  * 混在一个点击里就只能二选一。
+ *
+ * [onLongClick] 是"对这首歌做点别的"（收藏/加入歌单）的入口：这些动作四个列表页都要，
+ * 但每行再挂两个按钮就把曲名挤没了，所以走长按。
  */
 @Composable
 fun TrackRow(
@@ -44,11 +48,12 @@ fun TrackRow(
     onOpenAlbum: ((String) -> Unit)? = null,
     favorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

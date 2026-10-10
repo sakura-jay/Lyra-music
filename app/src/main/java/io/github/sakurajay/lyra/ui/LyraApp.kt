@@ -55,6 +55,8 @@ import io.github.sakurajay.lyra.ui.common.PauseGlyph
 import io.github.sakurajay.lyra.ui.common.PlayGlyph
 import io.github.sakurajay.lyra.ui.home.HomeScreen
 import io.github.sakurajay.lyra.ui.library.LibraryScreen
+import io.github.sakurajay.lyra.ui.library.PlaylistPickerSheet
+import io.github.sakurajay.lyra.ui.library.PlaylistPickerViewModel
 import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
@@ -62,6 +64,7 @@ import io.github.sakurajay.lyra.ui.search.SearchScreen
 import io.github.sakurajay.lyra.ui.settings.SettingsScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import io.github.sakurajay.lyra.ui.tracklist.AlbumRoute
+import io.github.sakurajay.lyra.ui.tracklist.MyPlaylistRoute
 import io.github.sakurajay.lyra.ui.tracklist.PlaylistRoute
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
@@ -94,6 +97,7 @@ private const val ROUTE_PLAYER = "player"
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_ALBUM = "album/{albumId}"
 private const val ROUTE_PLAYLIST = "playlist/{listId}"
+private const val ROUTE_MY_PLAYLIST = "my-playlist/{playlistId}"
 
 /**
  * 详情页的参数直接拼进路径：专辑 id 只有数字，歌单 id 是 `digest-8__123` 这种
@@ -103,7 +107,7 @@ private fun albumRoute(albumId: String) = "album/$albumId"
 private fun playlistRoute(listId: String) = "playlist/$listId"
 
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
-private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST)
+private val DETAIL_ROUTES = setOf(ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_MY_PLAYLIST)
 
 @Composable
 fun LyraApp() {
@@ -112,6 +116,8 @@ fun LyraApp() {
     // 迷你条与播放页共用一个 VM：两处各连一个控制器各自轮询，显示就会互相打架
     val playerViewModel: PlayerViewModel = viewModel(factory = PlayerViewModel.Factory)
     LaunchedEffect(Unit) { playerViewModel.connect() }
+    // 长按任意曲目时的"放去哪儿"选择器：一份状态挂在应用级，四个列表页共用
+    val picker: PlaylistPickerViewModel = viewModel(factory = PlaylistPickerViewModel.Factory)
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val topRoutes = TopDestination.entries.map { it.route }
@@ -200,15 +206,19 @@ fun LyraApp() {
                             TopDestination.Home -> HomeScreen(
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                                 onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
+                                onMore = picker::open,
                             )
 
                             TopDestination.Search -> SearchScreen(
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
+                                onMore = picker::open,
                             )
 
                             TopDestination.Library -> LibraryScreen(
                                 onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
+                                onOpenMyPlaylist = { id -> navController.navigate("my-playlist/$id") },
+                                onMore = picker::open,
                             )
                         }
                     }
@@ -279,8 +289,26 @@ fun LyraApp() {
                     )
                 }
             }
+            composable(
+                ROUTE_MY_PLAYLIST,
+                arguments = listOf(navArgument("playlistId") { defaultValue = 0 }),
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) { entry ->
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    MyPlaylistRoute(
+                        playlistId = entry.arguments?.getInt("playlistId") ?: 0,
+                        onBack = { navController.popBackStack() },
+                        onMore = picker::open,
+                    )
+                }
+            }
         }
     }
+
+    PlaylistPickerSheet(picker)
 }
 
 /** 底部常驻播放条：显示当前曲与播放状态，点空白处进播放页，点按钮直接播停。 */

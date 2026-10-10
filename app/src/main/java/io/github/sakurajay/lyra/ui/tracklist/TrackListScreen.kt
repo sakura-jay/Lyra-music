@@ -49,6 +49,7 @@ fun TrackListScreen(
     onBack: () -> Unit,
     onPlay: (io.github.sakurajay.lyra.domain.model.Song) -> Unit,
     onOpenAlbum: ((String) -> Unit)?,
+    onMore: (io.github.sakurajay.lyra.domain.model.Song) -> Unit = {},
 ) {
     val list = state.list
 
@@ -93,6 +94,13 @@ fun TrackListScreen(
                     }
                     if (state.loading && state.artwork == null) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else if (state.artwork == null) {
+                        // 自建歌单没有封面，给个占位符比一块纯色更像"这里是一堆歌"
+                        Text(
+                            text = "♪",
+                            style = MaterialTheme.typography.displaySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
                     }
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -157,6 +165,7 @@ fun TrackListScreen(
                         loading = song.id == state.loadingSongId,
                         onClick = { onPlay(song) },
                         onOpenAlbum = onOpenAlbum,
+                        onLongClick = { onMore(song) },
                     )
                 }
             }

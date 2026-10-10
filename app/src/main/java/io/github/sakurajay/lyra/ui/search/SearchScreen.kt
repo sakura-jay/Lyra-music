@@ -2,6 +2,7 @@ package io.github.sakurajay.lyra.ui.search
 
 import android.app.Application
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -153,6 +154,7 @@ class SearchViewModel(
 @Composable
 fun SearchScreen(
     onOpenAlbum: (String) -> Unit,
+    onMore: (Song) -> Unit = {},
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -235,6 +237,7 @@ fun SearchScreen(
                             loading = song.id == state.loadingSongId,
                             onClick = { viewModel.play(song, group.songs) },
                             onOpenAlbum = onOpenAlbum,
+                            onLongClick = { onMore(song) },
                         )
                     }
                 }
@@ -301,9 +304,10 @@ private fun SongRow(
     loading: Boolean,
     onClick: () -> Unit,
     onOpenAlbum: ((String) -> Unit)?,
+    onLongClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = CardDefaults.cardColors(
             containerColor = if (highlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
         ),

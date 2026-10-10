@@ -53,6 +53,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
+import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.UpGlyph
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
@@ -64,6 +65,7 @@ import kotlinx.coroutines.launch
 fun HomeScreen(
     onOpenAlbum: (String) -> Unit,
     onOpenPlaylist: (String) -> Unit,
+    onMore: (Song) -> Unit = {},
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -152,6 +154,7 @@ fun HomeScreen(
                         loading = song.id == state.loadingSongId,
                         onClick = { viewModel.play(song) },
                         onOpenAlbum = onOpenAlbum,
+                        onLongClick = { onMore(song) },
                     )
                 }
 

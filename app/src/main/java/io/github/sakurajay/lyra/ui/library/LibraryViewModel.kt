@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.data.local.Favorite
 import io.github.sakurajay.lyra.data.local.FavoritesRepository
+import io.github.sakurajay.lyra.data.local.PlaylistRepository
+import io.github.sakurajay.lyra.data.local.UserPlaylist
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.LaunchOutcome
@@ -26,6 +28,7 @@ import kotlinx.coroutines.launch
 class LibraryViewModel(
     application: Application,
     private val favorites: FavoritesRepository,
+    private val playlistsRepository: PlaylistRepository,
     playUseCase: SwitchingPlayUseCase,
 ) : AndroidViewModel(application) {
 
@@ -42,11 +45,42 @@ class LibraryViewModel(
         viewModelScope, SharingStarted.Eagerly, emptyList(),
     )
 
+    val playlists: StateFlow<List<UserPlaylist>> = playlistsRepository.playlists.stateIn(
+        viewModelScope, SharingStarted.Eagerly, emptyList(),
+    )
+
     private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
     private val playController = SongPlayController(launcher)
 
     init {
-        viewModelScope.launch { runCatching { favorites.refresh() } }
+        viewModelScope.launch {
+            runCatching { favorites.refresh() }
+            runCatching { playlistsRepository.refresh() }
+        }
+    }
+
+    fun createPlaylist(rawName: String) {
+        viewModelScope.launch {
+            val created = runCatching { playlistsRepository.create(rawName) }.getOrNull()
+            _uiState.update {
+                it.copy(message = created?.let { list -> "已新建「${list.name}」" } ?: "歌单名不能为空")
+            }
+        }
+    }
+
+    fun renamePlaylist(id: Int, rawName: String) {
+        viewModelScope.launch {
+            val renamed = runCatching { playlistsRepository.rename(id, rawName) }.isSuccess
+            _uiState.update { it.copy(message = if (renamed) "已改名" else "歌单名不能为空") }
+        }
+    }
+
+    fun deletePlaylist(id: Int) {
+        viewModelScope.launch {
+            val name = playlistsRepository.find(id)?.name
+            playlistsRepository.delete(id)
+            _uiState.update { it.copy(message = "已删除「$name」") }
+        }
     }
 
     fun play(song: Song, queue: List<Song>) {
@@ -89,6 +123,7 @@ class LibraryViewModel(
                 return LibraryViewModel(
                     application,
                     ServiceLocator.favoritesRepository(application),
+                    ServiceLocator.playlistRepository(application),
                     ServiceLocator.switchingPlayUseCase(application),
                 ) as T
             }

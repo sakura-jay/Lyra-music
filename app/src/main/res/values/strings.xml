@@ -25,6 +25,18 @@
     <string name="library_open_sources">音源管理</string>
     <string name="library_empty">还没有收藏。在播放页点 ♥ 把当前这首歌收进来。</string>
     <string name="library_count">收藏 %1$d 首</string>
+    <string name="library_favorite">收藏</string>
+    <string name="library_my_playlists">我的歌单</string>
+    <string name="library_playlist_count">我的歌单 %1$d 个</string>
+    <string name="library_new_playlist">新建歌单</string>
+    <string name="library_create_and_add">创建并加入</string>
+    <string name="library_no_playlists">还没有歌单。新建一个，之后长按任意曲目就能放进来。</string>
+    <string name="library_song_count">%1$d 首</string>
+    <string name="library_rename">改名</string>
+    <string name="library_delete_playlist">删除歌单</string>
+    <string name="library_manage_hint">这个歌单里有 %1$d 首。删除只删歌单和它的成员，收藏不受影响。</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_cancel">取消</string>
     <string name="player_favorite">收藏</string>
     <string name="player_favorite_on">已收藏</string>
 

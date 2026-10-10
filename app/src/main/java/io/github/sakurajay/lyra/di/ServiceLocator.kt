@@ -103,14 +103,36 @@ object ServiceLocator {
             ).also { qualityStore = it }
         }
 
+    /**
+     * 收藏与自建歌单共用一个 SQLiteOpenHelper。
+     *
+     * 同一个 db 文件开两个 helper 实例是合法的但没必要：两边都持有同一个连接池与
+     * 版本升级路径，两个实例会让 onUpgrade 有被跑两次的机会。
+     */
+    @Volatile
+    private var libraryDb: io.github.sakurajay.lyra.data.local.FavoritesDatabase? = null
+
+    private fun libraryDb(context: Context): io.github.sakurajay.lyra.data.local.FavoritesDatabase =
+        libraryDb ?: synchronized(this) {
+            libraryDb ?: io.github.sakurajay.lyra.data.local.FavoritesDatabase(context).also { libraryDb = it }
+        }
+
     @Volatile
     private var favorites: io.github.sakurajay.lyra.data.local.FavoritesRepository? = null
 
     fun favoritesRepository(context: Context): io.github.sakurajay.lyra.data.local.FavoritesRepository =
         favorites ?: synchronized(this) {
-            favorites ?: io.github.sakurajay.lyra.data.local.FavoritesRepository(
-                io.github.sakurajay.lyra.data.local.FavoritesDatabase(context),
-            ).also { favorites = it }
+            favorites ?: io.github.sakurajay.lyra.data.local.FavoritesRepository(libraryDb(context))
+                .also { favorites = it }
+        }
+
+    @Volatile
+    private var playlists: io.github.sakurajay.lyra.data.local.PlaylistRepository? = null
+
+    fun playlistRepository(context: Context): io.github.sakurajay.lyra.data.local.PlaylistRepository =
+        playlists ?: synchronized(this) {
+            playlists ?: io.github.sakurajay.lyra.data.local.PlaylistRepository(libraryDb(context))
+                .also { playlists = it }
         }
 
     fun lyricLookup(context: Context): LyricLookup =
