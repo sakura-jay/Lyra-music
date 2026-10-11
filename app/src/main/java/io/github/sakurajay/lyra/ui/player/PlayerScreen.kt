@@ -57,6 +57,7 @@ import io.github.sakurajay.lyra.player.PlayMode
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.HeartGlyph
 import io.github.sakurajay.lyra.ui.common.ModeGlyph
+import io.github.sakurajay.lyra.ui.common.TuneGlyph
 import io.github.sakurajay.lyra.ui.common.NextGlyph
 import io.github.sakurajay.lyra.ui.common.PauseGlyph
 import io.github.sakurajay.lyra.ui.common.PlayGlyph
@@ -334,7 +335,7 @@ private fun ControlRow(
         // 也让人误以为"要在这四个里挑"，而实际用法就是循环切换
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp)) {
             IconButton(onClick = onCycleMode) {
-                ModeGlyph(tint = MaterialTheme.colorScheme.onSurfaceVariant, label = modeLabel(mode))
+                ModeGlyph(mode = mode, tint = MaterialTheme.colorScheme.onSurfaceVariant, label = modeLabel(mode))
             }
             Text(
                 text = modeLabel(mode),
@@ -379,7 +380,7 @@ private fun OffsetRow(offsetMs: Long, onNudge: (Long) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        ModeGlyph(tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        TuneGlyph(tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             text = stringResource(R.string.player_offset, formatOffset(offsetMs)),
             style = MaterialTheme.typography.labelMedium,

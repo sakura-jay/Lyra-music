@@ -252,8 +252,8 @@ private fun GroupHeader(group: SearchGroup) {
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
         Text(
             text = group.label,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
+            // 与设置页、音乐库的区块标题同一档：以前这里是 titleSmall，别处是 titleMedium
+            style = MaterialTheme.typography.titleMedium,
         )
         when {
             group.error != null -> Text(

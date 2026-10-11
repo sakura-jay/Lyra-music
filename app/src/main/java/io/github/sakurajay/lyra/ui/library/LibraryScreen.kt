@@ -32,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -244,8 +243,8 @@ private fun SectionHeader(title: String, actionLabel: String?, onAction: (() -> 
     ) {
         Text(
             text = title,
+            // 字重由字阶自己给（M3 的 titleMedium 本来就是 500），不再手工覆写
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
         )
         if (onAction != null && actionLabel != null) {

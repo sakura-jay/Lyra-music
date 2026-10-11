@@ -9,10 +9,10 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.ui.layout.ContentScale
@@ -37,6 +37,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -73,12 +75,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -403,25 +402,26 @@ private fun MiniPlayerBar(viewModel: PlayerViewModel, onOpen: () -> Unit) {
                 )
             }
             Spacer(Modifier.size(10.dp))
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape)
-                    .clickable(onClick = viewModel::playPause),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (state.isPlaying) {
-                    PauseGlyph(
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        label = stringResource(R.string.action_pause),
-                    )
-                } else {
-                    PlayGlyph(
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        label = stringResource(R.string.action_play),
-                    )
+            // 视觉上是 38dp 的圆，但可点区域必须是 48dp（Material 触控下限）：
+            // 用 IconButton 承担命中，圆面只是里面的画布
+            IconButton(onClick = viewModel::playPause, modifier = Modifier.size(48.dp)) {
+                Box(
+                    modifier = Modifier.size(38.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (state.isPlaying) {
+                        PauseGlyph(
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            label = stringResource(R.string.action_pause),
+                        )
+                    } else {
+                        PlayGlyph(
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            label = stringResource(R.string.action_play),
+                        )
+                    }
                 }
             }
         }
@@ -429,64 +429,24 @@ private fun MiniPlayerBar(viewModel: PlayerViewModel, onOpen: () -> Unit) {
 }
 
 /**
- * Tab 图标用 Canvas 直绘：material-icons 已冻结在 1.7.8，与当前 Compose BOM 不同源，
- * 正式图标方案在 M3 视觉收口时定。
+ * Tab 图标。不引 material-icons 的理由与取舍写在 `Glyphs.kt` 顶部，这里不重述一遍——
+ * 两份理由迟早会漂移成两种说法。
  */
 @Composable
 private fun DestinationIcon(destination: TopDestination, tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.size(24.dp)) {
-        val w = size.width
-        val h = size.height
-        val stroke = w * 0.09f
-        val cap = CornerRadius(stroke / 2f, stroke / 2f)
-        when (destination) {
-            TopDestination.Home -> {
-                drawBar(tint, cap, 0.14f, 0.45f, 0.16f, 0.40f, w, h)
-                drawBar(tint, cap, 0.42f, 0.20f, 0.16f, 0.65f, w, h)
-                drawBar(tint, cap, 0.70f, 0.55f, 0.16f, 0.30f, w, h)
-            }
-
-            TopDestination.Search -> {
-                drawCircle(
-                    color = tint,
-                    center = Offset(w * 0.42f, h * 0.42f),
-                    radius = w * 0.26f,
-                    style = Stroke(width = stroke),
-                )
-                drawLine(
-                    color = tint,
-                    start = Offset(w * 0.62f, h * 0.62f),
-                    end = Offset(w * 0.86f, h * 0.86f),
-                    strokeWidth = stroke,
-                    cap = StrokeCap.Round,
-                )
-            }
-
-            TopDestination.Library -> {
+    Icon(
+        painter = painterResource(
+            when (destination) {
+                TopDestination.Home -> R.drawable.ic_equalizer
+                TopDestination.Search -> R.drawable.ic_search
                 // 三层堆叠对应 收藏 / 歌单 / 本地
-                listOf(0.18f, 0.42f, 0.66f).forEach { top ->
-                    drawBar(tint, cap, 0.14f, top, 0.72f, 0.14f, w, h)
-                }
-            }
-        }
-    }
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBar(
-    color: Color,
-    corner: CornerRadius,
-    left: Float,
-    top: Float,
-    width: Float,
-    height: Float,
-    canvasWidth: Float,
-    canvasHeight: Float,
-) {
-    drawRoundRect(
-        color = color,
-        topLeft = Offset(canvasWidth * left, canvasHeight * top),
-        size = Size(canvasWidth * width, canvasHeight * height),
-        cornerRadius = corner,
+                TopDestination.Library -> R.drawable.ic_queue_music
+            },
+        ),
+        // 旁边已经跟着 Tab 文字，给 null 才不会让读屏念成"首页 首页"
+        contentDescription = null,
+        tint = tint,
+        modifier = modifier.size(24.dp),
     )
 }
 

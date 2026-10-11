@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -106,15 +107,11 @@ fun TrackRow(
         when {
             loading -> CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
 
-            onToggleFavorite != null -> Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onToggleFavorite),
-                contentAlignment = Alignment.Center,
-            ) {
+            // 命中区 48dp（Material 触控下限）。以前是 36dp 的裸 clickable，
+            // 在列表里想精准点中心形其实很难
+            onToggleFavorite != null -> IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
                 HeartGlyph(
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(20.dp),
                     tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     filled = favorite,
                     label = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
