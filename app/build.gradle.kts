@@ -28,8 +28,8 @@ android {
         // 与"最后一个已收口的里程碑"对齐：M6 已合入并真机跑通，M7 还没有，
         // 所以是 0.7.0。版本权威仍是 tag（当前 v0.3.0），这里只给"设置→关于"和一个
         // 可辨识的安装包用。
-        versionCode = 3
-        versionName = "0.7.0"
+        versionCode = 4
+        versionName = "0.8.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
