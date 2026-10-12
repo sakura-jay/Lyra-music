@@ -701,10 +701,10 @@ Lyra 额外认 `lyric`/`pic`——歌词与封面确实有源在实现它们，�
 **补验（2026-10-12，用户真机手动）**：歌单广场的滚动观感与无限翻页到底、备份导出/导入
 在真机 SAF 下的往返，均已手工验过；本节先前挂着的两处"仍未验证"至此清零。
 
-**顺手发现（本期不做）**：真机 logcat 反复提示
-`OnBackInvokedCallback is not enabled for the application`——`MainActivity` 没开
-`android:enableOnBackInvokedCallback`，因此拿不到预测式返回动画。经用户确认，本期
-不引入预测式返回动画，manifest 保持原样。
+**顺手发现（本期不做）**：真机 logcat 仍提示 `OnBackInvokedCallback is not enabled for the
+application`，但 manifest 里 `MainActivity` 已启用 `android:enableOnBackInvokedCallback`
+（`fbaa98c`）。该警告成因可能涉及系统层或厂商定制，用户确认本期不再追加预测式返回
+动画相关改动。
 
 ## 计划中的里程碑
 
