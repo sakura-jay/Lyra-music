@@ -172,13 +172,14 @@ private fun LyricLineRow(
             fontWeight = FontWeight.SemiBold,
         )
         if (active && sweep != null) {
-            // 两层同一个 Text：底层是未唱到的颜色，上层按进度裁出已唱的部分
+            // 两层同一个 Text：底层是未唱到的颜色，上层按进度裁出已唱的部分。
+            // 已唱部分用 primary，与未唱的 onSurfaceVariant 拉开对比，扫光才看得清。
             Box(contentAlignment = Alignment.Center) {
                 Text(text = line.text, style = activeStyle, color = scheme.onSurfaceVariant, textAlign = TextAlign.Center)
                 Text(
                     text = line.text,
                     style = activeStyle,
-                    color = scheme.onSurface,
+                    color = scheme.primary,
                     textAlign = TextAlign.Center,
                     onTextLayout = { layout = it },
                     modifier = Modifier.clipSweepTo(sweep) { layout },
