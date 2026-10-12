@@ -37,15 +37,18 @@ internal fun hslOf(color: Color): FloatArray {
 }
 
 internal fun hsl(hue: Float, saturation: Float, tone: Float): Color {
-    val h = ((hue % 360f) + 360f) / 360f
+    // 色相是环形的，这里只把它归一化到 [0,1)；越界那一圈由 channel 自己取模，
+    // 而不是在这里补一整圈再指望 channel 减一次 1f
+    val h = (hue % 360f) / 360f
     val s = saturation.coerceIn(0f, 1f)
     val l = tone.coerceIn(0f, 1f)
     fun qOf(ll: Float) = if (ll < 0.5f) ll * (1f + s) else ll + s - ll * s
     fun pOf(ll: Float) = ll * 2f - qOf(ll)
     fun channel(sexpr: Float): Float {
-        var q = sexpr
+        // h±1/3 最多能到 1.33（hue 接近 360° 时），减一次 1f 不够：
+        // 必须整体取模，否则紫色/粉色的红通道会被算成 p（暗）而不是 q（亮），色板直接变成灰蓝
+        var q = sexpr % 1f
         if (q < 0f) q += 1f
-        if (q > 1f) q -= 1f
         return when {
             q < 1f / 6f -> pOf(l) + (qOf(l) - pOf(l)) * 6f * q
             q < 1f / 2f -> qOf(l)
