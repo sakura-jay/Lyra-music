@@ -8,6 +8,8 @@ import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
 import io.github.sakurajay.lyra.core.source.SourceSearchUseCase
 import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.core.source.repo.SourceRepository
+import io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository
+import io.github.sakurajay.lyra.data.local.FavoritesDatabase
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.BoardPage
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider
@@ -52,6 +54,7 @@ class HomePagingTest {
             app,
             fetch,
             KuwoPlaylistProvider(),
+            FavoritePlaylistRepository(FavoritesDatabase(app)),
             SwitchingPlayUseCase(SourcePlayUseCase(repo, loader), SourceSearchUseCase(repo, loader)),
         )
     }

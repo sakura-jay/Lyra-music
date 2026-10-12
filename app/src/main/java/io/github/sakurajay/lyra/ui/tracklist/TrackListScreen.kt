@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.HeartGlyph
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 
@@ -56,6 +57,8 @@ fun TrackListScreen(
     onOpenAlbum: ((String) -> Unit)?,
     onMore: ((io.github.sakurajay.lyra.domain.model.Song) -> Unit)? = null,
     onMessageShown: () -> Unit = {},
+    favorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
 ) {
     val list = state.list
 
@@ -79,6 +82,20 @@ fun TrackListScreen(
                             tint = MaterialTheme.colorScheme.onSurface,
                             label = stringResource(R.string.action_back),
                         )
+                    }
+                },
+                actions = {
+                    if (onToggleFavorite != null) {
+                        IconButton(onClick = onToggleFavorite) {
+                            HeartGlyph(
+                                modifier = Modifier.size(22.dp),
+                                tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                filled = favorite,
+                                label = stringResource(
+                                    if (favorite) R.string.playlist_favorite_on else R.string.playlist_favorite,
+                                ),
+                            )
+                        }
                     }
                 },
             )

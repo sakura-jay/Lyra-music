@@ -43,20 +43,21 @@ class FavoritesDatabase(context: Context) : SQLiteOpenHelper(context.application
             )
             """.trimIndent(),
         )
-        createPlaylistTables(db)
+        createLibraryTables(db)
     }
 
     /**
-     * v2 起多了两张自建歌单表。
+     * 升级只做一件事：把缺的表补上。
      *
-     * 这里只建表，不碰 favorites：这张表里是用户资产，历史上 onUpgrade 的"删表重建"
-     * 一旦保留到 v2，升级就把收藏清空了。以后再有版本，也只允许加表/加列 + 显式迁移。
+     * v2 起多了两张自建歌单表，v3 起多了一张收藏的平台歌单表。**不要**在这里写
+     * "删表重建"——favorites 里是用户资产，历史上那个写法一旦被沿用，升级就是把
+     * 收藏清空。全部用 CREATE TABLE IF NOT EXISTS，所以每一版都走同一条路径。
      */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) createPlaylistTables(db)
+        if (oldVersion < DB_VERSION) createLibraryTables(db)
     }
 
-    private fun createPlaylistTables(db: SQLiteDatabase) {
+    private fun createLibraryTables(db: SQLiteDatabase) {
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS playlists(
@@ -77,11 +78,26 @@ class FavoritesDatabase(context: Context) : SQLiteOpenHelper(context.application
             )
             """.trimIndent(),
         )
+        // 收藏的平台歌单只存名片：曲目还在平台那边，本地记的是"在哪儿能找到它"
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS favorite_playlists(
+              list_id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              author TEXT NOT NULL,
+              cover_url TEXT NOT NULL,
+              song_count INTEGER NOT NULL,
+              play_count TEXT NOT NULL,
+              description TEXT NOT NULL,
+              added_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
     }
 
     private companion object {
         const val DB_NAME = "lyra-library.db"
-        const val DB_VERSION = 2
+        const val DB_VERSION = 3
     }
 }
 

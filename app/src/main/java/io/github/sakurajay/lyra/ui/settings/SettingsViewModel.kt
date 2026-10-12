@@ -114,16 +114,18 @@ class SettingsViewModel(
             val result = runCatching {
                 val favoriteRepo = favorites()
                 val playlistRepo = playlists()
+                val playlistFavoritesRepo = ServiceLocator.favoritePlaylistRepository(context)
                 val saved = favoriteRepo.refresh()
                 val lists = playlistRepo.refresh()
                 val songs = lists.map { playlist -> playlist to playlistRepo.songsOf(playlist.id) }
-                val json = LibraryBackup.toJson(saved, songs)
+                val savedPlaylists = playlistFavoritesRepo.refresh()
+                val json = LibraryBackup.toJson(saved, songs, savedPlaylists)
                 context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
                     ?: error("打不开这个文件")
-                saved.size to lists.size
+                Triple(saved.size, lists.size, savedPlaylists.size)
             }
-            _message.value = result.getOrNull()?.let { (favoriteCount, playlistCount) ->
-                "已导出：收藏 $favoriteCount 首、歌单 $playlistCount 个"
+            _message.value = result.getOrNull()?.let { (favoriteCount, playlistCount, savedPlaylistCount) ->
+                "已导出：收藏 $favoriteCount 首、歌单 $playlistCount 个、收藏的歌单 $savedPlaylistCount 个"
             } ?: "导出失败：${reasonOf(result.exceptionOrNull())}"
         }
     }
@@ -139,15 +141,19 @@ class SettingsViewModel(
                 favorites().refresh()
                 val addedFavorites = favorites().addAll(content.favorites)
                 val imported = playlists().importPlaylists(content.playlists.map { it.name to it.songs })
-                Triple(addedFavorites, content, imported)
+                val addedPlaylists = ServiceLocator.favoritePlaylistRepository(context)
+                    .addAll(content.favoritePlaylists)
+                Triple(addedFavorites, content, imported to addedPlaylists)
             }
             result.fold(
-                onSuccess = { (addedFavorites, content, imported) ->
+                onSuccess = { (addedFavorites, content, importedAndPlaylists) ->
+                    val (imported, addedPlaylists) = importedAndPlaylists
                     _message.value = buildString {
                         append("导入完成：新增收藏 $addedFavorites 首")
                         if (content.playlists.isNotEmpty()) {
                             append("；歌单新建 ${imported.created} 个、并入 ${imported.merged} 个、加进 ${imported.addedSongs} 首")
                         }
+                        if (content.favoritePlaylists.isNotEmpty()) append("；新增收藏的歌单 $addedPlaylists 个")
                         if (content.skippedSongs > 0) append("；跳过读不出的曲目 ${content.skippedSongs} 条")
                     }
                 },

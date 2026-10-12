@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
+import io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.BoardPage
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider
@@ -20,8 +21,11 @@ import io.github.sakurajay.lyra.player.describe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -36,6 +40,7 @@ class HomeViewModel(
     application: Application,
     private val fetchBoard: suspend (Board, Int, Int) -> BoardPage,
     private val playlistProvider: KuwoPlaylistProvider,
+    private val playlistFavorites: FavoritePlaylistRepository,
     playUseCase: SwitchingPlayUseCase,
 ) : AndroidViewModel(application) {
 
@@ -59,6 +64,11 @@ class HomeViewModel(
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    /** 首页那一排卡片要显示自己有没有被收藏；只留 id 集合，卡片不关心收藏时间 */
+    val favoritePlaylistIds: StateFlow<Set<String>> = playlistFavorites.favoritePlaylists
+        .map { list -> list.map { it.listId }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
     private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
     private val playController = SongPlayController(launcher)
 
@@ -68,6 +78,7 @@ class HomeViewModel(
     init {
         _uiState.value.boards.firstOrNull()?.let { load(it) }
         loadPlaylists()
+        viewModelScope.launch { runCatching { playlistFavorites.refresh() } }
     }
 
     /** 同一个榜重复点不重新拉：切走再切回来会把列表闪成加载态 */
@@ -207,6 +218,15 @@ class HomeViewModel(
         _uiState.update { it.copy(message = null) }
     }
 
+    fun togglePlaylistFavorite(summary: PlaylistSummary) {
+        viewModelScope.launch {
+            val nowFavorite = playlistFavorites.toggle(summary)
+            _uiState.update {
+                it.copy(message = if (nowFavorite) "已收藏「${summary.name}」" else "已移出收藏")
+            }
+        }
+    }
+
     override fun onCleared() {
         launcher.release()
     }
@@ -228,6 +248,7 @@ class HomeViewModel(
                     application,
                     fetchBoard = { board, page, limit -> provider.songs(board, page, limit) },
                     ServiceLocator.playlistProvider(),
+                    ServiceLocator.favoritePlaylistRepository(application),
                     ServiceLocator.switchingPlayUseCase(application),
                 ) as T
             }

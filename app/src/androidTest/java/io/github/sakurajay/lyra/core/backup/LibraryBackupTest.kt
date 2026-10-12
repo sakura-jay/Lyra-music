@@ -3,6 +3,8 @@ package io.github.sakurajay.lyra.core.backup
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import io.github.sakurajay.lyra.data.local.Favorite
+import io.github.sakurajay.lyra.data.local.FavoritePlaylist
+import io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository
 import io.github.sakurajay.lyra.data.local.FavoritesDatabase
 import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.data.local.PlaylistRepository
@@ -47,6 +49,17 @@ class LibraryBackupTest {
     )
     private val other = jay.copy(id = "111", name = "双截棍", source = "tx", artists = listOf("周杰伦"))
 
+    private fun savedPlaylist(listId: String, name: String, addedAt: Long) = FavoritePlaylist(
+        listId = listId,
+        name = name,
+        author = "kw1234567",
+        coverUrl = "https://img.example.com/p.jpg",
+        songCount = 88,
+        playCountLabel = "12.3万",
+        description = "一份歌单",
+        addedAt = addedAt,
+    )
+
     private lateinit var context: Context
 
     @Before
@@ -71,13 +84,15 @@ class LibraryBackupTest {
             UserPlaylist(1, "深夜", songCount = 2, createdAt = 1L) to listOf(jay, other),
             UserPlaylist(2, "空手", songCount = 0, createdAt = 2L) to emptyList<Song>(),
         )
-        val parsed = LibraryBackup.parse(LibraryBackup.toJson(favorites, playlists))
+        val savedPlaylists = listOf(savedPlaylist("digest-8__2736267853", "华语精选", 9527L))
+        val parsed = LibraryBackup.parse(LibraryBackup.toJson(favorites, playlists, savedPlaylists))
 
         assertEquals(favorites, parsed.favorites)
         assertEquals(0, parsed.skippedSongs)
         assertEquals(listOf("深夜", "空手"), parsed.playlists.map { it.name })
         assertEquals(listOf(jay, other), parsed.playlists.first().songs)
         assertEquals(emptyList<Song>(), parsed.playlists.last().songs)
+        assertEquals(savedPlaylists, parsed.favoritePlaylists)
     }
 
     /** 备份文件是要给人看的：至少得是真 JSON、并且带上认门用的标记 */
@@ -86,8 +101,43 @@ class LibraryBackupTest {
         val json = LibraryBackup.toJson(listOf(Favorite(jay, 1L)), emptyList())
         val root = JSONObject(json)
         assertEquals("lyra", root.getString("app"))
-        assertEquals(1, root.getInt("version"))
+        assertEquals(2, root.getInt("version"))
         assertEquals(1, root.getJSONArray("favorites").length())
+        assertEquals(0, root.getJSONArray("favoritePlaylists").length())
+    }
+
+    /**
+     * v1 的备份里没有 favoritePlaylists 这一段。
+     *
+     * 老备份不能因为"新版本多了一段"就导不进来——那恰好是最需要能恢复的那份文件。
+     */
+    @Test
+    fun readsV1BackupWithoutFavoritePlaylists() {
+        val v1 = JSONObject()
+            .put("app", "lyra")
+            .put("version", 1)
+            .put("favorites", JSONArray().put(JSONObject().put("addedAt", 1L).put("song", SongCodec.encode(jay))))
+
+        val parsed = LibraryBackup.parse(v1.toString())
+        assertEquals(listOf(jay), parsed.favorites.map { it.song })
+        assertEquals(emptyList<FavoritePlaylist>(), parsed.favoritePlaylists)
+    }
+
+    /** 收藏的歌单没有 id 就再也点不开，这样的行不留 */
+    @Test
+    fun skipsSavedPlaylistsWithoutId() {
+        val root = JSONObject()
+            .put("app", "lyra")
+            .put("version", 2)
+            .put(
+                "favoritePlaylists",
+                JSONArray()
+                    .put(JSONObject().put("name", "没有 id"))
+                    .put(JSONObject().put("listId", "digest-8__1").put("name", "正常")),
+            )
+
+        val parsed = LibraryBackup.parse(root.toString())
+        assertEquals(listOf("正常"), parsed.favoritePlaylists.map { it.name })
     }
 
     @Test
@@ -145,24 +195,31 @@ class LibraryBackupTest {
         val helper = FavoritesDatabase(context)
         val favorites = FavoritesRepository(helper)
         val playlists = PlaylistRepository(helper)
+        val playlistFavorites = FavoritePlaylistRepository(helper)
         favorites.toggle(jay)
         favorites.toggle(other)
         val commute = playlists.create("通勤")
         playlists.toggle(jay, commute.id)
+        val savedPlaylists = listOf(savedPlaylist("digest-8__2736267853", "华语精选", 9527L))
+        playlistFavorites.addAll(savedPlaylists)
 
         val json = LibraryBackup.toJson(
             favorites.refresh(),
             playlists.refresh().map { it to playlists.songsOf(it.id) },
+            playlistFavorites.refresh(),
         )
         helper.writableDatabase.apply {
             delete("playlist_items", null, null)
             delete("playlists", null, null)
             delete("favorites", null, null)
+            delete("favorite_playlists", null, null)
         }
         favorites.refresh()
         playlists.refresh()
+        playlistFavorites.refresh()
         assertTrue(favorites.favorites.value.isEmpty())
         assertTrue(playlists.playlists.value.isEmpty())
+        assertTrue(playlistFavorites.favoritePlaylists.value.isEmpty())
 
         val content = LibraryBackup.parse(json)
         assertEquals("第一次导入应把收藏补回来", 2, favorites.addAll(content.favorites))
@@ -181,7 +238,12 @@ class LibraryBackupTest {
         assertEquals("重导不该加歌", 0, again.addedSongs)
         assertEquals(1, playlists.playlists.value.size)
 
+        assertEquals("收藏的歌单也要回来", 1, playlistFavorites.addAll(content.favoritePlaylists))
+        assertEquals("重导不该再加", 0, playlistFavorites.addAll(content.favoritePlaylists))
+        assertEquals(savedPlaylists, playlistFavorites.favoritePlaylists.value)
+
         favorites.close()
         playlists.close()
+        playlistFavorites.close()
     }
 }

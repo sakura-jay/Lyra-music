@@ -63,6 +63,7 @@ import io.github.sakurajay.lyra.ui.library.PlaylistPickerViewModel
 import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
+import io.github.sakurajay.lyra.ui.playlist.PlaylistSquareScreen
 import io.github.sakurajay.lyra.ui.search.SearchScreen
 import io.github.sakurajay.lyra.ui.settings.CacheScreen
 import io.github.sakurajay.lyra.ui.settings.SettingsScreen
@@ -99,6 +100,7 @@ private const val ROUTE_PLAYER = "player"
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_ALBUM = "album/{albumId}"
 private const val ROUTE_PLAYLIST = "playlist/{listId}"
+private const val ROUTE_PLAYLIST_SQUARE = "playlists"
 private const val ROUTE_MY_PLAYLIST = "my-playlist/{playlistId}"
 private const val ROUTE_LOCAL_MUSIC = "local-music"
 private const val ROUTE_CACHE = "cache"
@@ -112,8 +114,8 @@ private fun playlistRoute(listId: String) = "playlist/$listId"
 
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
 private val DETAIL_ROUTES = setOf(
-    ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_MY_PLAYLIST,
-    ROUTE_LOCAL_MUSIC, ROUTE_CACHE,
+    ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_PLAYLIST_SQUARE,
+    ROUTE_MY_PLAYLIST, ROUTE_LOCAL_MUSIC, ROUTE_CACHE,
 )
 
 @Composable
@@ -213,6 +215,7 @@ fun LyraApp() {
                             TopDestination.Home -> HomeScreen(
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                                 onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
+                                onOpenPlaylistSquare = { navController.navigate(ROUTE_PLAYLIST_SQUARE) },
                                 onMore = picker::open,
                             )
 
@@ -225,6 +228,7 @@ fun LyraApp() {
                                 onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                                 onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                                 onOpenMyPlaylist = { id -> navController.navigate("my-playlist/$id") },
+                                onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
                                 onOpenLocalMusic = { navController.navigate(ROUTE_LOCAL_MUSIC) },
                                 onMore = picker::open,
                             )
@@ -308,6 +312,20 @@ fun LyraApp() {
                         onBack = { navController.popBackStack() },
                         onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                         onMore = picker::open,
+                    )
+                }
+            }
+            composable(
+                ROUTE_PLAYLIST_SQUARE,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    PlaylistSquareScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
                     )
                 }
             }

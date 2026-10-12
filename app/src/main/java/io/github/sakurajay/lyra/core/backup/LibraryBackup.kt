@@ -1,6 +1,7 @@
 package io.github.sakurajay.lyra.core.backup
 
 import io.github.sakurajay.lyra.data.local.Favorite
+import io.github.sakurajay.lyra.data.local.FavoritePlaylist
 import io.github.sakurajay.lyra.data.local.UserPlaylist
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.domain.model.SongCodec
@@ -17,22 +18,30 @@ data class BackupPlaylist(val name: String, val songs: List<Song>)
 data class BackupContent(
     val favorites: List<Favorite>,
     val playlists: List<BackupPlaylist>,
+    val favoritePlaylists: List<FavoritePlaylist>,
     val skippedSongs: Int,
 )
 
 /**
- * 收藏与自建歌单的 JSON 备份。
+ * 收藏、自建歌单、收藏的平台歌单的 JSON 备份。
  *
  * 格式是 Lyra 自己的、带版本号的：曲目直接放 [SongCodec] 的紧凑串，不再发明第二套
  * 字段表——那套字段表一旦和 Song 的字段漂移，备份就变成"看起来能恢复、其实丢东西"。
+ *
+ * v2 补上了收藏的平台歌单。读的时候按 version 分支：旧备份没有那一段就是"当时还没
+ * 这个功能"，不是"文件坏了"——所以 v1 的文件在 v2 的应用里照样能导。
  *
  * 导入永远是合并：备份是用户资产的一份副本，最不能接受的是"恢复旧备份把新收藏清了"。
  */
 object LibraryBackup {
 
-    private const val VERSION = 1
+    private const val VERSION = 2
 
-    fun toJson(favorites: List<Favorite>, playlists: List<Pair<UserPlaylist, List<Song>>>): String {
+    fun toJson(
+        favorites: List<Favorite>,
+        playlists: List<Pair<UserPlaylist, List<Song>>>,
+        favoritePlaylists: List<FavoritePlaylist> = emptyList(),
+    ): String {
         val root = JSONObject()
             .put("app", "lyra")
             .put("version", VERSION)
@@ -51,6 +60,24 @@ object LibraryBackup {
                         JSONObject()
                             .put("name", playlist.name)
                             .put("songs", JSONArray().apply { songs.forEach { put(SongCodec.encode(it)) } }),
+                    )
+                }
+            },
+        )
+        root.put(
+            "favoritePlaylists",
+            JSONArray().apply {
+                favoritePlaylists.forEach { entry ->
+                    put(
+                        JSONObject()
+                            .put("listId", entry.listId)
+                            .put("name", entry.name)
+                            .put("author", entry.author)
+                            .put("coverUrl", entry.coverUrl)
+                            .put("songCount", entry.songCount)
+                            .put("playCount", entry.playCountLabel)
+                            .put("description", entry.description)
+                            .put("addedAt", entry.addedAt),
                     )
                 }
             },
@@ -103,13 +130,36 @@ object LibraryBackup {
                 }
             }
         }
-        if (favorites.isEmpty() && playlists.isEmpty()) {
+        val favoritePlaylists = root.optJSONArray("favoritePlaylists").orEmpty().let { array ->
+            buildList {
+                for (i in 0 until array.length()) {
+                    val entry = array.optJSONObject(i) ?: continue
+                    val listId = entry.optString("listId")
+                    val name = entry.optString("name")
+                    // 没有 id 就找不回这个歌单，这样的行留下只是个死条目
+                    if (listId.isBlank() || name.isBlank()) continue
+                    add(
+                        FavoritePlaylist(
+                            listId = listId,
+                            name = name,
+                            author = entry.optString("author"),
+                            coverUrl = entry.optString("coverUrl"),
+                            songCount = entry.optInt("songCount", 0),
+                            playCountLabel = entry.optString("playCount"),
+                            description = entry.optString("description"),
+                            addedAt = entry.optLong("addedAt", System.currentTimeMillis()),
+                        ),
+                    )
+                }
+            }
+        }
+        if (favorites.isEmpty() && playlists.isEmpty() && favoritePlaylists.isEmpty()) {
             // 空备份也要说清楚是"真的没有内容"还是"一行都读不出来"
             throw BackupFormatException(
                 if (skipped > 0) "备份里有 $skipped 条曲目，但一条都解不开" else "这个备份里没有内容",
             )
         }
-        return BackupContent(favorites, playlists, skipped)
+        return BackupContent(favorites, playlists, favoritePlaylists, skipped)
     }
 
     private fun decode(raw: String): Song? = raw.takeIf { it.isNotBlank() }?.let(SongCodec::decode)

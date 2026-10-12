@@ -136,6 +136,15 @@ object ServiceLocator {
         }
 
     @Volatile
+    private var favoritePlaylists: io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository? = null
+
+    fun favoritePlaylistRepository(context: Context): io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository =
+        favoritePlaylists ?: synchronized(this) {
+            favoritePlaylists ?: io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository(libraryDb(context))
+                .also { favoritePlaylists = it }
+        }
+
+    @Volatile
     private var localMusic: io.github.sakurajay.lyra.data.local.LocalMusicRepository? = null
 
     /** 全进程一份：扫一次 MediaStore 不便宜，界面来回切不该来回扫 */

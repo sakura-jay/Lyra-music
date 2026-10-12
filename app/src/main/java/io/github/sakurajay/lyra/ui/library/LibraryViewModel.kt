@@ -8,6 +8,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.data.local.Favorite
+import io.github.sakurajay.lyra.data.local.FavoritePlaylist
+import io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository
 import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.data.local.LocalMusicRepository
 import io.github.sakurajay.lyra.data.local.PlaylistRepository
@@ -30,6 +32,7 @@ class LibraryViewModel(
     application: Application,
     private val favorites: FavoritesRepository,
     private val playlistsRepository: PlaylistRepository,
+    private val playlistFavorites: FavoritePlaylistRepository,
     private val localMusic: LocalMusicRepository,
     playUseCase: SwitchingPlayUseCase,
 ) : AndroidViewModel(application) {
@@ -53,6 +56,10 @@ class LibraryViewModel(
         viewModelScope, SharingStarted.Eagerly, emptyList(),
     )
 
+    val savedPlaylists: StateFlow<List<FavoritePlaylist>> = playlistFavorites.favoritePlaylists.stateIn(
+        viewModelScope, SharingStarted.Eagerly, emptyList(),
+    )
+
     val localSongs: StateFlow<List<Song>> = localMusic.songs.stateIn(
         viewModelScope, SharingStarted.Eagerly, emptyList(),
     )
@@ -64,6 +71,7 @@ class LibraryViewModel(
         viewModelScope.launch {
             runCatching { favorites.refresh() }
             runCatching { playlistsRepository.refresh() }
+            runCatching { playlistFavorites.refresh() }
         }
         scanLocal()
     }
@@ -105,6 +113,13 @@ class LibraryViewModel(
             val name = playlistsRepository.find(id)?.name
             playlistsRepository.delete(id)
             _uiState.update { it.copy(message = "已删除「$name」") }
+        }
+    }
+
+    fun unfavoritePlaylist(entry: FavoritePlaylist) {
+        viewModelScope.launch {
+            playlistFavorites.remove(entry.listId)
+            _uiState.update { it.copy(message = "已移出「${entry.name}」") }
         }
     }
 
@@ -154,6 +169,7 @@ class LibraryViewModel(
                     application,
                     ServiceLocator.favoritesRepository(application),
                     ServiceLocator.playlistRepository(application),
+                    ServiceLocator.favoritePlaylistRepository(application),
                     ServiceLocator.localMusicRepository(application),
                     ServiceLocator.switchingPlayUseCase(application),
                 ) as T

@@ -14,7 +14,15 @@
     <string name="song_unknown_artist">未知歌手</string>
 
     <string name="home_playlists">推荐歌单</string>
+    <string name="home_playlists_more">更多</string>
     <string name="home_playlists_failed">推荐歌单没取到，下面的榜单不受影响。</string>
+
+    <string name="playlist_square_title">歌单广场</string>
+    <string name="playlist_square_empty">这个排序没有返回歌单。换"最新"试试，或点右上角重载。</string>
+    <string name="playlist_square_end">已显示全部 %1$d 张</string>
+    <string name="playlist_favorite">收藏这个歌单</string>
+    <string name="playlist_favorite_on">已收藏这个歌单</string>
+    <string name="action_retry">重试</string>
 
     <string name="tracklist_title">详情</string>
     <string name="tracklist_count">共 %1$d 首</string>
@@ -28,6 +36,10 @@
     <string name="library_favorite">收藏</string>
     <string name="library_my_playlists">我的歌单</string>
     <string name="library_playlist_count">我的歌单 %1$d 个</string>
+    <string name="library_favorite_playlists">收藏的歌单</string>
+    <string name="library_favorite_playlist_count">收藏的歌单 %1$d 个</string>
+    <string name="library_no_favorite_playlists">还没有收藏的歌单。在首页或歌单广场点封面右上角的 ♥ 收进来。</string>
+    <string name="library_unfavorite_playlist">把「%1$s」移出收藏</string>
     <string name="library_new_playlist">新建歌单</string>
     <string name="library_create_and_add">创建并加入</string>
     <string name="library_no_playlists">还没有歌单。新建一个，之后长按任意曲目就能放进来。</string>

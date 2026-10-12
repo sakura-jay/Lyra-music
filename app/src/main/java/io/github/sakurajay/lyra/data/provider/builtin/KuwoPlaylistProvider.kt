@@ -41,6 +41,9 @@ class KuwoPlaylistProvider(
     private val albumProvider: KuwoAlbumProvider = KuwoAlbumProvider(client),
 ) {
 
+    /** 推荐歌单的排序。写在类体里而不是 companion 里：外面要写 `KuwoPlaylistProvider.Order` */
+    enum class Order(val id: String, val label: String) { HOT("hot", "最热"), NEW("new", "最新") }
+
     suspend fun recommended(order: Order = Order.HOT, page: Int = 1, limit: Int = 20): List<PlaylistSummary> =
         withContext(Dispatchers.IO) {
             val url = "$RCM_URL?loginUid=0&loginSid=0&appUid=$APP_UID&pn=$page&rn=$limit&order=${order.id}"
@@ -110,8 +113,6 @@ class KuwoPlaylistProvider(
         }
 
     companion object {
-        enum class Order(val id: String, val label: String) { HOT("hot", "最热"), NEW("new", "最新") }
-
         private const val APP_UID = "76039576"
         private const val RCM_URL = "https://wapi.kuwo.cn/api/pc/classify/playlist/getRcmPlayList"
         private const val PL_URL = "https://nplserver.kuwo.cn/pl.svc"
@@ -120,7 +121,6 @@ class KuwoPlaylistProvider(
         private const val DIGEST_SONG_LIST = "digest-8"
         private const val DIGEST_LIST = "digest-5"
         private const val DIGEST_ALBUM = "digest-13"
-            private val JSONArray0 = org.json.JSONArray()
 
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"

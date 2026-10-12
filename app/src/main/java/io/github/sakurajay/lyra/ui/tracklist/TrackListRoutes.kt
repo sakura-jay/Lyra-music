@@ -37,6 +37,10 @@ fun AlbumRoute(albumId: String, onBack: () -> Unit, onMore: (Song) -> Unit) {
     )
 }
 
+/**
+ * 平台歌单详情。与专辑共用页面，多的两样东西是"这个歌单能收进音乐库"和曲目行的
+ * 加歌单入口——[listId] 得单独带着，因为详情返回的曲目里没有"我属于哪个歌单"这一层。
+ */
 @Composable
 fun PlaylistRoute(
     listId: String,
@@ -44,12 +48,19 @@ fun PlaylistRoute(
     onOpenAlbum: (String) -> Unit,
     onMore: (Song) -> Unit,
 ) {
+    val context = LocalContext.current
     val provider = ServiceLocator.playlistProvider()
+    val favorites = ServiceLocator.favoritePlaylistRepository(context)
     val viewModel: TrackListViewModel = viewModel(
         key = "playlist-$listId",
-        factory = TrackListViewModel.factory { provider.detail(listId).toTrackList() },
+        factory = TrackListViewModel.factory(
+            loader = { provider.detail(listId).toTrackList() },
+            playlistFavorites = favorites,
+            playlistId = listId,
+        ),
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val saved by favorites.favoritePlaylists.collectAsStateWithLifecycle()
     TrackListScreen(
         state = state,
         onBack = onBack,
@@ -57,6 +68,8 @@ fun PlaylistRoute(
         onOpenAlbum = onOpenAlbum,
         onMore = onMore,
         onMessageShown = viewModel::clearMessage,
+        favorite = saved.any { it.listId == listId },
+        onToggleFavorite = viewModel::toggleFavorite,
     )
 }
 

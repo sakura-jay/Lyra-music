@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
+import io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository
+import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.ArtworkLoader
@@ -37,10 +39,16 @@ data class TrackList(
     val songs: List<Song>,
 )
 
+/**
+ * [playlistFavorites] 与 [playlistId] 只有平台歌单页才给：专辑与本地列表没有"收藏这个列表"
+ * 这回事，自建歌单本来就在库里。两个一起为空就是"这一页不支持收藏"。
+ */
 class TrackListViewModel(
     application: Application,
     private val loader: suspend () -> TrackList,
     playUseCase: SwitchingPlayUseCase,
+    private val playlistFavorites: FavoritePlaylistRepository? = null,
+    private val playlistId: String? = null,
 ) : AndroidViewModel(application) {
 
     data class UiState(
@@ -117,19 +125,58 @@ class TrackListViewModel(
         _uiState.update { it.copy(message = null) }
     }
 
+    /**
+     * 收藏/取消收藏这个平台歌单。
+     *
+     * 存下来的名片是从已经加载出来的 [TrackList] 重建的，而不是另外再打一次详情接口：
+     * 两者本来就是同一份数据映射出来的，页面上显示的曲目数与收藏里记的曲目数不该由
+     * 两次请求各自决定。
+     */
+    fun toggleFavorite() {
+        val repository = playlistFavorites ?: return
+        val listId = playlistId ?: return
+        val list = _uiState.value.list ?: return
+        viewModelScope.launch {
+            val nowFavorite = repository.toggle(
+                PlaylistSummary(
+                    listId = listId,
+                    name = list.title,
+                    author = list.subtitle,
+                    coverUrl = list.coverUrl,
+                    songCount = list.songCount,
+                    playCountLabel = list.playCountLabel,
+                    description = list.description,
+                ),
+            )
+            _uiState.update {
+                it.copy(message = if (nowFavorite) "已收藏「${list.title}」" else "已移出收藏")
+            }
+        }
+    }
+
     override fun onCleared() {
         launcher.release()
     }
 
     companion object {
-        fun factory(loader: suspend () -> TrackList): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+        fun factory(
+            playlistFavorites: FavoritePlaylistRepository? = null,
+            playlistId: String? = null,
+            loader: suspend () -> TrackList,
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(
                 modelClass: Class<T>,
                 extras: androidx.lifecycle.viewmodel.CreationExtras,
             ): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                return TrackListViewModel(application, loader, ServiceLocator.switchingPlayUseCase(application)) as T
+                return TrackListViewModel(
+                    application,
+                    loader,
+                    ServiceLocator.switchingPlayUseCase(application),
+                    playlistFavorites,
+                    playlistId,
+                ) as T
             }
         }
     }

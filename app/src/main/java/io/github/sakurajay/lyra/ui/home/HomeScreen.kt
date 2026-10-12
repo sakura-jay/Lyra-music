@@ -3,10 +3,8 @@ package io.github.sakurajay.lyra.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,9 +41,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,9 +51,9 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.ui.common.PlaylistCard
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.UpGlyph
-import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -68,10 +63,12 @@ import kotlinx.coroutines.launch
 fun HomeScreen(
     onOpenAlbum: (String) -> Unit,
     onOpenPlaylist: (String) -> Unit,
+    onOpenPlaylistSquare: () -> Unit,
     onMore: (Song) -> Unit = {},
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val favoritePlaylistIds by viewModel.favoritePlaylistIds.collectAsStateWithLifecycle()
     val board = state.boards.firstOrNull { it.id == state.selectedBoardId } ?: state.boards.firstOrNull()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -121,7 +118,10 @@ fun HomeScreen(
                         playlists = state.playlists,
                         loading = state.playlistsLoading,
                         failed = state.playlistsFailed,
+                        favoriteIds = favoritePlaylistIds,
                         onOpen = onOpenPlaylist,
+                        onOpenSquare = onOpenPlaylistSquare,
+                        onToggleFavorite = viewModel::togglePlaylistFavorite,
                     )
                 }
 
@@ -241,72 +241,61 @@ private fun BoardSelector(boards: List<Board>, selectedId: String, onSelect: (Bo
     }
 }
 
-/** 推荐歌单：没内容时整块不占位，失败时只在这一块里说一句，不影响下面的榜单 */
+/**
+ * 推荐歌单：标题那一行永远在（右侧的"更多"是歌单广场唯一的入口，不能因为这一排取失败
+ * 就一起消失），失败与空内容只说在下面的内容区里。
+ */
 @Composable
 private fun PlaylistSection(
     playlists: List<PlaylistSummary>,
     loading: Boolean,
     failed: Boolean,
+    favoriteIds: Set<String>,
     onOpen: (String) -> Unit,
+    onOpenSquare: () -> Unit,
+    onToggleFavorite: (PlaylistSummary) -> Unit,
 ) {
-    when {
-        playlists.isNotEmpty() -> Column {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 text = stringResource(R.string.home_playlists),
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 10.dp, bottom = 2.dp),
                 style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
             )
-            LazyRow(
+            TextButton(onClick = onOpenSquare) { Text(stringResource(R.string.home_playlists_more)) }
+        }
+
+        when {
+            playlists.isNotEmpty() -> LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(playlists, key = { it.listId }) { item ->
-                    PlaylistCard(name = item.name, coverUrl = item.coverUrl, onClick = { onOpen(item.listId) })
+                    PlaylistCard(
+                        name = item.name,
+                        coverUrl = item.coverUrl,
+                        onClick = { onOpen(item.listId) },
+                        modifier = Modifier.width(110.dp),
+                        favorite = item.listId in favoriteIds,
+                        onToggleFavorite = { onToggleFavorite(item) },
+                    )
                 }
             }
+
+            failed -> Text(
+                text = stringResource(R.string.home_playlists_failed),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            loading -> CircularProgressIndicator(
+                modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp).size(18.dp),
+                strokeWidth = 2.dp,
+            )
         }
-
-        failed -> Text(
-            text = stringResource(R.string.home_playlists_failed),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        loading -> CircularProgressIndicator(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).size(18.dp),
-            strokeWidth = 2.dp,
-        )
-    }
-}
-
-@Composable
-private fun PlaylistCard(name: String, coverUrl: String, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier.width(110.dp).clickable(onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(110.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            val artwork = rememberRemoteArtwork(coverUrl)
-            if (artwork != null) {
-                Image(
-                    bitmap = artwork.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(110.dp).clip(RoundedCornerShape(12.dp)),
-                )
-            }
-        }
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
