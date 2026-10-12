@@ -38,6 +38,9 @@ private val EMPHASIZED_RANK = 3
  *
  * [onLongClick] 是"对这首歌做点别的"（收藏/加入歌单）的入口：这些动作四个列表页都要，
  * 但每行再挂两个按钮就把曲名挤没了，所以走长按。
+ *
+ * [onMore] 与 [onLongClick] 是同一个入口的两种触发方式。只有长按等于没有入口——
+ * 界面上没有任何东西提示"长按会有菜单"，用户找不到就只会得出"加不进歌单"这个结论。
  */
 @Composable
 fun TrackRow(
@@ -50,6 +53,7 @@ fun TrackRow(
     favorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    onMore: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -107,15 +111,28 @@ fun TrackRow(
         when {
             loading -> CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
 
-            // 命中区 48dp（Material 触控下限）。以前是 36dp 的裸 clickable，
-            // 在列表里想精准点中心形其实很难
-            onToggleFavorite != null -> IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
-                HeartGlyph(
-                    modifier = Modifier.size(20.dp),
-                    tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    filled = favorite,
-                    label = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
-                )
+            else -> {
+                // 命中区 48dp（Material 触控下限）。以前是 36dp 的裸 clickable，
+                // 在列表里想精准点中心形其实很难
+                if (onToggleFavorite != null) {
+                    IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
+                        HeartGlyph(
+                            modifier = Modifier.size(20.dp),
+                            tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            filled = favorite,
+                            label = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
+                        )
+                    }
+                }
+                if (onMore != null) {
+                    IconButton(onClick = onMore, modifier = Modifier.size(48.dp)) {
+                        MoreGlyph(
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            label = stringResource(R.string.action_more),
+                        )
+                    }
+                }
             }
         }
     }

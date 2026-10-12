@@ -290,6 +290,7 @@ fun LyraApp() {
                     AlbumRoute(
                         albumId = entry.arguments?.getString("albumId").orEmpty(),
                         onBack = { navController.popBackStack() },
+                        onMore = picker::open,
                     )
                 }
             }
@@ -306,6 +307,7 @@ fun LyraApp() {
                         listId = entry.arguments?.getString("listId").orEmpty(),
                         onBack = { navController.popBackStack() },
                         onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
+                        onMore = picker::open,
                     )
                 }
             }

@@ -92,3 +92,8 @@ fun ModeGlyph(mode: PlayMode, modifier: Modifier = Modifier, tint: Color, label:
 @Composable
 fun HeartGlyph(modifier: Modifier = Modifier, tint: Color, filled: Boolean = true, label: String? = null) =
     Glyph(if (filled) R.drawable.ic_favorite else R.drawable.ic_favorite_border, modifier, tint, label)
+
+/** 曲目行尾的"还有别的可做"（收藏/加入歌单）：长按同样能到，但长按没人看得见 */
+@Composable
+fun MoreGlyph(modifier: Modifier = Modifier, tint: Color, label: String? = null) =
+    Glyph(R.drawable.ic_more_vert, modifier, tint, label)

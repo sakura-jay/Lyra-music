@@ -22,6 +22,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -51,6 +52,7 @@ import io.github.sakurajay.lyra.player.LaunchOutcome
 import io.github.sakurajay.lyra.player.SongPlayController
 import io.github.sakurajay.lyra.player.SongQueueLauncher
 import io.github.sakurajay.lyra.player.describe
+import io.github.sakurajay.lyra.ui.common.MoreGlyph
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -238,6 +240,7 @@ fun SearchScreen(
                             onClick = { viewModel.play(song, group.songs) },
                             onOpenAlbum = onOpenAlbum,
                             onLongClick = { onMore(song) },
+                            onMore = { onMore(song) },
                         )
                     }
                 }
@@ -305,6 +308,7 @@ private fun SongRow(
     onClick: () -> Unit,
     onOpenAlbum: ((String) -> Unit)?,
     onLongClick: () -> Unit,
+    onMore: (() -> Unit)? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
@@ -353,6 +357,15 @@ private fun SongRow(
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (onMore != null) {
+                IconButton(onClick = onMore, modifier = Modifier.size(48.dp)) {
+                    MoreGlyph(
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        label = stringResource(R.string.action_more),
+                    )
+                }
             }
         }
     }

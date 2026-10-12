@@ -163,6 +163,7 @@ fun HomeScreen(
                         onClick = { viewModel.play(song) },
                         onOpenAlbum = onOpenAlbum,
                         onLongClick = { onMore(song) },
+                        onMore = { onMore(song) },
                     )
                 }
 

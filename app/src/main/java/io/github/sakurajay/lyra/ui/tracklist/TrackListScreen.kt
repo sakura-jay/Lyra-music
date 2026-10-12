@@ -41,6 +41,9 @@ import io.github.sakurajay.lyra.ui.common.TrackRow
  * 曲目列表详情：封面 + 归属 + 简介 + 曲目。
  *
  * [onOpenAlbum] 只有跨专辑的列表（歌单）才需要；专辑页里每行再挂一个本专辑的链接是噪声。
+ *
+ * [onMore] 可空：不是每个列表都能"加入歌单"（自建歌单页要的其实是移出），
+ * 传 null 时行尾连"…"按钮都不出现。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +52,7 @@ fun TrackListScreen(
     onBack: () -> Unit,
     onPlay: (io.github.sakurajay.lyra.domain.model.Song) -> Unit,
     onOpenAlbum: ((String) -> Unit)?,
-    onMore: (io.github.sakurajay.lyra.domain.model.Song) -> Unit = {},
+    onMore: ((io.github.sakurajay.lyra.domain.model.Song) -> Unit)? = null,
 ) {
     val list = state.list
 
@@ -162,6 +165,7 @@ fun TrackListScreen(
                 // 不传 key：同一首歌在一份列表里出现两次是合法数据（歌单重复曲目），
                 // 而 LazyColumn 的 key 撞车会直接崩
                 itemsIndexed(list?.songs.orEmpty()) { index, song ->
+                    val more: (() -> Unit)? = onMore?.let { action -> { action(song) } }
                     TrackRow(
                         rank = index + 1,
                         song = song,
@@ -169,7 +173,8 @@ fun TrackListScreen(
                         loading = song.id == state.loadingSongId,
                         onClick = { onPlay(song) },
                         onOpenAlbum = onOpenAlbum,
-                        onLongClick = { onMore(song) },
+                        onLongClick = more,
+                        onMore = more,
                     )
                 }
             }

@@ -20,7 +20,7 @@ import io.github.sakurajay.lyra.domain.model.Song
  * 否则会先闪一下上一张专辑的内容。
  */
 @Composable
-fun AlbumRoute(albumId: String, onBack: () -> Unit) {
+fun AlbumRoute(albumId: String, onBack: () -> Unit, onMore: (Song) -> Unit) {
     val provider = ServiceLocator.albumProvider()
     val viewModel: TrackListViewModel = viewModel(
         key = "album-$albumId",
@@ -32,11 +32,17 @@ fun AlbumRoute(albumId: String, onBack: () -> Unit) {
         onBack = onBack,
         onPlay = viewModel::play,
         onOpenAlbum = null,
+        onMore = onMore,
     )
 }
 
 @Composable
-fun PlaylistRoute(listId: String, onBack: () -> Unit, onOpenAlbum: (String) -> Unit) {
+fun PlaylistRoute(
+    listId: String,
+    onBack: () -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onMore: (Song) -> Unit,
+) {
     val provider = ServiceLocator.playlistProvider()
     val viewModel: TrackListViewModel = viewModel(
         key = "playlist-$listId",
@@ -48,6 +54,7 @@ fun PlaylistRoute(listId: String, onBack: () -> Unit, onOpenAlbum: (String) -> U
         onBack = onBack,
         onPlay = viewModel::play,
         onOpenAlbum = onOpenAlbum,
+        onMore = onMore,
     )
 }
 

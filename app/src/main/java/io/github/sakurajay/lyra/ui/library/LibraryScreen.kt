@@ -127,6 +127,7 @@ fun LibraryScreen(
                         favorite = true,
                         onToggleFavorite = { viewModel.toggle(song) },
                         onLongClick = { onMore(song) },
+                        onMore = { onMore(song) },
                     )
                 }
             }
