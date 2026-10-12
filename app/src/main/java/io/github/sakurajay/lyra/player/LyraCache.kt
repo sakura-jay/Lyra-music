@@ -57,9 +57,9 @@ object LyraCache {
     /**
      * 缓存里现存的每一条。
      *
-     * 键就是当初交给 CacheDataSource 的那个 URI 字符串。队列里除当前曲外都是
-     * `lyra://` 占位地址，所以**键是"这首歌"而不是"某次解析出的 CDN 直链"**——
-     * 直链每次都变，用稳定键才谈得上命中，也才认得出这条缓存是谁的。
+     * 键由 MediaItem 的 `customCacheKey` 指定（见 MediaItemFactory），永远是这首歌的
+     * `lyra://` 地址，而不是某次解析出的 CDN 直链——直链每次都变，只有稳定键才谈得上
+     * 命中，也才认得出这条缓存是谁的。旧版本留下的直链键（认不出）也照样列出来。
      */
     fun entries(context: Context): List<CacheEntry> {
         val simpleCache = get(context)

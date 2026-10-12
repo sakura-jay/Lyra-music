@@ -39,9 +39,8 @@ class PlayerClient private constructor(
      * 下发整个搜索结果作为队列：当前曲带真地址，其余带 lyra:// 占位地址由服务侧
      * 惰性解析。这样系统媒体界面能看到完整列表与上下曲，而地址又不会提前过期。
      *
-     * 本地曲目是个例外：**它自己也走占位地址**。占位地址同时是缓存的键（CacheDataSource
-     * 在解析器之上），起始曲若直接给 `content://`，这条缓存的键就成了那个文件地址，
-     * 列表里认不出是谁的；而本地"解析"根本不花钱，走占位地址没有代价。
+     * 起始曲之所以能安心带真地址，是因为缓存的键不取自这个地址：它在 MediaItem 上
+     * 由 `customCacheKey` 单独指定成这首歌的 lyra:// 地址（见 MediaItemFactory）。
      */
     suspend fun playQueue(
         songs: List<Song>,
@@ -53,7 +52,7 @@ class PlayerClient private constructor(
     ): PlaybackOutcome = withContext(Dispatchers.Main) {
         val items = songs.mapIndexed { index, song ->
             val spec = song.toNowPlayingSpec(artworkUrl = if (index == startIndex) resolvedArtworkUrl else null)
-            val uri = if (index == startIndex && !song.isLocal) resolvedStreamUrl else SongCodec.toLazyUri(song)
+            val uri = if (index == startIndex) resolvedStreamUrl else SongCodec.toLazyUri(song)
             spec.toMediaItem(uri, if (index == startIndex) artworkData else null)
         }
         controller.setMediaItems(items, startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)), 0L)

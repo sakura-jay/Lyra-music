@@ -67,7 +67,7 @@
     <string name="cache_clear_all">全部清除</string>
     <string name="cache_summary">共 %1$d 条 · %2$s</string>
     <string name="cache_empty">还没有缓存过任何曲目。播过的歌会顺手留一部分字节在这里。</string>
-    <string name="cache_unknown">认不出是哪首歌</string>
+    <string name="cache_unknown">旧版缓存（认不出曲目）</string>
     <string name="cache_from_local">本地文件</string>
     <string name="cache_delete">删除</string>
     <string name="cache_hint">缓存是播放时顺手下的字节，上限 128 MB，超了自动淘汰最久没听的。删掉某条只是让它下次重新下载，不影响收藏与歌单。</string>

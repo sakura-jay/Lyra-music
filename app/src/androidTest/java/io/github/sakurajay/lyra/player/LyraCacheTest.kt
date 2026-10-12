@@ -114,6 +114,23 @@ class LyraCacheTest {
         assertEquals(3_000L, entry.bytes)
     }
 
+    /**
+     * 起始曲播的是当场解析出来的 CDN 直链（每次点歌都不一样），但缓存的键必须是这首歌
+     * 自己的地址，否则重播永远命不中、详情页也认不出这条是谁的。
+     *
+     * 钉的就是这条链路：键取自 MediaItem 的 customCacheKey，而不是播放地址。
+     */
+    @Test
+    fun cacheKeyIsTheSongNotThePlaybackUrl() {
+        val cdn = "https://kwcdn.example/stream/268702.flac?token=expires-in-5m"
+        val item = remote.toNowPlayingSpec().toMediaItem(cdn)
+
+        assertEquals("播放地址仍应是解析出的直链", cdn, item.localConfiguration?.uri.toString())
+        val key = item.localConfiguration?.customCacheKey
+        assertEquals(SongCodec.toLazyUri(remote), key)
+        assertEquals("键必须能反解回这首歌", "霍元甲", SongCodec.fromLazyUri(key!!)?.name)
+    }
+
     @Test
     fun clearEmptiesEverything() {
         prime(remote, 2_000)
