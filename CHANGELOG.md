@@ -10,9 +10,10 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 
 - 全量 instrumented tests 在 PLK110 release 包上跑通：**114 tests，0 failed，2 skipped**
 - Jank 初测（`dumpsys gfxinfo framestats`）：
-  - 歌单广场滚动：0.32%（新指标）/ 0.96%（legacy）
+  - 歌词页逐字扫光：0.84%（新指标）/ 2.07%（legacy），10 秒 4398 帧
+  - 歌单广场滚动：0.32% / 0.96%
   - 曲目列表滚动：1.20% / 2.16%（含异步图片加载首次入屏）
-  - 歌词页因需交互点歌，本次未单独复测
+- `fix(ui)`：歌词扫光已唱部分从 `onSurface` 改为 `primary`，解决扫光边界不明显的问题
 
 ### M0 工程基线 — 已完成（真机验收通过）
 
@@ -32,7 +33,7 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
   `搜索` 切换后显示"多音源聚合搜索与来源标签将在这里落地（M1、M6）。"；导航栏标签 bounds 落在 y≈2604，未被手势区裁切
 - 冷启动：`am start -W` 在 force-stop 后 TotalTime = **515ms**（AS 产物）／**414ms**（冷编译产物），门槛 1.5s
 
-**Jank 已初测**：v0.8.0 后在 PLK110 上用 `gfxinfo framestats` 量了歌单广场与曲目列表滚动，详见上面 "v0.8.0 后真机收尾"；歌词页仍待交互点歌后复测。
+**Jank 已初测**：v0.8.0 后在 PLK110 上用 `gfxinfo framestats` 量了歌词页扫光、歌单广场与曲目列表滚动，详见上面 "v0.8.0 后真机收尾"；歌词页新指标 0.84%，满足 <1% 目标。
 
 ### M1 音源跑通 — 已完成（`v0.2.0`）
 
