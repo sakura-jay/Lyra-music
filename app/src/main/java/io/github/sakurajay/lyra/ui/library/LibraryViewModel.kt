@@ -136,6 +136,11 @@ class LibraryViewModel(
         }
     }
 
+    /** 提示说完就清掉，免得切回来又冒一次 */
+    fun clearMessage() {
+        _uiState.update { it.copy(message = null) }
+    }
+
     override fun onCleared() {
         launcher.release()
     }

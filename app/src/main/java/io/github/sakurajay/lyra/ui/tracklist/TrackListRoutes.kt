@@ -33,6 +33,7 @@ fun AlbumRoute(albumId: String, onBack: () -> Unit, onMore: (Song) -> Unit) {
         onPlay = viewModel::play,
         onOpenAlbum = null,
         onMore = onMore,
+        onMessageShown = viewModel::clearMessage,
     )
 }
 
@@ -55,6 +56,7 @@ fun PlaylistRoute(
         onPlay = viewModel::play,
         onOpenAlbum = onOpenAlbum,
         onMore = onMore,
+        onMessageShown = viewModel::clearMessage,
     )
 }
 
@@ -99,6 +101,7 @@ fun LocalMusicRoute(onBack: () -> Unit, onMore: (Song) -> Unit) {
         onPlay = viewModel::play,
         onOpenAlbum = null,
         onMore = onMore,
+        onMessageShown = viewModel::clearMessage,
     )
 }
 
@@ -143,5 +146,6 @@ fun MyPlaylistRoute(playlistId: Int, onBack: () -> Unit, onMore: (Song) -> Unit)
         onPlay = viewModel::play,
         onOpenAlbum = null,
         onMore = onMore,
+        onMessageShown = viewModel::clearMessage,
     )
 }

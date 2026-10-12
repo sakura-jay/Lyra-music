@@ -30,6 +30,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -58,6 +59,7 @@ import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.UpGlyph
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
+import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -96,6 +98,7 @@ fun HomeScreen(
     Scaffold(
         // 外层 Scaffold 已经把状态栏算进 innerPadding，内层不能再叠一次
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(rememberMessageHost(state.message, state.loadingSongId != null, viewModel::clearMessage)) },
         topBar = {
             TopAppBar(
                 windowInsets = WindowInsets(0, 0, 0, 0),
@@ -131,17 +134,6 @@ fun HomeScreen(
                 }
 
                 item { BoardTitleRow(name = board?.name.orEmpty(), total = state.total, loading = state.loading) }
-
-                state.message?.let { text ->
-                    item {
-                        Text(
-                            text = text,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
 
                 if (state.songs.isEmpty() && !state.loading) {
                     item {

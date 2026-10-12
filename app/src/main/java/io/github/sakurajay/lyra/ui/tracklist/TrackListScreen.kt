@@ -19,6 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -36,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.TrackRow
+import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 
 /**
  * 曲目列表详情：封面 + 归属 + 简介 + 曲目。
@@ -53,11 +55,13 @@ fun TrackListScreen(
     onPlay: (io.github.sakurajay.lyra.domain.model.Song) -> Unit,
     onOpenAlbum: ((String) -> Unit)?,
     onMore: ((io.github.sakurajay.lyra.domain.model.Song) -> Unit)? = null,
+    onMessageShown: () -> Unit = {},
 ) {
     val list = state.list
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(rememberMessageHost(state.message, state.loadingSongId != null, onMessageShown)) },
         topBar = {
             TopAppBar(
                 windowInsets = WindowInsets(0, 0, 0, 0),
@@ -141,15 +145,6 @@ fun TrackListScreen(
                         )
                     }
                 }
-            }
-
-            state.message?.let {
-                Text(
-                    text = it,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
             }
 
             if (list != null && list.songs.isEmpty()) {

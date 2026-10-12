@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -53,6 +54,7 @@ import io.github.sakurajay.lyra.player.SongPlayController
 import io.github.sakurajay.lyra.player.SongQueueLauncher
 import io.github.sakurajay.lyra.player.describe
 import io.github.sakurajay.lyra.ui.common.MoreGlyph
+import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -133,6 +135,9 @@ class SearchViewModel(
         )
     }
 
+    /** 提示说完就清掉，免得切回来又冒一次 */
+    fun clearMessage() = _uiState.update { it.copy(message = null) }
+
     override fun onCleared() {
         launcher.release()
     }
@@ -165,6 +170,7 @@ fun SearchScreen(
         // 外层 Scaffold 已把状态栏高度算进 innerPadding；内层再叠一次 windowInsets
         // 会把标题顶下去整整一个状态栏高度（真机反馈的"字体下沉、不贴顶栏"）
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(rememberMessageHost(state.message, state.loadingSongId != null, viewModel::clearMessage)) },
         topBar = {
             TopAppBar(
                 windowInsets = WindowInsets(0, 0, 0, 0),
@@ -203,15 +209,6 @@ fun SearchScreen(
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Text(stringResource(R.string.searching), style = MaterialTheme.typography.bodySmall)
                 }
-            }
-
-            state.message?.let { message ->
-                Text(
-                    text = message,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
             }
 
             if (state.groups.size > 1 || state.selectedGroup != null) {
