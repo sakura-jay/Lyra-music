@@ -5,8 +5,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.cache.CacheDataSink
 import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
+import io.github.sakurajay.lyra.data.settings.AppSettings
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.domain.model.SongCodec
 import java.io.File
@@ -26,21 +26,49 @@ import java.io.File
  *
  * 这里自己吞掉 Media3 的 opt-in，而不是把 `@UnstableApi` 传染给调用方：缓存是内部件，
  * 让设置页、VM、服务各挂一枚注解只会把噪音摊开。
+ *
+ * 上限不再写死：淘汰器换成 [AdjustableLruCacheEvictor]，初始值读用户设置
+ * （[AppSettings.cacheLimitBytes]），运行时经 [setLimit] 调整且不必重建 SimpleCache（ADR-0008）。
  */
 @androidx.annotation.OptIn(UnstableApi::class)
 object LyraCache {
 
-    const val MAX_BYTES = 128L * 1024 * 1024
     private const val FRAGMENT_BYTES = 2L * 1024 * 1024
 
     @Volatile
     private var cache: SimpleCache? = null
 
-    fun get(context: Context): SimpleCache = cache ?: synchronized(this) {
-        cache ?: SimpleCache(
-            File(context.cacheDir, "media"),
-            LeastRecentlyUsedCacheEvictor(MAX_BYTES),
-        ).also { cache = it }
+    @Volatile
+    private var evictor: AdjustableLruCacheEvictor? = null
+
+    private fun pair(context: Context): Pair<SimpleCache, AdjustableLruCacheEvictor> {
+        cache?.let { return it to checkNotNull(evictor) }
+        return synchronized(this) {
+            cache?.let { return it to checkNotNull(evictor) }
+            val limit = AppSettings(context.applicationContext).cacheLimitBytes.value
+            val createdEvictor = AdjustableLruCacheEvictor(limit)
+            val createdCache = SimpleCache(File(context.cacheDir, "media"), createdEvictor)
+            evictor = createdEvictor
+            cache = createdCache
+            createdCache to createdEvictor
+        }
+    }
+
+    fun get(context: Context): SimpleCache = pair(context).first
+
+    /** 当前生效的上限（字节）。 */
+    fun limitBytes(context: Context): Long = pair(context).second.limitBytes
+
+    /**
+     * 改上限；调低到当前占用以下会立即按最久未听淘汰到新上限，返回释放的字节数。
+     * 上限值本身由调用方持久化（见 [AppSettings.setCacheLimit]）。
+     */
+    fun setLimit(context: Context, bytes: Long): Long {
+        val (simpleCache, adjustable) = pair(context)
+        val before = entries(context).sumOf { it.bytes }
+        adjustable.setLimit(simpleCache, bytes)
+        val after = entries(context).sumOf { it.bytes }
+        return (before - after).coerceAtLeast(0L)
     }
 
     /** 先查缓存，未命中才走 [upstream]（生产路径里 upstream 还套着惰性取址）。 */

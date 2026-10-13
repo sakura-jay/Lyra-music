@@ -29,7 +29,14 @@ data class Favorite(val song: Song, val addedAt: Long) {
     val key: String get() = FavoritesRepository.keyOf(song)
 }
 
-class FavoritesDatabase(context: Context) : SQLiteOpenHelper(context.applicationContext, DB_NAME, null, DB_VERSION) {
+/**
+ * [databaseName] 默认就是生产库；仪器化测试要传自己的那份——它们靠"删文件重建"来断言
+ * 持久化，用默认库名等于在真机上把用户的收藏与歌单删掉。
+ */
+class FavoritesDatabase(
+    context: Context,
+    databaseName: String = DB_NAME,
+) : SQLiteOpenHelper(context.applicationContext, databaseName, null, DB_VERSION) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(

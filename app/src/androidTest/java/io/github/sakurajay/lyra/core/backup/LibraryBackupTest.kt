@@ -8,6 +8,7 @@ import io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository
 import io.github.sakurajay.lyra.data.local.FavoritesDatabase
 import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.data.local.PlaylistRepository
+import io.github.sakurajay.lyra.data.local.TEST_DB_NAME
 import io.github.sakurajay.lyra.data.local.UserPlaylist
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.QualityAvailability
@@ -72,9 +73,9 @@ class LibraryBackupTest {
     fun cleanUp() = deleteDatabase()
 
     private fun deleteDatabase() {
-        val db = context.getDatabasePath("lyra-library.db")
+        val db = context.getDatabasePath(TEST_DB_NAME)
         db.delete()
-        File(db.parentFile, "lyra-library.db-journal").delete()
+        File(db.parentFile, "$TEST_DB_NAME-journal").delete()
     }
 
     @Test
@@ -192,7 +193,7 @@ class LibraryBackupTest {
     /** 导出→清空→导入：库里应当原样回来，而且再导一次不该翻倍 */
     @Test
     fun importRestoresLibraryAndIsIdempotent() = runBlocking {
-        val helper = FavoritesDatabase(context)
+        val helper = FavoritesDatabase(context, TEST_DB_NAME)
         val favorites = FavoritesRepository(helper)
         val playlists = PlaylistRepository(helper)
         val playlistFavorites = FavoritePlaylistRepository(helper)

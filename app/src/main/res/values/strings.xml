@@ -16,6 +16,11 @@
     <string name="home_playlists">推荐歌单</string>
     <string name="home_playlists_more">更多</string>
     <string name="home_playlists_failed">推荐歌单没取到，下面的榜单不受影响。</string>
+    <string name="home_boards">榜单</string>
+
+    <string name="leaderboard_square_title">榜单广场</string>
+    <string name="leaderboard_covers_failed">封面没取到，榜本身可以用。</string>
+    <string name="leaderboard_detail_empty">这个榜暂时没有内容。可能是接口没返回歌曲，点右上角重载。</string>
 
     <string name="playlist_square_title">歌单广场</string>
     <string name="playlist_square_empty">这个排序没有返回歌单。换"最新"试试，或点右上角重载。</string>
@@ -31,13 +36,14 @@
     <string name="search_title">搜索</string>
     <string name="library_title">音乐库</string>
     <string name="library_open_sources">音源管理</string>
-    <string name="library_empty">还没有收藏。在播放页点 ♥ 把当前这首歌收进来。</string>
-    <string name="library_count">收藏 %1$d 首</string>
-    <string name="library_favorite">收藏</string>
+    <string name="library_empty">还没有喜欢的歌。在播放页点 ♥ 把当前这首歌收进来。</string>
+    <string name="library_liked_none">还没有喜欢的歌</string>
+    <string name="library_favorite">我喜欢</string>
     <string name="library_my_playlists">我的歌单</string>
-    <string name="library_playlist_count">我的歌单 %1$d 个</string>
+    <string name="library_no_playlists_short">还没建歌单</string>
     <string name="library_favorite_playlists">收藏的歌单</string>
-    <string name="library_favorite_playlist_count">收藏的歌单 %1$d 个</string>
+    <string name="library_no_saved_short">还没收藏歌单</string>
+    <string name="library_unit_count">%1$d 个</string>
     <string name="library_no_favorite_playlists">还没有收藏的歌单。在首页或歌单广场点封面右上角的 ♥ 收进来。</string>
     <string name="library_unfavorite_playlist">把「%1$s」移出收藏</string>
     <string name="library_new_playlist">新建歌单</string>
@@ -46,21 +52,18 @@
     <string name="library_song_count">%1$d 首</string>
     <string name="library_rename">改名</string>
     <string name="library_delete_playlist">删除歌单</string>
-    <string name="library_manage_hint">这个歌单里有 %1$d 首。删除只删歌单和它的成员，收藏不受影响。</string>
+    <string name="library_manage_hint">这个歌单里有 %1$d 首。删除只删歌单和它的成员，我喜欢不受影响。</string>
     <string name="library_local_music">本地音乐</string>
-    <string name="library_local_count">本地音乐 %1$d 首</string>
     <string name="library_local_subtitle">手机上的音频文件</string>
     <string name="library_rescan">重新扫描</string>
     <string name="library_grant">授权</string>
-    <string name="library_local_need_permission">需要音频文件权限才能列出手机里的歌。点右上角授权。</string>
+    <string name="library_local_grant_needed">未授权音频权限</string>
     <string name="library_local_scanning">正在扫描手机里的音频…</string>
     <string name="library_local_empty">没有找到可播放的音频文件。</string>
-    <string name="library_local_hint">直接播放手机里的文件，不经过任何音源。</string>
-    <string name="library_open_local">查看全部 %1$d 首</string>
     <string name="action_confirm">确定</string>
     <string name="action_cancel">取消</string>
-    <string name="player_favorite">收藏</string>
-    <string name="player_favorite_on">已收藏</string>
+    <string name="player_favorite">加入我喜欢</string>
+    <string name="player_favorite_on">移出我喜欢</string>
 
     <string name="settings_title">设置</string>
     <string name="settings_appearance">外观</string>
@@ -82,7 +85,10 @@
     <string name="cache_unknown">旧版缓存（认不出曲目）</string>
     <string name="cache_from_local">本地文件</string>
     <string name="cache_delete">删除</string>
-    <string name="cache_hint">缓存是播放时顺手下的字节，上限 128 MB，超了自动淘汰最久没听的。删掉某条只是让它下次重新下载，不影响收藏与歌单。</string>
+    <string name="cache_limit_label">上限</string>
+    <string name="cache_limit_custom">自定义</string>
+    <string name="cache_limit_current">当前 %1$s</string>
+    <string name="cache_hint">缓存是播放时顺手下的字节，上限 128 MB，超了自动淘汰最久没听的。删掉某条只是让它下次重新下载，不影响我喜欢与歌单。</string>
     <string name="settings_data">数据</string>
     <string name="settings_export_backup">导出备份</string>
     <string name="settings_import_backup">导入备份</string>

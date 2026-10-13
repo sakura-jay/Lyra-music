@@ -1,0 +1,203 @@
+package io.github.sakurajay.lyra.ui.leaderboard
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
+import io.github.sakurajay.lyra.data.provider.builtin.Board
+import io.github.sakurajay.lyra.data.provider.builtin.BoardPage
+import io.github.sakurajay.lyra.data.provider.builtin.LeaderboardProvider
+import io.github.sakurajay.lyra.di.ServiceLocator
+import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.player.LaunchOutcome
+import io.github.sakurajay.lyra.player.SongPlayController
+import io.github.sakurajay.lyra.player.SongQueueLauncher
+import io.github.sakurajay.lyra.player.describe
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+/**
+ * 一张榜的曲目列表：头部 + 带序号的行，分页。
+ *
+ * 这套分页状态机原来只活在 [io.github.sakurajay.lyra.ui.home.HomeViewModel] 里；榜搬进
+ * 榜单广场之后，"看一张榜"成了独立页面，所以需要一份自己的翻页——语义与首页那套一致：
+ * 触底续取、到 total 就停、页内与跨页都按 `source:id` 去重。
+ *
+ * 取数仍走注入的 [fetchBoard] lambda 而不是直接持有适配器：真适配器要打网络，
+ * 而这里值得测的恰恰是纯状态逻辑（对照 `HomePagingTest`）。
+ */
+class LeaderboardDetailViewModel(
+    application: Application,
+    initialBoard: Board,
+    private val fetchBoard: suspend (Board, Int, Int) -> BoardPage,
+    playUseCase: SwitchingPlayUseCase,
+) : AndroidViewModel(application) {
+
+    data class UiState(
+        val board: Board = Board(id = "", source = "", name = "", bangId = ""),
+        val songs: List<Song> = emptyList(),
+        val total: Int = 0,
+        val page: Int = 1,
+        val loading: Boolean = false,
+        val loadingMore: Boolean = false,
+        val noMore: Boolean = false,
+        val loadingSongId: String? = null,
+        val playingSongId: String? = null,
+        val message: String? = null,
+    )
+
+    private val _uiState = MutableStateFlow(UiState(board = initialBoard))
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
+    private val playController = SongPlayController(launcher)
+
+    private var loadJob: Job? = null
+    private var moreJob: Job? = null
+
+    init {
+        load()
+    }
+
+    fun reload() = load()
+
+    private fun load() {
+        loadJob?.cancel()
+        moreJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(loading = true, message = null, songs = emptyList(), total = 0, page = 1, loadingMore = false, noMore = false)
+            }
+            try {
+                val first = fetchBoard(_uiState.value.board, 1, PAGE_SIZE)
+                _uiState.update {
+                    val songs = first.songs.distinctBy { song -> "${song.source}:${song.id}" }
+                    it.copy(
+                        // 榜封面是随曲目响应一起回来的（三家都一样），所以头图从这里落地
+                        board = first.board,
+                        loading = false,
+                        songs = songs,
+                        total = first.total,
+                        noMore = first.songs.isEmpty() || songs.size >= first.total,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(loading = false, message = "榜单加载失败：${e.message ?: e.javaClass.simpleName}") }
+            }
+        }
+    }
+
+    fun loadMore() {
+        val state = _uiState.value
+        if (state.loading || state.loadingMore || state.noMore || state.songs.isEmpty()) return
+        val target = state.page + 1
+        val board = state.board
+        moreJob?.cancel()
+        moreJob = viewModelScope.launch {
+            _uiState.update { it.copy(loadingMore = true) }
+            val result = runCatching { fetchBoard(board, target, PAGE_SIZE) }
+            if (_uiState.value.board != board) return@launch
+            result.fold(
+                onSuccess = { page ->
+                    _uiState.update {
+                        val seen = it.songs.map { song -> "${song.source}:${song.id}" }.toHashSet()
+                        val merged = it.songs + page.songs.filter { song -> seen.add("${song.source}:${song.id}") }
+                        it.copy(
+                            loadingMore = false,
+                            page = target,
+                            songs = merged,
+                            noMore = page.songs.isEmpty() || merged.size >= it.total,
+                        )
+                    }
+                },
+                onFailure = { e ->
+                    _uiState.update {
+                        it.copy(
+                            loadingMore = false,
+                            noMore = true,
+                            message = "后面的榜单没取到：${e.message ?: e.javaClass.simpleName}",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun play(song: Song) {
+        val queue = _uiState.value.songs
+        _uiState.update { it.copy(loadingSongId = song.id, message = "正在取址…") }
+        playController.play(
+            scope = viewModelScope,
+            song = song,
+            queue = queue,
+            onStage = { stage -> _uiState.update { it.copy(message = stage) } },
+            onSettled = { outcome ->
+                _uiState.update { state ->
+                    when (outcome) {
+                        is LaunchOutcome.Playing -> state.copy(
+                            loadingSongId = null,
+                            playingSongId = song.id,
+                            message = outcome.describe(),
+                        )
+
+                        is LaunchOutcome.Failed -> state.copy(loadingSongId = null, message = outcome.message)
+                    }
+                }
+            },
+        )
+    }
+
+    fun clearMessage() {
+        _uiState.update { it.copy(message = null) }
+    }
+
+    override fun onCleared() {
+        launcher.release()
+    }
+
+    companion object {
+        /** 服务端单页上限就是 100（实测 rn=300 也只回 100） */
+        private const val PAGE_SIZE = 100
+
+        /**
+         * 按 `board.id` 找榜。
+         *
+         * 找不到时不抛：路由参数可能来自一个已被改名的静态表，抛出去就是整个 App 崩。
+         * 这里给一张空榜，页面照常显示"这个榜暂时没有内容"，用户还能退回上页。
+         */
+        fun factory(boardId: String): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>,
+                extras: androidx.lifecycle.viewmodel.CreationExtras,
+            ): T {
+                val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val providers: List<LeaderboardProvider> = ServiceLocator.leaderboardProviders()
+                val found = providers.firstNotNullOfOrNull { provider ->
+                    provider.boards.firstOrNull { it.id == boardId }?.let { provider to it }
+                }
+                val (provider, board) = found ?: (providers.firstOrNull() ?: error("没有可用的榜单来源")) to Board(
+                    id = boardId,
+                    source = providers.firstOrNull()?.source.orEmpty(),
+                    name = boardId,
+                    bangId = boardId,
+                )
+                return LeaderboardDetailViewModel(
+                    application,
+                    board,
+                    fetchBoard = { at, page, limit -> provider.songs(at, page, limit) },
+                    ServiceLocator.switchingPlayUseCase(application),
+                ) as T
+            }
+        }
+    }
+}

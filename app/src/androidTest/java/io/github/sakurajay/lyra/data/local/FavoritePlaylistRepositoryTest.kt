@@ -48,12 +48,12 @@ class FavoritePlaylistRepositoryTest {
 
     private fun deleteDatabase() {
         context = ApplicationProvider.getApplicationContext()
-        val db = context.getDatabasePath("lyra-library.db")
+        val db = context.getDatabasePath(TEST_DB_NAME)
         db.delete()
-        File(db.parentFile, "lyra-library.db-journal").delete()
+        File(db.parentFile, "$TEST_DB_NAME-journal").delete()
     }
 
-    private fun repository(): FavoritePlaylistRepository = FavoritePlaylistRepository(FavoritesDatabase(context))
+    private fun repository(): FavoritePlaylistRepository = FavoritePlaylistRepository(FavoritesDatabase(context, TEST_DB_NAME))
 
     @Test
     fun toggleKeepsEveryFieldAndFlipsBack() = runBlocking {
@@ -101,7 +101,7 @@ class FavoritePlaylistRepositoryTest {
     @Test
     fun upgradeFromV2KeepsEverythingAndAddsTheNewTable() {
         val song = Song(id = "268702", source = "kw", name = "霍元甲", artists = listOf("周杰伦"))
-        val path = context.getDatabasePath("lyra-library.db").path
+        val path = context.getDatabasePath(TEST_DB_NAME).path
         SQLiteDatabase.openOrCreateDatabase(path, null).use { db ->
             db.execSQL(
                 """
@@ -157,11 +157,11 @@ class FavoritePlaylistRepositoryTest {
         }
 
         runBlocking {
-            FavoritesRepository(FavoritesDatabase(context)).use { favorites ->
+            FavoritesRepository(FavoritesDatabase(context, TEST_DB_NAME)).use { favorites ->
                 favorites.refresh()
                 assertEquals("升级不能清收藏", listOf(song), favorites.favorites.value.map { it.song })
             }
-            PlaylistRepository(FavoritesDatabase(context)).use { playlists ->
+            PlaylistRepository(FavoritesDatabase(context, TEST_DB_NAME)).use { playlists ->
                 playlists.refresh()
                 assertEquals("升级不能清自建歌单", listOf("通勤"), playlists.playlists.value.map { it.name })
             }

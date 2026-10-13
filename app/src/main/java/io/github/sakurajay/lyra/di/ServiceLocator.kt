@@ -173,6 +173,33 @@ object ServiceLocator {
                 leaderboardProvider ?: io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider().also { leaderboardProvider = it }
             }
 
+    /**
+     * 全部榜单来源：首页的精选预览与榜单广场的分段都从这里取。
+     *
+     * 酷我 / 酷狗 / 网易云三家。新增一家就是往这个列表后面追加一项——接口与页面都不必
+     * 跟着改，这正是 [LeaderboardProvider] 存在的理由。
+     */
+    fun leaderboardProviders(): List<io.github.sakurajay.lyra.data.provider.builtin.LeaderboardProvider> =
+        listOf(leaderboardProvider(), kugouLeaderboardProvider(), neteaseLeaderboardProvider())
+
+    @Volatile
+    private var neteaseLeaderboardProvider: io.github.sakurajay.lyra.data.provider.builtin.NetEaseLeaderboardProvider? = null
+
+    fun neteaseLeaderboardProvider(): io.github.sakurajay.lyra.data.provider.builtin.NetEaseLeaderboardProvider =
+        neteaseLeaderboardProvider
+            ?: synchronized(this) {
+                neteaseLeaderboardProvider ?: io.github.sakurajay.lyra.data.provider.builtin.NetEaseLeaderboardProvider().also { neteaseLeaderboardProvider = it }
+            }
+
+    @Volatile
+    private var kugouLeaderboardProvider: io.github.sakurajay.lyra.data.provider.builtin.KuGouLeaderboardProvider? = null
+
+    fun kugouLeaderboardProvider(): io.github.sakurajay.lyra.data.provider.builtin.KuGouLeaderboardProvider =
+        kugouLeaderboardProvider
+            ?: synchronized(this) {
+                kugouLeaderboardProvider ?: io.github.sakurajay.lyra.data.provider.builtin.KuGouLeaderboardProvider().also { kugouLeaderboardProvider = it }
+            }
+
     @Volatile
     private var albumProvider: io.github.sakurajay.lyra.data.provider.builtin.KuwoAlbumProvider? = null
 

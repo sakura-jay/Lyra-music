@@ -55,7 +55,6 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.settings.DarkMode
 import io.github.sakurajay.lyra.domain.lyric.LyricTextSize
 import io.github.sakurajay.lyra.domain.model.Quality
-import io.github.sakurajay.lyra.player.LyraCache
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.theme.PresetTheme
 import java.text.SimpleDateFormat
@@ -77,6 +76,7 @@ fun SettingsScreen(
     val lyricSize by viewModel.lyricTextSize.collectAsStateWithLifecycle()
     val autoSwitch by viewModel.autoSwitch.collectAsStateWithLifecycle()
     val cacheBytes by viewModel.cacheBytes.collectAsStateWithLifecycle()
+    val cacheLimit by viewModel.cacheLimit.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     // 备份读写都走 SAF：应用没有写公共目录的权限了，让用户自己挑文件比偷偷塞进
@@ -176,7 +176,7 @@ fun SettingsScreen(
                         text = stringResource(
                             R.string.settings_cache,
                             formatBytes(cacheBytes),
-                            LyraCache.MAX_BYTES / (1024 * 1024),
+                            cacheLimit / (1024 * 1024),
                         ),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,

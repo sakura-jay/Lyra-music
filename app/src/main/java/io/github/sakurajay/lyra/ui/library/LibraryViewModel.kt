@@ -4,9 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.data.local.Favorite
 import io.github.sakurajay.lyra.data.local.FavoritePlaylist
 import io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository
@@ -16,10 +14,6 @@ import io.github.sakurajay.lyra.data.local.PlaylistRepository
 import io.github.sakurajay.lyra.data.local.UserPlaylist
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
-import io.github.sakurajay.lyra.player.LaunchOutcome
-import io.github.sakurajay.lyra.player.SongPlayController
-import io.github.sakurajay.lyra.player.SongQueueLauncher
-import io.github.sakurajay.lyra.player.describe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,18 +22,21 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * 音乐库：我喜欢（一张入口卡片 + 计数）+ 我的歌单 + 收藏的歌单 + 本地音乐。
+ *
+ * 库里不再"就地"点歌：我喜欢搬到了独立页（`LikedRoute`），歌单 / 收藏的歌单 / 本地音乐
+ * 都是"点进别的页"的入口。所以播放链与单曲收藏开关都不在这一层了，[saved] 只用来读计数。
+ */
 class LibraryViewModel(
     application: Application,
     private val favorites: FavoritesRepository,
     private val playlistsRepository: PlaylistRepository,
     private val playlistFavorites: FavoritePlaylistRepository,
     private val localMusic: LocalMusicRepository,
-    playUseCase: SwitchingPlayUseCase,
 ) : AndroidViewModel(application) {
 
     data class UiState(
-        val loadingSongId: String? = null,
-        val playingKey: String? = null,
         val message: String? = null,
         val localLoading: Boolean = false,
         val localPermissionGranted: Boolean = false,
@@ -63,9 +60,6 @@ class LibraryViewModel(
     val localSongs: StateFlow<List<Song>> = localMusic.songs.stateIn(
         viewModelScope, SharingStarted.Eagerly, emptyList(),
     )
-
-    private val launcher = SongQueueLauncher(application, playUseCase, ServiceLocator.qualityStore(application))
-    private val playController = SongPlayController(launcher)
 
     init {
         viewModelScope.launch {
@@ -123,41 +117,9 @@ class LibraryViewModel(
         }
     }
 
-    fun play(song: Song, queue: List<Song>) {
-        _uiState.update { it.copy(loadingSongId = song.id, message = "正在取址…") }
-        playController.play(
-            scope = viewModelScope,
-            song = song,
-            queue = queue,
-            onStage = { stage -> _uiState.update { it.copy(message = stage) } },
-            onSettled = { outcome ->
-                _uiState.update {
-                    it.copy(
-                        loadingSongId = null,
-                        playingKey = (outcome as? LaunchOutcome.Playing)?.let { "${song.source}-${song.id}" } ?: it.playingKey,
-                        message = outcome.describe(),
-                    )
-                }
-            },
-        )
-    }
-
-    fun toggle(song: Song) {
-        viewModelScope.launch {
-            val nowFavorite = favorites.toggle(song)
-            _uiState.update {
-                it.copy(message = if (nowFavorite) "已加入收藏" else "已移出收藏")
-            }
-        }
-    }
-
     /** 提示说完就清掉，免得切回来又冒一次 */
     fun clearMessage() {
         _uiState.update { it.copy(message = null) }
-    }
-
-    override fun onCleared() {
-        launcher.release()
     }
 
     companion object {
@@ -171,7 +133,6 @@ class LibraryViewModel(
                     ServiceLocator.playlistRepository(application),
                     ServiceLocator.favoritePlaylistRepository(application),
                     ServiceLocator.localMusicRepository(application),
-                    ServiceLocator.switchingPlayUseCase(application),
                 ) as T
             }
         }

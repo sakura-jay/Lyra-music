@@ -59,6 +59,13 @@ fun TrackListScreen(
     onMessageShown: () -> Unit = {},
     favorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
+    /** 序号列：榜单/专辑/歌单要看名次，"我喜欢"不看，同一个页面按需关掉 */
+    showRank: Boolean = true,
+    /** 行内 ♥：只有"我喜欢"页给（点它=移出）；其余列表页要收藏走顶栏或长按菜单 */
+    isRowFavorite: ((io.github.sakurajay.lyra.domain.model.Song) -> Boolean)? = null,
+    onToggleRowFavorite: ((io.github.sakurajay.lyra.domain.model.Song) -> Unit)? = null,
+    /** 空态文案：收藏为空时要说"怎么开始"，而不是泛泛一句"这里还没有曲目" */
+    emptyText: String? = null,
 ) {
     val list = state.list
 
@@ -166,7 +173,7 @@ fun TrackListScreen(
 
             if (list != null && list.songs.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.tracklist_empty),
+                    text = emptyText ?: stringResource(R.string.tracklist_empty),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -178,13 +185,16 @@ fun TrackListScreen(
                 // 而 LazyColumn 的 key 撞车会直接崩
                 itemsIndexed(list?.songs.orEmpty()) { index, song ->
                     val more: (() -> Unit)? = onMore?.let { action -> { action(song) } }
+                    val toggleRow: (() -> Unit)? = onToggleRowFavorite?.let { action -> { action(song) } }
                     TrackRow(
-                        rank = index + 1,
+                        rank = if (showRank) index + 1 else null,
                         song = song,
                         highlighted = song.id == state.playingSongId,
                         loading = song.id == state.loadingSongId,
                         onClick = { onPlay(song) },
                         onOpenAlbum = onOpenAlbum,
+                        favorite = isRowFavorite?.invoke(song) == true,
+                        onToggleFavorite = toggleRow,
                         onLongClick = more,
                         onMore = more,
                     )

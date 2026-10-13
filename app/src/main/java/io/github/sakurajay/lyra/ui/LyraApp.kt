@@ -57,9 +57,14 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.ui.common.PauseGlyph
 import io.github.sakurajay.lyra.ui.common.PlayGlyph
 import io.github.sakurajay.lyra.ui.home.HomeScreen
+import io.github.sakurajay.lyra.ui.leaderboard.LeaderboardDetailScreen
+import io.github.sakurajay.lyra.ui.leaderboard.LeaderboardDetailViewModel
+import io.github.sakurajay.lyra.ui.leaderboard.LeaderboardSquareScreen
 import io.github.sakurajay.lyra.ui.library.LibraryScreen
+import io.github.sakurajay.lyra.ui.library.MyPlaylistsScreen
 import io.github.sakurajay.lyra.ui.library.PlaylistPickerSheet
 import io.github.sakurajay.lyra.ui.library.PlaylistPickerViewModel
+import io.github.sakurajay.lyra.ui.library.SavedPlaylistsScreen
 import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
@@ -69,6 +74,7 @@ import io.github.sakurajay.lyra.ui.settings.CacheScreen
 import io.github.sakurajay.lyra.ui.settings.SettingsScreen
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import io.github.sakurajay.lyra.ui.tracklist.AlbumRoute
+import io.github.sakurajay.lyra.ui.tracklist.LikedRoute
 import io.github.sakurajay.lyra.ui.tracklist.MyPlaylistRoute
 import io.github.sakurajay.lyra.ui.tracklist.LocalMusicRoute
 import io.github.sakurajay.lyra.ui.tracklist.PlaylistRoute
@@ -104,6 +110,11 @@ private const val ROUTE_PLAYLIST_SQUARE = "playlists"
 private const val ROUTE_MY_PLAYLIST = "my-playlist/{playlistId}"
 private const val ROUTE_LOCAL_MUSIC = "local-music"
 private const val ROUTE_CACHE = "cache"
+private const val ROUTE_LIKED = "liked"
+private const val ROUTE_MY_PLAYLISTS = "my-playlists"
+private const val ROUTE_SAVED_PLAYLISTS = "saved-playlists"
+private const val ROUTE_LEADERBOARD_SQUARE = "leaderboards"
+private const val ROUTE_LEADERBOARD_DETAIL = "leaderboard/{boardId}"
 
 /**
  * 详情页的参数直接拼进路径：专辑 id 只有数字，歌单 id 是 `digest-8__123` 这种
@@ -115,7 +126,8 @@ private fun playlistRoute(listId: String) = "playlist/$listId"
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
 private val DETAIL_ROUTES = setOf(
     ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_PLAYLIST_SQUARE,
-    ROUTE_MY_PLAYLIST, ROUTE_LOCAL_MUSIC, ROUTE_CACHE,
+    ROUTE_MY_PLAYLIST, ROUTE_LOCAL_MUSIC, ROUTE_CACHE, ROUTE_LIKED, ROUTE_MY_PLAYLISTS,
+    ROUTE_SAVED_PLAYLISTS, ROUTE_LEADERBOARD_SQUARE, ROUTE_LEADERBOARD_DETAIL,
 )
 
 @Composable
@@ -213,10 +225,10 @@ fun LyraApp() {
                     Box(Modifier.fillMaxSize().padding(innerPadding)) {
                         when (destination) {
                             TopDestination.Home -> HomeScreen(
-                                onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                                 onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
                                 onOpenPlaylistSquare = { navController.navigate(ROUTE_PLAYLIST_SQUARE) },
-                                onMore = picker::open,
+                                onOpenBoard = { boardId -> navController.navigate("leaderboard/$boardId") },
+                                onOpenLeaderboardSquare = { navController.navigate(ROUTE_LEADERBOARD_SQUARE) },
                             )
 
                             TopDestination.Search -> SearchScreen(
@@ -226,11 +238,10 @@ fun LyraApp() {
 
                             TopDestination.Library -> LibraryScreen(
                                 onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
-                                onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
-                                onOpenMyPlaylist = { id -> navController.navigate("my-playlist/$id") },
-                                onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
+                                onOpenLiked = { navController.navigate(ROUTE_LIKED) },
+                                onOpenMyPlaylists = { navController.navigate(ROUTE_MY_PLAYLISTS) },
+                                onOpenSavedPlaylists = { navController.navigate(ROUTE_SAVED_PLAYLISTS) },
                                 onOpenLocalMusic = { navController.navigate(ROUTE_LOCAL_MUSIC) },
-                                onMore = picker::open,
                             )
                         }
                     }
@@ -355,6 +366,81 @@ fun LyraApp() {
                 Box(Modifier.fillMaxSize().padding(innerPadding)) {
                     LocalMusicRoute(
                         onBack = { navController.popBackStack() },
+                        onMore = picker::open,
+                    )
+                }
+            }
+            composable(
+                ROUTE_LIKED,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    LikedRoute(
+                        onBack = { navController.popBackStack() },
+                        onMore = picker::open,
+                    )
+                }
+            }
+            composable(
+                ROUTE_MY_PLAYLISTS,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    MyPlaylistsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenMyPlaylist = { id -> navController.navigate("my-playlist/$id") },
+                    )
+                }
+            }
+            composable(
+                ROUTE_SAVED_PLAYLISTS,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    SavedPlaylistsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
+                    )
+                }
+            }
+            composable(
+                ROUTE_LEADERBOARD_SQUARE,
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) {
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    LeaderboardSquareScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenBoard = { boardId -> navController.navigate("leaderboard/$boardId") },
+                    )
+                }
+            }
+            composable(
+                ROUTE_LEADERBOARD_DETAIL,
+                arguments = listOf(navArgument("boardId") { defaultValue = "" }),
+                enterTransition = { LyraMotion.slideInto() },
+                exitTransition = { LyraMotion.slideOutOf(forward = false) },
+                popEnterTransition = { LyraMotion.slideInto(forward = false) },
+                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+            ) { entry ->
+                val boardId = entry.arguments?.getString("boardId").orEmpty()
+                Box(Modifier.fillMaxSize().padding(innerPadding)) {
+                    LeaderboardDetailScreen(
+                        // VM 按 boardId 建，换一张榜必须是另一份状态；否则先闪一下上一张榜的列表
+                        viewModel = viewModel(key = "leaderboard-$boardId", factory = LeaderboardDetailViewModel.factory(boardId)),
+                        onBack = { navController.popBackStack() },
+                        onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
                         onMore = picker::open,
                     )
                 }

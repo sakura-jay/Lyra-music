@@ -33,6 +33,9 @@ class SettingsViewModel(
     val lyricTextSize: StateFlow<LyricTextSize> = settings.lyricTextSize
     val requestedQuality: StateFlow<Quality> = ServiceLocator.qualityStore(application).requested
 
+    /** 播放缓存上限（字节）：设置 / 缓存详情两处共用同一份值 */
+    val cacheLimit: StateFlow<Long> = settings.cacheLimitBytes
+
     private val _cacheBytes = MutableStateFlow(0L)
     val cacheBytes: StateFlow<Long> = _cacheBytes.asStateFlow()
 
@@ -73,6 +76,22 @@ class SettingsViewModel(
             val listed = LyraCache.entries(context)
             _cacheEntries.value = listed
             _cacheBytes.value = listed.sumOf { it.bytes }
+        }
+    }
+
+    /**
+     * 改缓存上限。
+     *
+     * 先落值（[AppSettings.setCacheLimit] 会钳到允许范围内），再让缓存按新上限立即淘汰
+     * ——调低时这一步会真删字节；调高时 [LyraCache.setLimit] 返回 0，不提示。
+     */
+    fun setCacheLimit(bytes: Long) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            settings.setCacheLimit(bytes)
+            val freed = LyraCache.setLimit(context, settings.cacheLimitBytes.value)
+            if (freed > 0) _message.value = "已释放 ${formatBytes(freed)}"
+            refreshCacheSize()
         }
     }
 
@@ -125,7 +144,7 @@ class SettingsViewModel(
                 Triple(saved.size, lists.size, savedPlaylists.size)
             }
             _message.value = result.getOrNull()?.let { (favoriteCount, playlistCount, savedPlaylistCount) ->
-                "已导出：收藏 $favoriteCount 首、歌单 $playlistCount 个、收藏的歌单 $savedPlaylistCount 个"
+                "已导出：我喜欢 $favoriteCount 首、歌单 $playlistCount 个、收藏的歌单 $savedPlaylistCount 个"
             } ?: "导出失败：${reasonOf(result.exceptionOrNull())}"
         }
     }
@@ -149,7 +168,7 @@ class SettingsViewModel(
                 onSuccess = { (addedFavorites, content, importedAndPlaylists) ->
                     val (imported, addedPlaylists) = importedAndPlaylists
                     _message.value = buildString {
-                        append("导入完成：新增收藏 $addedFavorites 首")
+                        append("导入完成：新增我喜欢 $addedFavorites 首")
                         if (content.playlists.isNotEmpty()) {
                             append("；歌单新建 ${imported.created} 个、并入 ${imported.merged} 个、加进 ${imported.addedSongs} 首")
                         }

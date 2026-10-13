@@ -52,12 +52,12 @@ class PlaylistRepositoryTest {
 
     private fun deleteDatabase() {
         context = ApplicationProvider.getApplicationContext()
-        val db = context.getDatabasePath("lyra-library.db")
+        val db = context.getDatabasePath(TEST_DB_NAME)
         db.delete()
-        File(db.parentFile, "lyra-library.db-journal").delete()
+        File(db.parentFile, "$TEST_DB_NAME-journal").delete()
     }
 
-    private fun playlists(): PlaylistRepository = PlaylistRepository(FavoritesDatabase(context))
+    private fun playlists(): PlaylistRepository = PlaylistRepository(FavoritesDatabase(context, TEST_DB_NAME))
 
     @Test
     fun createRenameAndDelete() = runBlocking {
@@ -148,7 +148,7 @@ class PlaylistRepositoryTest {
 
     @Test
     fun deletingPlaylistKeepsFavorites() = runBlocking {
-        val favorites = FavoritesRepository(FavoritesDatabase(context))
+        val favorites = FavoritesRepository(FavoritesDatabase(context, TEST_DB_NAME))
         val id = runBlocking {
             favorites.toggle(first)
             playlists().use { repo ->
@@ -171,7 +171,7 @@ class PlaylistRepositoryTest {
      */
     @Test
     fun upgradeFromV1KeepsFavoritesAndAddsTables() {
-        val path = context.getDatabasePath("lyra-library.db").path
+        val path = context.getDatabasePath(TEST_DB_NAME).path
         SQLiteDatabase.openOrCreateDatabase(path, null).use { db ->
             db.execSQL(
                 """
@@ -204,7 +204,7 @@ class PlaylistRepositoryTest {
                 assertEquals(listOf("升级后新建"), repo.playlists.value.map { it.name })
                 repo.delete(created.id)
             }
-            FavoritesRepository(FavoritesDatabase(context)).use { favs ->
+            FavoritesRepository(FavoritesDatabase(context, TEST_DB_NAME)).use { favs ->
                 favs.refresh()
                 assertEquals("升级不能清收藏", listOf(first), favs.favorites.value.map { it.song })
             }

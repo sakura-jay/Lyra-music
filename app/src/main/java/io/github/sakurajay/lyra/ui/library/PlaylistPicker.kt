@@ -1,6 +1,7 @@
 package io.github.sakurajay.lyra.ui.library
 
 import android.app.Application
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -91,7 +92,7 @@ class PlaylistPickerViewModel(
         viewModelScope.launch {
             val nowFavorite = favorites.toggle(song)
             _favorite.value = nowFavorite
-            _message.value = if (nowFavorite) "已加入收藏" else "已移出收藏"
+            _message.value = if (nowFavorite) "已加入我喜欢" else "已移出我喜欢"
         }
     }
 
@@ -229,6 +230,9 @@ private fun PickerRow(label: String, checked: Boolean, onChecked: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // 整行可点：只有方框能点的话，用户点的是那行字，什么也不会发生
+            // （真机走查里这一下点了两次才命中）
+            .clickable(onClick = onChecked)
             .padding(horizontal = 12.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

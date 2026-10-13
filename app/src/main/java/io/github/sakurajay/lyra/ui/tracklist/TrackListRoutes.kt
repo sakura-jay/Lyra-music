@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -14,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
+import kotlinx.coroutines.launch
 
 /**
  * 专辑路由。VM 的 key 带 id：同一条路由换个参数进来必须是另一份状态，
@@ -160,5 +162,57 @@ fun MyPlaylistRoute(playlistId: Int, onBack: () -> Unit, onMore: (Song) -> Unit)
         onOpenAlbum = null,
         onMore = onMore,
         onMessageShown = viewModel::clearMessage,
+    )
+}
+
+/**
+ * 「我喜欢」：与专辑/平台歌单同一个列表页，数据来自本地收藏，行内 ♥ 是"移出"。
+ *
+ * 移出后靠观察收藏数量变化重读列表——与自建歌单页同一个做法，免得在页面里再记一次"该刷了"。
+ * 序号列关掉：收藏是"收进来的东西"，没有名次可言。
+ */
+@Composable
+fun LikedRoute(onBack: () -> Unit, onMore: (Song) -> Unit) {
+    val context = LocalContext.current
+    val favorites = ServiceLocator.favoritesRepository(context)
+    val title = stringResource(R.string.library_favorite)
+    val viewModel: TrackListViewModel = viewModel(
+        key = "liked",
+        factory = TrackListViewModel.factory {
+            val liked = favorites.refresh()
+            val songs = liked.map { it.song }
+            TrackList(
+                title = title,
+                subtitle = "",
+                description = "",
+                // 收藏按 added_at DESC 排，first() 就是最近添加那一首——头图跟着它走
+                coverUrl = liked.firstOrNull()?.song?.artworkUrl.orEmpty(),
+                songCount = songs.size,
+                playCountLabel = "",
+                songs = songs,
+            )
+        },
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val saved by favorites.favorites.collectAsStateWithLifecycle()
+    var seen by remember { mutableIntStateOf(saved.size) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(saved.size) {
+        if (seen != saved.size) {
+            seen = saved.size
+            viewModel.reload()
+        }
+    }
+    TrackListScreen(
+        state = state,
+        onBack = onBack,
+        onPlay = viewModel::play,
+        onOpenAlbum = null,
+        onMore = onMore,
+        onMessageShown = viewModel::clearMessage,
+        showRank = false,
+        isRowFavorite = { true },
+        onToggleRowFavorite = { song -> scope.launch { favorites.toggle(song) } },
+        emptyText = stringResource(R.string.library_empty),
     )
 }

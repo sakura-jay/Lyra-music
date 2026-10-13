@@ -75,6 +75,25 @@ class AppSettings(context: Context) {
         prefs.edit { putBoolean(KEY_AUTO_SWITCH, enabled) }
     }
 
+    /**
+     * 播放缓存上限（字节）。
+     *
+     * 读入时钳一次范围：旧值可能是别的手输或将来改小上限后遗留的，越界值直接落到边界，
+     * 免得淘汰器拿到一个荒唐的上限。
+     */
+    private val _cacheLimitBytes = MutableStateFlow(
+        prefs.getLong(KEY_CACHE_LIMIT, CACHE_LIMIT_DEFAULT_BYTES)
+            .coerceIn(CACHE_LIMIT_MIN_BYTES, CACHE_LIMIT_MAX_BYTES),
+    )
+    val cacheLimitBytes: StateFlow<Long> = _cacheLimitBytes.asStateFlow()
+
+    /** 改上限只落值，不动缓存；真正生效（含立即淘汰）由 `LyraCache.setLimit` 完成。 */
+    fun setCacheLimit(bytes: Long) {
+        val clamped = bytes.coerceIn(CACHE_LIMIT_MIN_BYTES, CACHE_LIMIT_MAX_BYTES)
+        _cacheLimitBytes.value = clamped
+        prefs.edit { putLong(KEY_CACHE_LIMIT, clamped) }
+    }
+
     private fun <T : Enum<T>> write(key: String, value: String, apply: () -> Unit) {
         apply()
         prefs.edit { putString(key, value) }
@@ -83,13 +102,19 @@ class AppSettings(context: Context) {
     private inline fun <reified T : Enum<T>> readEnum(key: String, entries: List<T>, fallback: T): T =
         prefs.getString(key, null)?.let { stored -> entries.firstOrNull { it.name == stored } } ?: fallback
 
-    private companion object {
-        const val FILE = "lyra-settings"
-        const val KEY_LYRIC_SIZE = "lyric_text_size"
-        const val KEY_DARK_MODE = "dark_mode"
-        const val KEY_DYNAMIC = "use_dynamic_color"
-        const val KEY_PRESET = "preset_theme"
-        const val KEY_QUALITY = "requested_quality"
-        const val KEY_AUTO_SWITCH = "auto_switch_source"
+    companion object {
+        /** 缓存上限的默认值与档位边界（UI 的预设芯片与滑块都从这里取，避免两处各写一份） */
+        const val CACHE_LIMIT_DEFAULT_BYTES = 128L * 1024 * 1024
+        const val CACHE_LIMIT_MIN_BYTES = 64L * 1024 * 1024
+        const val CACHE_LIMIT_MAX_BYTES = 4L * 1024 * 1024 * 1024
+
+        private const val FILE = "lyra-settings"
+        private const val KEY_LYRIC_SIZE = "lyric_text_size"
+        private const val KEY_DARK_MODE = "dark_mode"
+        private const val KEY_DYNAMIC = "use_dynamic_color"
+        private const val KEY_PRESET = "preset_theme"
+        private const val KEY_QUALITY = "requested_quality"
+        private const val KEY_AUTO_SWITCH = "auto_switch_source"
+        private const val KEY_CACHE_LIMIT = "cache_limit_bytes"
     }
 }

@@ -49,14 +49,14 @@ class FavoritesRepositoryTest {
 
     private fun deleteDatabase() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val db = context.getDatabasePath("lyra-library.db")
+        val db = context.getDatabasePath(TEST_DB_NAME)
         db.delete()
-        File(db.parentFile, "lyra-library.db-journal").delete()
+        File(db.parentFile, "$TEST_DB_NAME-journal").delete()
     }
 
     @Test
     fun toggleAddsThenRemoves() = runBlocking {
-        FavoritesRepository(FavoritesDatabase(ApplicationProvider.getApplicationContext())).use { repo ->
+        FavoritesRepository(FavoritesDatabase(ApplicationProvider.getApplicationContext(), TEST_DB_NAME)).use { repo ->
             assertTrue("第一次点应该是收藏上", repo.toggle(song))
             assertEquals(listOf(song), repo.favorites.value.map { it.song })
             assertTrue("当前状态要能被查出来", repo.contains(song))
@@ -69,10 +69,10 @@ class FavoritesRepositoryTest {
 
     @Test
     fun keepsEveryFieldThroughTheStoredEncoding() = runBlocking {
-        FavoritesRepository(FavoritesDatabase(ApplicationProvider.getApplicationContext())).use { repo ->
+        FavoritesRepository(FavoritesDatabase(ApplicationProvider.getApplicationContext(), TEST_DB_NAME)).use { repo ->
             repo.toggle(song)
         }
-        FavoritesRepository(FavoritesDatabase(ApplicationProvider.getApplicationContext())).use { reopened ->
+        FavoritesRepository(FavoritesDatabase(ApplicationProvider.getApplicationContext(), TEST_DB_NAME)).use { reopened ->
             reopened.refresh()
             val stored = reopened.favorites.value.single().song
             assertEquals("库里读回来必须是同一首歌", song, stored)
@@ -83,7 +83,7 @@ class FavoritesRepositoryTest {
 
     @Test
     fun sameSongOnAnotherPlatformIsAnotherFavorite() = runBlocking {
-        FavoritesRepository(FavoritesDatabase(ApplicationProvider.getApplicationContext())).use { repo ->
+        FavoritesRepository(FavoritesDatabase(ApplicationProvider.getApplicationContext(), TEST_DB_NAME)).use { repo ->
             repo.toggle(song)
             repo.toggle(song.copy(source = "tx", id = "999"))
             assertEquals(2, repo.favorites.value.size)

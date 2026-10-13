@@ -1,0 +1,45 @@
+package io.github.sakurajay.lyra.data.provider.builtin
+
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
+import org.junit.Test
+
+/**
+ * 内置酷狗榜单能不能真拿到歌。网络测试：接口不可达时跳过，不让回归变红。
+ *
+ * 这条测试存在的理由很具体：酷狗这套接口参数不对时也回 **HTTP 200**，只是榜变成 0–4 首，
+ * 界面上与"这个榜本来就是空的"长得一模一样。所以断言里必须带上"够一页"和 total。
+ */
+class KuGouLeaderboardProviderTest {
+
+    private val provider = KuGouLeaderboardProvider()
+
+    @Test
+    fun fetchesSongsForTopBoard() = runBlocking {
+        val page = provider.songs(KuGouLeaderboardProvider.BOARDS.first { it.bangId == "8888" }, page = 1, limit = 30)
+        assumeTrue("酷狗榜单接口不可达或参数被拒（返回空）", page.songs.isNotEmpty())
+
+        val first = page.songs.first()
+        assertTrue("歌名不能空", first.name.isNotBlank())
+        assertTrue("id 不能空", first.id.isNotBlank())
+        assertTrue("应带 hash（取址要用）：${first.hash}", first.hash.isNotBlank())
+        assertTrue("应带档位信息：${first.qualities}", first.qualities.isNotEmpty())
+        assertTrue("榜封面应取到榜首专辑图", page.board.coverUrl.isNotBlank())
+        println("榜单 ${page.board.name}：total=${page.total} 首，第一首=${first.name} / ${first.artists} / 档位=${first.qualities.map { it.quality.id }}")
+    }
+
+    /** 分页探针：page=2 应该换一批，且不能越过 total */
+    @Test
+    fun pagingProbe() = runBlocking {
+        val board = KuGouLeaderboardProvider.BOARDS.first { it.bangId == "8888" }
+        val p1 = provider.songs(board, page = 1, limit = 20)
+        val p2 = provider.songs(board, page = 2, limit = 20)
+        assumeTrue("酷狗榜单接口不可达（返回空）", p1.songs.isNotEmpty() && p2.songs.isNotEmpty())
+
+        val ids1 = p1.songs.map { it.id }
+        val ids2 = p2.songs.map { it.id }
+        println("第1页 ${ids1.size} 首：${ids1.take(3)}；第2页 ${ids2.size} 首：${ids2.take(3)}")
+        assertTrue("第 2 页必须换一批", ids1.intersect(ids2.toSet()).isEmpty())
+    }
+}

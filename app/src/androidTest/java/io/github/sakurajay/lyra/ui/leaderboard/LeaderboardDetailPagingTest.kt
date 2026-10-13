@@ -1,4 +1,4 @@
-package io.github.sakurajay.lyra.ui.home
+package io.github.sakurajay.lyra.ui.leaderboard
 
 import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -8,14 +8,12 @@ import io.github.sakurajay.lyra.core.source.SourcePlayUseCase
 import io.github.sakurajay.lyra.core.source.SourceSearchUseCase
 import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.core.source.repo.SourceRepository
-import io.github.sakurajay.lyra.data.local.FavoritePlaylistRepository
-import io.github.sakurajay.lyra.data.local.FavoritesDatabase
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.BoardPage
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider
-import io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider
 import io.github.sakurajay.lyra.domain.model.Song
 import java.io.File
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -26,16 +24,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 榜单分页状态机：追加顺序、去重、到 total 就停。
+ * 榜单详情的分页状态机：追加顺序、去重、到 total 就停、在途请求不串。
  *
- * 取数用假 lambda——真适配器要打网络，而这里要钉住的恰好是"第二页接到第一页后面"
- * 这类纯状态逻辑。
+ * 这套测试原来指向 `HomePagingTest`——榜的翻页那时住在首页 VM 里。M8 把榜搬进
+ * 榜单广场与详情页之后，翻页逻辑跟着搬，**测试也必须一起搬**：覆盖不该因为代码挪了
+ * 位置就消失。取数仍是假 lambda：要钉住的是"第二页接到第一页后面"这类纯状态逻辑。
  */
 @RunWith(AndroidJUnit4::class)
-class HomePagingTest {
+class LeaderboardDetailPagingTest {
 
     private val board = KuwoLeaderboardProvider.BOARDS.first()
-    private val otherBoard = KuwoLeaderboardProvider.BOARDS[1]
 
     private fun song(id: String) = Song(id = id, source = "kw", name = "歌$id", artists = listOf("某人"))
 
@@ -46,31 +44,29 @@ class HomePagingTest {
         return BoardPage(at, List(size) { i -> song("${at.bangId}-${start + i}") }, total)
     }
 
-    private fun viewModel(fetch: suspend (Board, Int, Int) -> BoardPage): HomeViewModel {
+    private fun viewModel(fetch: suspend (Board, Int, Int) -> BoardPage): LeaderboardDetailViewModel {
         val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
         val repo = SourceRepository(File(app.cacheDir, "paging-${System.nanoTime()}"))
         val loader = RuntimeLoader { error("这条测试不取址") }
-        return HomeViewModel(
+        return LeaderboardDetailViewModel(
             app,
+            board,
             fetch,
-            KuwoPlaylistProvider(),
-            FavoritePlaylistRepository(FavoritesDatabase(app)),
             SwitchingPlayUseCase(SourcePlayUseCase(repo, loader), SourceSearchUseCase(repo, loader)),
         )
     }
 
     /**
-     * 等某个榜的第一页落地。
+     * 等第一页落地。
      *
-     * 不能只等 `!loading`：UiState 的初始值就是 loading=false，那样会在
-     * 协程还没起跑时就返回。
+     * 不能只等 `!loading`：UiState 的初始值就是 loading=false，那样会在协程还没起跑时就返回。
      */
-    private suspend fun HomeViewModel.awaitBoard(id: String) {
-        withTimeout(TIMEOUT_MS) { uiState.first { it.selectedBoardId == id && !it.loading && it.songs.isNotEmpty() } }
+    private suspend fun LeaderboardDetailViewModel.awaitFirstPage() {
+        withTimeout(TIMEOUT_MS) { uiState.first { !it.loading && it.songs.isNotEmpty() } }
     }
 
     /** 等第 n 页接进列表：page 与 songs 在同一次 update 里改，比等标志位可靠 */
-    private suspend fun HomeViewModel.awaitPage(n: Int) {
+    private suspend fun LeaderboardDetailViewModel.awaitPage(n: Int) {
         withTimeout(TIMEOUT_MS) { uiState.first { it.page == n } }
     }
 
@@ -81,11 +77,11 @@ class HomePagingTest {
             asked += page
             fakePage(at, page, limit, TOTAL)
         }
-        model.awaitBoard(board.id)
+        model.awaitFirstPage()
 
         assertEquals("第一页只该发一次请求", listOf(1), asked)
         assertEquals(PAGE, model.uiState.value.songs.size)
-        assertFalse("300 首没到一半，不该标记到底", model.uiState.value.noMore)
+        assertFalse("250 首没到一半，不该标记到底", model.uiState.value.noMore)
 
         model.loadMore()
         model.awaitPage(2)
@@ -97,7 +93,7 @@ class HomePagingTest {
 
         model.loadMore()
         model.awaitPage(3)
-        assertEquals("最后一页只有 100 首，接不满 300 就到此为止", TOTAL, model.uiState.value.songs.size)
+        assertEquals("最后一页只有 50 首，接不满 250 就到此为止", TOTAL, model.uiState.value.songs.size)
         assertTrue(model.uiState.value.noMore)
 
         val before = asked.size
@@ -115,7 +111,7 @@ class HomePagingTest {
                 else -> first.copy(songs = listOf(song("${at.bangId}-0")) + first.songs + song("${at.bangId}-100"))
             }
         }
-        model.awaitBoard(board.id)
+        model.awaitFirstPage()
         model.loadMore()
         model.awaitPage(2)
 
@@ -124,26 +120,38 @@ class HomePagingTest {
         assertEquals("重复的那几条不该进列表", ids.size, ids.distinct().size)
     }
 
-    /** 切榜时上一页还在途：晚到的响应不能接到新榜后面 */
+    /**
+     * 重载时上一次还在途：晚到的响应不能接进来。
+     *
+     * 详情页只有一个榜，所以这里测的不是"切榜"而是"重载"——同一份列表被两次加载抢，
+     * 后果是一样的：列表变成两倍，或者标题与曲目对不上。
+     */
     @Test
-    fun dropsLateResponseFromPreviousBoard() = runBlocking {
-        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+    fun dropsLateResponseFromSupersededLoad() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        // 第一次请求"真的开始执行了"要有显式信号：若在它起跑前就 reload，被挡在门上的
+        // 就会变成 reload 那一次，测试会以超时失败——那是测法的问题，不是实现的 bug
+        val started = CompletableDeferred<Unit>()
+        val calls = java.util.concurrent.atomic.AtomicInteger()
         val model = viewModel { at, page, limit ->
-            if (at.id == board.id) gate.await()
+            val n = calls.incrementAndGet()
+            if (n == 1) {
+                started.complete(Unit)
+                gate.await()
+            }
             fakePage(at, page, limit, TOTAL)
         }
-        model.select(otherBoard)
-        model.awaitBoard(otherBoard.id)
+        withTimeout(TIMEOUT_MS) { started.await() }
+
+        model.reload()
+        withTimeout(TIMEOUT_MS) { model.uiState.first { it.songs.size == PAGE && !it.loading } }
+
         gate.complete(Unit)
         kotlinx.coroutines.yield()
 
         val state = model.uiState.value
-        assertEquals(otherBoard.id, state.selectedBoardId)
-        assertEquals(PAGE, state.songs.size)
-        assertTrue(
-            "旧榜的响应到了也不许混进来：${state.songs.take(3).map { it.id }}",
-            state.songs.all { it.id.startsWith(otherBoard.bangId) },
-        )
+        assertEquals("被取代的那次加载不许把列表接成两倍", PAGE, state.songs.size)
+        assertTrue("曲目必须都来自那一次成功的加载", state.songs.all { it.id.startsWith(board.bangId) })
     }
 
     private companion object {

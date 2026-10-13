@@ -24,6 +24,8 @@ class KuwoLeaderboardProviderTest {
         assertTrue("歌名不能空", first.name.isNotBlank())
         assertTrue("id 不能空", first.id.isNotBlank())
         assertTrue("应带档位信息：${first.qualities}", first.qualities.isNotEmpty())
+        // 封面只随 bang_info 的 data.pic 回来，静态表里是空的——带图那一份从这里出去
+        assertTrue("榜封面应随响应带回，实测为空：${page.board.coverUrl}", page.board.coverUrl.isNotBlank())
         println("榜单 ${page.board.name}：total=${page.total} 首，第一首=${first.name} / ${first.artists} / 档位=${first.qualities.map { it.quality.id }}")
     }
 

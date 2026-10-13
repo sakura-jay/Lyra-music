@@ -16,10 +16,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 
-data class Board(val id: String, val name: String, val bangId: String)
-
-data class BoardPage(val board: Board, val songs: List<Song>, val total: Int)
-
 /**
  * 内置酷我榜单。
  *
@@ -29,12 +25,20 @@ data class BoardPage(val board: Board, val songs: List<Song>, val total: Int)
  *
  * 为什么走内置而不是音源：与歌词同理，音源格式里榜单能力罕见，而首页榜单是 M5 的门面。
  * 字段映射复用搜索适配器的 decodeName/parseQualities——同一份 N_MINFO 不允许有两套判定表。
+ *
+ * 榜封面：酷我没有"一次给出全部榜 + 封面"的接口（`api/bd/bang/bang_list` 这个路由存在，
+ * 但各种参数形状一律回 PARAM_ERROR；lx 也只有静态表），封面只随 `bang_info` 的 `data.pic`
+ * 带回。所以 [songs] 返回的 board 是带图那一份，表里的 [coverUrl] 保持为空。
  */
 class KuwoLeaderboardProvider(
     private val client: OkHttpClient = defaultClient(),
-) {
+) : LeaderboardProvider {
 
-    suspend fun songs(board: Board, page: Int = 1, limit: Int = 30): BoardPage = withContext(Dispatchers.IO) {
+    override val source: String = SOURCE
+    override val displayName: String = "酷我"
+    override val boards: List<Board> get() = BOARDS
+
+    override suspend fun songs(board: Board, page: Int, limit: Int): BoardPage = withContext(Dispatchers.IO) {
         val body = JSONObject()
             .put("uid", "")
             .put("devId", "")
@@ -71,7 +75,13 @@ class KuwoLeaderboardProvider(
         val list = data.optJSONArray("musiclist") ?: return@withContext BoardPage(board, emptyList(), 0)
 
         val songs = (0 until list.length()).mapNotNull { index -> list.optJSONObject(index)?.let(::toSong) }
-        BoardPage(board, songs, data.optString("total").toIntOrNull() ?: songs.size)
+        // 封面与总数只有这一份响应里有，所以带图的 board 从这里回去
+        val pic = data.optString("pic")
+        BoardPage(
+            board = board.copy(coverUrl = pic.ifBlank { board.coverUrl }),
+            songs = songs,
+            total = data.optString("total").toIntOrNull() ?: songs.size,
+        )
     }
 
     private fun toSong(item: JSONObject): Song? {
@@ -80,7 +90,7 @@ class KuwoLeaderboardProvider(
         if (id.isBlank() || name.isBlank()) return null
         return Song(
             id = id,
-            source = "kw",
+            source = SOURCE,
             name = name,
             artists = KuwoSearchProvider.splitArtists(item.optString("artist")),
             albumName = KuwoSearchProvider.decodeName(item.optString("album")),
@@ -94,20 +104,28 @@ class KuwoLeaderboardProvider(
     }
 
     companion object {
-        /** 首页展示的一批常用榜；lx 的完整表有 40 条，先不全部搬过来 */
+        private const val SOURCE = "kw"
+
+        /**
+         * 首页展示的一批常用榜；lx 的完整表有 40 条，先不全部搬过来。
+         *
+         * 字段顺序是 `(id, source, name, bangId)`：`id` 带来源前缀以保证多来源下唯一，
+         * `bangId` 才是接口认的那个数字。名字用短名（"飙升榜"）——榜单广场已按来源分段，
+         * 服务端给的"酷我飙升榜"在这里会把来源重复一遍。
+         */
         val BOARDS: List<Board> = listOf(
-            Board("kw__93", "飙升榜", "93"),
-            Board("kw__17", "新歌榜", "17"),
-            Board("kw__16", "热歌榜", "16"),
-            Board("kw__158", "抖音热歌榜", "158"),
-            Board("kw__284", "热评榜", "284"),
-            Board("kw__104", "华语榜", "104"),
-            Board("kw__182", "粤语榜", "182"),
-            Board("kw__22", "欧美榜", "22"),
-            Board("kw__184", "韩语榜", "184"),
-            Board("kw__183", "日语榜", "183"),
-            Board("kw__64", "影视金曲榜", "64"),
-            Board("kw__26", "经典怀旧榜", "26"),
+            Board("kw__93", "kw", "飙升榜", "93"),
+            Board("kw__17", "kw", "新歌榜", "17"),
+            Board("kw__16", "kw", "热歌榜", "16"),
+            Board("kw__158", "kw", "抖音热歌榜", "158"),
+            Board("kw__284", "kw", "热评榜", "284"),
+            Board("kw__104", "kw", "华语榜", "104"),
+            Board("kw__182", "kw", "粤语榜", "182"),
+            Board("kw__22", "kw", "欧美榜", "22"),
+            Board("kw__184", "kw", "韩语榜", "184"),
+            Board("kw__183", "kw", "日语榜", "183"),
+            Board("kw__64", "kw", "影视金曲榜", "64"),
+            Board("kw__26", "kw", "经典怀旧榜", "26"),
         )
 
         private const val TAG = "LyraBoard"

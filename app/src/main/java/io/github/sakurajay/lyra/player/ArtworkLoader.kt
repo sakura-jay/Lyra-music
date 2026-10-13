@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.core.net.toUri
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -25,6 +26,17 @@ object ArtworkLoader {
     private const val MAX_BYTES = 2 * 1024 * 1024
     private const val MAX_CACHE_ENTRIES = 8
 
+    /**
+     * 解码后的位图缓存。
+     *
+     * 键带尺寸：同一张封面在列表里要 160px、在详情页头部要 320px，混用一张会把大图塞进小方块，
+     * 或者反过来让大图糊掉。
+     *
+     * 32 张是按"320×320 ARGB_8888 ≈ 0.4MB"算的：满打满算约 13MB，够装下一整个榜单广场
+     * （三家各 12 张榜）再多一点，再大就该换图片库而不是把这个数往上抬。
+     */
+    private const val MAX_BITMAP_ENTRIES = 32
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -38,22 +50,71 @@ object ArtworkLoader {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>) = size > MAX_CACHE_ENTRIES
     }
 
+    private val bitmapCache = object : LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>) = size > MAX_BITMAP_ENTRIES
+    }
+
+    /**
+     * 同一 URL 的在途请求。
+     *
+     * 广场一屏就能同时组合出十几张卡片，没有这层的话同一个 URL 会被并发下载多次——
+     * 每张卡各发一个请求，慢的还会互相抢连接池。
+     */
+    private val inFlight = HashMap<String, CompletableDeferred<ByteArray?>>()
+
+    /** 已经解码好的直接给；列表滚回来时靠它避免再解一次（键含尺寸）。 */
+    fun cachedBitmap(url: String?, maxEdgePx: Int): Bitmap? {
+        if (url.isNullOrBlank()) return null
+        return synchronized(bitmapCache) { bitmapCache[cacheKey(url, maxEdgePx)] }
+    }
+
+    /**
+     * 取封面位图：位图缓存 → 字节缓存 → 网络，最后降采样解码。
+     *
+     * 这条链是图片的唯一入口，所以"不重复下载、不重复解码"只需要在这里保证一次。
+     */
+    suspend fun bitmap(context: Context, url: String?, maxEdgePx: Int): Bitmap? {
+        if (url.isNullOrBlank()) return null
+        val key = cacheKey(url, maxEdgePx)
+        cachedBitmap(url, maxEdgePx)?.let { return it }
+        val bytes = load(context, url) ?: return null
+        return withContext(Dispatchers.Default) {
+            decodeDownsampled(bytes, maxEdgePx)?.also {
+                synchronized(bitmapCache) { bitmapCache[key] = it }
+            }
+        }
+    }
+
+    private fun cacheKey(url: String, maxEdgePx: Int) = "$url@$maxEdgePx"
+
     /** `content://` 与 `file://` 也认：本地音乐的专辑图在 MediaStore 里就是这么寻址的。 */
     suspend fun load(context: Context, url: String?): ByteArray? {
         if (url.isNullOrBlank()) return null
         if (url.startsWith("content://") || url.startsWith("file://")) return loadLocal(context, url)
         if (!url.startsWith("http://") && !url.startsWith("https://")) return null
         synchronized(memoryCache) { memoryCache[url]?.let { return it } }
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                client.newCall(Request.Builder().url(url).build()).execute().use { response ->
-                    if (!response.isSuccessful) return@runCatching null
-                    val bytes = response.body?.bytes() ?: return@runCatching null
-                    bytes.takeIf { it.size in 1..MAX_BYTES }?.also {
-                        synchronized(memoryCache) { memoryCache[url] = it }
+
+        // 第二个及以后的请求者只等第一个下完，不再自己发一次
+        val waiter = CompletableDeferred<ByteArray?>()
+        val running = synchronized(inFlight) { inFlight.putIfAbsent(url, waiter) }
+        if (running != null) return running.await()
+
+        try {
+            val bytes = withContext(Dispatchers.IO) {
+                runCatching {
+                    client.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                        if (!response.isSuccessful) return@runCatching null
+                        response.body?.bytes() ?: return@runCatching null
                     }
+                }.getOrNull()?.takeIf { it.size in 1..MAX_BYTES }?.also {
+                    synchronized(memoryCache) { memoryCache[url] = it }
                 }
-            }.getOrNull()
+            }
+            waiter.complete(bytes)
+            return bytes
+        } finally {
+            // 失败也要摘掉，否则这个 URL 以后每次都挂在一个已完成的空位上
+            synchronized(inFlight) { inFlight.remove(url) }
         }
     }
 
