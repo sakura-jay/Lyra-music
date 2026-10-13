@@ -324,11 +324,14 @@ JVM 单测套件与 `lintDebug`（0 error）同样通过。
   其余说"接口没给回数据，稍后再试"；原始异常与堆栈交给 logcat（标签 `LyraBoardDetail`），排查的人在那里看。
 - **空态引导里的 ♥ 不再变红 emoji**：`library_empty` 与 `library_no_favorite_playlists` 里的 U+2665
   补了文本变体选择符（`&#x2665;&#xFE0E;`），渲染回正文字色。
+- **列表页头部不再报"共 0 首"**：`TrackListScreen` 的计数行加了空列表分支（`songCount > 0` 才渲染），
+  与工单 012 对卡片定的"不出现 0 计数"对齐。这条落在共享页上，所以专辑 / 平台歌单 / 自建歌单 /
+  本地音乐的空态头部同样不再报 0；非空时"共 N 首"照常。
 
-验证：模拟器复验两处（断网 → 失败文案与「重试」；我喜欢空态的 ♥ 字形）；
-`LeaderboardDetailPagingTest` + `LeaderboardSquareViewModelTest` 全绿；JVM 单测绿；`lintDebug` 0 error。
+验证：模拟器复验三处（断网 → 失败文案与「重试」；我喜欢空态的心形字形与"无 0 计数"；
+加回一首后"共 1 首"回来）；`LeaderboardDetailPagingTest` + `LeaderboardSquareViewModelTest` 全绿；
+JVM 单测绿；`lintDebug` 0 error。
 
-**仍开着的条目**：我喜欢页收藏为 0 时头部仍显示「共 0 首」+ `♪` 空块（工单 012 只禁了卡片上的 0 计数，
-页头没同步，属既有观感决定，未擅自改）；规格轴其余项 —— 工单 004「在播改上限不断流」仍无设备测试、
+**仍开着的条目**：规格轴其余项 —— 工单 004「在播改上限不断流」仍无设备测试、
 `cache_hint` 还写着死值"上限 128 MB"、工单 013 未回写 PLAN、网易云取封面走的是整榜目录而非轻请求、
 位图缓存 32 格装不下 36 张榜封面。逐条见 `REVIEW.md` 第 5 节。

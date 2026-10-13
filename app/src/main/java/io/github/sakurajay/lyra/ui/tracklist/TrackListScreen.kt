@@ -158,7 +158,9 @@ fun TrackListScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    list?.let {
+                    // 空列表不报"共 0 首"：工单 012 对音乐库卡片定的这条规矩同样适用于页头，
+                    // 而且下面空态已经说了"还没有…"，再来一个 0 只是自相矛盾
+                    list?.takeIf { it.songCount > 0 }?.let {
                         Text(
                             text = if (it.playCountLabel.isBlank()) {
                                 stringResource(R.string.tracklist_count, it.songCount)
