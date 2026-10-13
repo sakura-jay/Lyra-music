@@ -3,7 +3,6 @@ package io.github.sakurajay.lyra.data.provider.builtin
 import android.util.Log
 import java.io.IOException
 import java.util.Base64
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -80,7 +79,7 @@ class KuGouLyricProvider(
     }
 
     private fun get(url: String): String? = try {
-        client.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
+        client.newCall(Request.Builder().url(url).header("User-Agent", BuiltinHttp.USER_AGENT).build())
             .execute().use { response ->
                 if (!response.isSuccessful) {
                     Log.w(TAG, "酷狗歌词 HTTP ${response.code}")
@@ -98,13 +97,8 @@ class KuGouLyricProvider(
         private const val DOWNLOAD_URL = "https://lyrics.kugou.com/download"
         private const val ATTEMPTS = 2
         private const val RETRY_BACKOFF_MS = 400L
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
-        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .build()
+        private fun defaultClient(): OkHttpClient = BuiltinHttp.client(10, 15)
 
         /** 酷狗的匹配关键词：歌手在前、歌名在后，与它自己的 keyword 展示顺序一致 */
         fun keyword(name: String, artists: List<String>): String =

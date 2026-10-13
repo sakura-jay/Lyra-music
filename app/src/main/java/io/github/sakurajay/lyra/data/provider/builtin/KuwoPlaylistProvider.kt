@@ -2,7 +2,6 @@ package io.github.sakurajay.lyra.data.provider.builtin
 
 import io.github.sakurajay.lyra.domain.model.Song
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -103,7 +102,7 @@ class KuwoPlaylistProvider(
 
     private fun fetch(url: String, failure: (okhttp3.Response) -> String): String =
         try {
-            client.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
+            client.newCall(Request.Builder().url(url).header("User-Agent", BuiltinHttp.USER_AGENT).build())
                 .execute().use { response ->
                     if (!response.isSuccessful) throw PlaylistException(failure(response))
                     response.body?.string() ?: throw PlaylistException("响应体为空")
@@ -122,13 +121,7 @@ class KuwoPlaylistProvider(
         private const val DIGEST_LIST = "digest-5"
         private const val DIGEST_ALBUM = "digest-13"
 
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
-
-        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .build()
+        private fun defaultClient(): OkHttpClient = BuiltinHttp.client(15, 20)
 
         /**
          * 酷我歌单的作者名经常是 `kw` + 一串数字的机器账号——展示出来没有任何信息量。

@@ -7,7 +7,6 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.Base64
-import java.util.concurrent.TimeUnit
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +50,7 @@ class KuwoLeaderboardProvider(
             .put("rn", limit)
 
         val url = "$ENDPOINT?${buildParam(body.toString())}"
-        val payload = fetchBoardJson(client, url, USER_AGENT, TAG, SOURCE) { decrypt(it.trim()) }
+        val payload = fetchBoardJson(client, url, BuiltinHttp.USER_AGENT, TAG, SOURCE) { decrypt(it.trim()) }
         if (payload.has("code") && payload.optInt("code") != 200) {
             Log.w(TAG, "榜单 code=${payload.optInt("code")} msg=${payload.optString("msg")} ${payload.toString().take(160)}")
             throw LeaderboardException("酷我榜单返回 code=${payload.optInt("code")}")
@@ -119,8 +118,6 @@ class KuwoLeaderboardProvider(
         private const val ENDPOINT = "https://wbd.kuwo.cn/api/bd/bang/bang_info"
         private const val APP_ID = "y67sprxhhpws"
         private const val CAR_SOURCE = "kwplayercar_ar_6.0.1.0_apk_keluze.apk"
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
         private val AES_KEY = SecretKeySpec(Base64.getDecoder().decode("cFcnPcf6Kb85RC1y3V6M5A=="), "AES")
 
         /** 收 JSON 文本而不是 JSONObject：JVM 单测里 org.json 是桩，签名逻辑必须能在纯 JVM 上测 */
@@ -155,9 +152,6 @@ class KuwoLeaderboardProvider(
             MessageDigest.getInstance("MD5").digest(text.toByteArray(Charsets.UTF_8))
                 .joinToString("") { "%02x".format(it) }
 
-        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .build()
+        fun defaultClient(): OkHttpClient = BuiltinHttp.client(connectSeconds = 10, readSeconds = 15)
     }
 }

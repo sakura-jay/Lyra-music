@@ -4,7 +4,6 @@ import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.QualityAvailability
 import io.github.sakurajay.lyra.domain.model.Song
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -46,7 +45,7 @@ class KuwoAlbumProvider(
             append("&show_copyright_off=0&encoding=utf&vipver=MUSIC_9.1.0")
         }
         val body = try {
-            client.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
+            client.newCall(Request.Builder().url(url).header("User-Agent", BuiltinHttp.USER_AGENT).build())
                 .execute().use { response ->
                     if (!response.isSuccessful) throw AlbumException("HTTP ${response.code}")
                     response.body?.string() ?: throw AlbumException("响应体为空")
@@ -61,13 +60,8 @@ class KuwoAlbumProvider(
     companion object {
         private const val ENDPOINT = "https://search.kuwo.cn/r.s"
         private const val LIMIT = 200
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
-        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .build()
+        private fun defaultClient(): OkHttpClient = BuiltinHttp.client(15, 20)
 
         internal fun parse(body: String): AlbumDetail {
             val root = runCatching { JSONObject(body) }.getOrElse { throw AlbumException("响应不是合法 JSON") }

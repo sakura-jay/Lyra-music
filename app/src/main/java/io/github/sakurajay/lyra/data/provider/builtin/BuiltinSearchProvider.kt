@@ -6,7 +6,6 @@ import io.github.sakurajay.lyra.domain.model.QualityAvailability
 import io.github.sakurajay.lyra.domain.model.Song
 import java.io.IOException
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -69,10 +68,7 @@ class KuwoSearchProvider(
     companion object {
         private const val ENDPOINT = "https://search.kuwo.cn/r.s"
 
-        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .build()
+        private fun defaultClient(): OkHttpClient = BuiltinHttp.client(15, 20)
 
         /** 酷我用 HTML 实体转义歌名（如 &#31435;&#26575;），必须解码后才是中文 */
         /** 只有绝对 http(s) 地址才能直接当封面用；相对路径一律丢弃 */

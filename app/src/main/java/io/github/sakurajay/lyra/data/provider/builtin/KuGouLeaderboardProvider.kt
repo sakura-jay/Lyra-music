@@ -5,7 +5,6 @@ import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.QualityAvailability
 import io.github.sakurajay.lyra.domain.model.Song
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -43,7 +42,7 @@ class KuGouLeaderboardProvider(
             append("&page=").append(page)
             append("&rankid=").append(URLEncoder.encode(board.bangId, "UTF-8"))
         }
-        val payload = fetchBoardJson(client, url, USER_AGENT, TAG, SOURCE)
+        val payload = fetchBoardJson(client, url, BuiltinHttp.USER_AGENT, TAG, SOURCE)
         // 这套接口出错也回 200；键名是 errcode（不是搜索结果那套的 error_code）
         if (payload.has("errcode") && payload.optInt("errcode") != 0) {
             Log.w(TAG, "榜单 errcode=${payload.optInt("errcode")} ${payload.optString("error")}")
@@ -95,7 +94,7 @@ class KuGouLeaderboardProvider(
             .firstOrNull { it.isNotBlank() }
             ?: return ""
         val sized = template.replace("{size}", COVER_SIZE)
-        return if (sized.startsWith("http://")) "https" + sized.removePrefix("http") else sized
+        return BuiltinHttp.https(sized)
     }
 
     /** 榜单条目的档位字段名与搜索那套不一样：`hash` / `320hash` / `sqhash` / `hash_high` */
@@ -110,7 +109,7 @@ class KuGouLeaderboardProvider(
             val hash = item.optString(names.first)
             val bytes = item.optLong(names.second)
             if (hash.isBlank() || bytes <= 0L) return@mapNotNull null
-            QualityAvailability(quality, KuGouSearchProvider.formatMegabytes(bytes), hash)
+            QualityAvailability(quality, BuiltinHttp.megabytes(bytes), hash)
         }.sortedByDescending { it.quality.ordinal }
     }
 
@@ -128,8 +127,6 @@ class KuGouLeaderboardProvider(
         private const val ENDPOINT = "http://mobilecdnbj.kugou.com/api/v3/rank/song"
         private const val COVER_SIZE = "480"
         private const val TAG = "LyraKgBoard"
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
         /**
          * 榜静态表沿用 lx 的 bangid 那一套（8888/6666…）。
@@ -151,9 +148,6 @@ class KuGouLeaderboardProvider(
             Board("kg__51340", SOURCE, "伤感榜", "51340"),
         )
 
-        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .build()
+        fun defaultClient(): OkHttpClient = BuiltinHttp.client(connectSeconds = 10, readSeconds = 15)
     }
 }

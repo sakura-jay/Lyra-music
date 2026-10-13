@@ -5,7 +5,6 @@ import io.github.sakurajay.lyra.domain.model.QualityAvailability
 import io.github.sakurajay.lyra.domain.model.Song
 import java.io.IOException
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -40,7 +39,7 @@ class KuGouSearchProvider(
             append("&userid=0&clientver=&platform=WebFilter&filter=2&iscorrection=1&privilege_filter=0&area_code=1")
         }
         val body = try {
-            client.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
+            client.newCall(Request.Builder().url(url).header("User-Agent", BuiltinHttp.USER_AGENT).build())
                 .execute().use { response ->
                     if (!response.isSuccessful) throw SearchException("酷狗 HTTP ${response.code}")
                     response.body?.string() ?: throw SearchException("响应体为空")
@@ -54,13 +53,8 @@ class KuGouSearchProvider(
     companion object {
         private const val ENDPOINT = "https://songsearch.kugou.com/song_search_v2"
         private const val COVER_SIZE = "480"
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
-        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .build()
+        private fun defaultClient(): OkHttpClient = BuiltinHttp.client(15, 20)
 
         internal fun parse(body: String, page: Int, limit: Int): SearchResult {
             val root = runCatching { JSONObject(body) }.getOrElse { throw SearchException("酷狗响应不是合法 JSON") }
@@ -144,7 +138,7 @@ class KuGouSearchProvider(
                 .firstOrNull { it.isNotBlank() }
                 ?: return ""
             val sized = template.replace("{size}", COVER_SIZE)
-            return if (sized.startsWith("http://")) "https" + sized.removePrefix("http") else sized
+            return BuiltinHttp.https(sized)
         }
 
         private fun readSingers(singers: JSONArray?): List<String> {
@@ -166,10 +160,8 @@ class KuGouSearchProvider(
                 val hash = item.optString(names.first)
                 val bytes = item.optLong(names.second)
                 if (hash.isBlank() || bytes <= 0L) return@mapNotNull null
-                QualityAvailability(quality, formatMegabytes(bytes), hash)
+                QualityAvailability(quality, BuiltinHttp.megabytes(bytes), hash)
             }.sortedByDescending { it.quality.ordinal }
         }
-
-        internal fun formatMegabytes(bytes: Long): String = "%.2fMb".format(bytes / 1024.0 / 1024.0)
     }
 }

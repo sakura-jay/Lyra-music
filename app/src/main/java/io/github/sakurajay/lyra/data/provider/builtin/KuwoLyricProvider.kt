@@ -2,7 +2,6 @@ package io.github.sakurajay.lyra.data.provider.builtin
 
 import android.util.Log
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -77,9 +76,6 @@ class KuwoLyricProvider(
         const val RETRY_BACKOFF_MS = 300L
         const val ENDPOINT = "https://m.kuwo.cn/newh5/singles/songinfoandlrc"
 
-        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .build()
+        fun defaultClient(): OkHttpClient = BuiltinHttp.client(10, 15)
     }
 }

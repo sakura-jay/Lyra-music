@@ -6,7 +6,6 @@ import io.github.sakurajay.lyra.domain.model.QualityAvailability
 import io.github.sakurajay.lyra.domain.model.Song
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -91,7 +90,7 @@ class NetEaseLeaderboardProvider(
     }
 
     private fun get(url: String): JSONObject {
-        val payload = fetchBoardJson(client, url, USER_AGENT, TAG, SOURCE)
+        val payload = fetchBoardJson(client, url, BuiltinHttp.USER_AGENT, TAG, SOURCE)
         // 网易云这套也是出错回 200、靠 body 里的 code 说话
         if (payload.has("code") && payload.optInt("code") != 200) {
             Log.w(TAG, "榜单 code=${payload.optInt("code")} ${payload.optString("message")} url=${url.take(120)}")
@@ -114,7 +113,7 @@ class NetEaseLeaderboardProvider(
             albumId = album?.optString("id").orEmpty(),
             // 网易云的 dt 是毫秒
             durationSec = item.optInt("dt") / 1000,
-            artworkUrl = https(album?.optString("picUrl").orEmpty()),
+            artworkUrl = BuiltinHttp.https(album?.optString("picUrl").orEmpty()),
             qualities = readQualities(item),
         )
     }
@@ -144,19 +143,15 @@ class NetEaseLeaderboardProvider(
             val node = item.optJSONObject(key) ?: return@mapNotNull null
             val bytes = node.optLong("size")
             if (bytes <= 0L) return@mapNotNull null
-            QualityAvailability(quality, KuGouSearchProvider.formatMegabytes(bytes))
+            QualityAvailability(quality, BuiltinHttp.megabytes(bytes))
         }.sortedByDescending { it.quality.ordinal }
     }
-
-    private fun https(url: String): String = if (url.startsWith("http://")) "https" + url.removePrefix("http") else url
 
     companion object {
         private const val SOURCE = "wy"
         private const val PLAYLIST_DETAIL = "https://music.163.com/api/v6/playlist/detail"
         private const val SONG_DETAIL = "https://music.163.com/api/v3/song/detail"
         private const val TAG = "LyraWyBoard"
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
         /** 榜即歌单：bangId 用网易云的歌单 id（沿用 lx 的 topList 里常用的一批短名） */
         val BOARDS: List<Board> = listOf(
@@ -174,9 +169,6 @@ class NetEaseLeaderboardProvider(
             Board("wy__5059642708", SOURCE, "国风榜", "5059642708"),
         )
 
-        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .build()
+        fun defaultClient(): OkHttpClient = BuiltinHttp.client(connectSeconds = 10, readSeconds = 15)
     }
 }
