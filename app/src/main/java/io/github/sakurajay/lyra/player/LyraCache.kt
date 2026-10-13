@@ -6,7 +6,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.cache.CacheDataSink
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.SimpleCache
-import io.github.sakurajay.lyra.data.settings.AppSettings
+import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.domain.model.SongCodec
 import java.io.File
@@ -28,7 +28,7 @@ import java.io.File
  * 让设置页、VM、服务各挂一枚注解只会把噪音摊开。
  *
  * 上限不再写死：淘汰器换成 [AdjustableLruCacheEvictor]，初始值读用户设置
- * （[AppSettings.cacheLimitBytes]），运行时经 [setLimit] 调整且不必重建 SimpleCache（ADR-0008）。
+ * （`AppSettings.cacheLimitBytes`），运行时经 [setLimit] 调整且不必重建 SimpleCache（ADR-0008）。
  */
 @androidx.annotation.OptIn(UnstableApi::class)
 object LyraCache {
@@ -45,7 +45,9 @@ object LyraCache {
         cache?.let { return it to checkNotNull(evictor) }
         return synchronized(this) {
             cache?.let { return it to checkNotNull(evictor) }
-            val limit = AppSettings(context.applicationContext).cacheLimitBytes.value
+            // 走 ServiceLocator 那份单例：自己 new 一个 AppSettings 会在同一份
+            // SharedPreferences 上并存两个实例、两个 StateFlow，设置页改了这边读不到
+            val limit = ServiceLocator.settings(context.applicationContext).cacheLimitBytes.value
             val createdEvictor = AdjustableLruCacheEvictor(limit)
             val createdCache = SimpleCache(File(context.cacheDir, "media"), createdEvictor)
             evictor = createdEvictor
@@ -61,14 +63,14 @@ object LyraCache {
 
     /**
      * 改上限；调低到当前占用以下会立即按最久未听淘汰到新上限，返回释放的字节数。
-     * 上限值本身由调用方持久化（见 [AppSettings.setCacheLimit]）。
+     * 上限值本身由调用方持久化（见 `AppSettings.setCacheLimit`）。
+     *
+     * 释放量由淘汰器记账返回，不再扫两遍 `entries()`：那等于为了算一个差值，
+     * 把每个键再做一次 `SongCodec` 反解。
      */
     fun setLimit(context: Context, bytes: Long): Long {
         val (simpleCache, adjustable) = pair(context)
-        val before = entries(context).sumOf { it.bytes }
-        adjustable.setLimit(simpleCache, bytes)
-        val after = entries(context).sumOf { it.bytes }
-        return (before - after).coerceAtLeast(0L)
+        return adjustable.setLimit(simpleCache, bytes)
     }
 
     /** 先查缓存，未命中才走 [upstream]（生产路径里 upstream 还套着惰性取址）。 */

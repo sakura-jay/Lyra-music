@@ -81,6 +81,25 @@ class LruEvictionBudgetTest {
         assertEquals("a", b.oldestIfOverflowing(0)?.key)
     }
 
+    /**
+     * 调高上限不该让任何条目变成待淘汰。
+     *
+     * 工单 004 的验收标准写着"调高不删除任何条目"，此前只靠"超限判断反过来就是不超"
+     * 的推理保证，没有用例钉住——推理会在 `oldestIfOverflowing` 改判据的那天失效。
+     */
+    @Test
+    fun raisingLimitLeavesEverythingInPlace() {
+        val b = budget(limit = 100)
+        b.onAdded(Span("a", 90, ts = 1))
+        assertEquals("超限预留时本来要淘汰 a", "a", b.oldestIfOverflowing(20)?.key)
+
+        b.setLimit(256)
+
+        assertNull("调高之后同样的占用更该安稳待着", b.oldestIfOverflowing(20))
+        assertNull(b.oldestIfOverflowing(0))
+        assertEquals(90L, b.size)
+    }
+
     @Test
     fun emptyBudgetNeverOverflows() {
         val b = budget(limit = 0)

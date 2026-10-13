@@ -44,13 +44,19 @@ internal class AdjustableLruCacheEvictor(initialLimitBytes: Long) : CacheEvictor
     override fun onSpanTouched(cache: Cache, oldSpan: CacheSpan, newSpan: CacheSpan) =
         budget.onTouched(oldSpan, newSpan)
 
-    /** 改上限；改小到当前占用以下会立即淘汰。 */
-    fun setLimit(cache: Cache, bytes: Long) {
+    /**
+     * 改上限；改小到当前占用以下会立即淘汰。
+     *
+     * 返回本次真正腾出的字节数：调用方要据此决定界面说什么，而它没有别的办法知道
+     * 淘汰了多少——再扫一遍 `cache.keys` 是拿全量重算换一次记账。
+     */
+    fun setLimit(cache: Cache, bytes: Long): Long {
         budget.setLimit(bytes)
-        evict(cache, 0L)
+        return evict(cache, 0L)
     }
 
-    private fun evict(cache: Cache, requiredSpace: Long) {
+    private fun evict(cache: Cache, requiredSpace: Long): Long {
+        var evicted = 0L
         while (true) {
             val span = budget.oldestIfOverflowing(requiredSpace) ?: break
             val before = budget.size
@@ -58,6 +64,8 @@ internal class AdjustableLruCacheEvictor(initialLimitBytes: Long) : CacheEvictor
             // removeSpan 会回调 onSpanRemoved 更新计数；若这一下没删动（如 span 正在写入），
             // 再循环就会卡死——Media3 的原版没有这道闸，这里补上
             if (budget.size >= before) break
+            evicted += before - budget.size
         }
+        return evicted
     }
 }

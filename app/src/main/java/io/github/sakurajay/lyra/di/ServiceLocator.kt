@@ -12,7 +12,11 @@ import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.core.source.RuntimeLoader
 import io.github.sakurajay.lyra.core.source.repo.SourceRepository
 import io.github.sakurajay.lyra.core.source.runtime.SourceRuntime
+import io.github.sakurajay.lyra.data.provider.builtin.KuGouLeaderboardProvider
+import io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
+import io.github.sakurajay.lyra.data.provider.builtin.LeaderboardProvider
+import io.github.sakurajay.lyra.data.provider.builtin.NetEaseLeaderboardProvider
 import java.io.File
 
 /**
@@ -161,44 +165,24 @@ object ServiceLocator {
         )
 
     /**
-     * 内置适配器各一个实例：每个都自带 OkHttpClient（连接池 + 线程池），
-     * 每次进页面新建一个就是白建一套池子。
-     */
-    @Volatile
-    private var leaderboardProvider: io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider? = null
-
-    fun leaderboardProvider(): io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider =
-        leaderboardProvider
-            ?: synchronized(this) {
-                leaderboardProvider ?: io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider().also { leaderboardProvider = it }
-            }
-
-    /**
      * 全部榜单来源：首页的精选预览与榜单广场的分段都从这里取。
      *
-     * 酷我 / 酷狗 / 网易云三家。新增一家就是往这个列表后面追加一项——接口与页面都不必
-     * 跟着改，这正是 [LeaderboardProvider] 存在的理由。
+     * 酷我 / 酷狗 / 网易云三家，一家一个实例——每个都自带 OkHttpClient，每次进页面新建一个
+     * 就是白建一套连接池。新增一家就是往这里追加一项，接口与页面都不必跟着改，
+     * 这正是 [LeaderboardProvider] 存在的理由。
+     *
+     * `lazy` 而不是三份"字段 + volatile 双检锁"：这张表是只读的，第一次取就定型，
+     * 没有"半个实例被人看见"的窗口。
      */
-    fun leaderboardProviders(): List<io.github.sakurajay.lyra.data.provider.builtin.LeaderboardProvider> =
-        listOf(leaderboardProvider(), kugouLeaderboardProvider(), neteaseLeaderboardProvider())
+    fun leaderboardProviders(): List<LeaderboardProvider> = leaderboardProviders
 
-    @Volatile
-    private var neteaseLeaderboardProvider: io.github.sakurajay.lyra.data.provider.builtin.NetEaseLeaderboardProvider? = null
-
-    fun neteaseLeaderboardProvider(): io.github.sakurajay.lyra.data.provider.builtin.NetEaseLeaderboardProvider =
-        neteaseLeaderboardProvider
-            ?: synchronized(this) {
-                neteaseLeaderboardProvider ?: io.github.sakurajay.lyra.data.provider.builtin.NetEaseLeaderboardProvider().also { neteaseLeaderboardProvider = it }
-            }
-
-    @Volatile
-    private var kugouLeaderboardProvider: io.github.sakurajay.lyra.data.provider.builtin.KuGouLeaderboardProvider? = null
-
-    fun kugouLeaderboardProvider(): io.github.sakurajay.lyra.data.provider.builtin.KuGouLeaderboardProvider =
-        kugouLeaderboardProvider
-            ?: synchronized(this) {
-                kugouLeaderboardProvider ?: io.github.sakurajay.lyra.data.provider.builtin.KuGouLeaderboardProvider().also { kugouLeaderboardProvider = it }
-            }
+    private val leaderboardProviders: List<LeaderboardProvider> by lazy {
+        listOf(
+            KuwoLeaderboardProvider(),
+            KuGouLeaderboardProvider(),
+            NetEaseLeaderboardProvider(),
+        )
+    }
 
     @Volatile
     private var albumProvider: io.github.sakurajay.lyra.data.provider.builtin.KuwoAlbumProvider? = null
