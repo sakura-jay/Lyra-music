@@ -316,6 +316,19 @@ JVM 单测套件与 `lintDebug`（0 error）同样通过。
 全部正常。走查另抓到三处新的观感问题（异常文案直接给用户看、我喜欢页空态仍显示"共 0 首"、
 `♥` 被系统渲染成红色 emoji），逐条记在 `REVIEW.md` 第 6 节，**未擅自修改**。
 
-**标准轴剩下的 P1/P2 与规格轴各条尚未处理**：三家适配器把失败折叠成空榜（C7 的"错误态"因此在
-UI 上不可达）、`total` 缺失时兜底成页大小导致提前判到底、工单 004 的"在播改上限不断流"仍无设备
-测试、`cache_hint` 还写着死值"上限 128 MB"、工单 013 未回写 PLAN。
+## 发版后修订（四）：走查抓到的两处观感
+
+- **失败提示改说人话**：断网时榜详情原先显示
+  `榜单加载失败：kw 榜单请求失败：UnknownHostException Unable to resolve host "wbd.kuwo.cn"…`。
+  现在 `LeaderboardException` 带 `cause`，界面按原因翻译——网络类失败说"网络不通，连不上榜单接口"，
+  其余说"接口没给回数据，稍后再试"；原始异常与堆栈交给 logcat（标签 `LyraBoardDetail`），排查的人在那里看。
+- **空态引导里的 ♥ 不再变红 emoji**：`library_empty` 与 `library_no_favorite_playlists` 里的 U+2665
+  补了文本变体选择符（`&#x2665;&#xFE0E;`），渲染回正文字色。
+
+验证：模拟器复验两处（断网 → 失败文案与「重试」；我喜欢空态的 ♥ 字形）；
+`LeaderboardDetailPagingTest` + `LeaderboardSquareViewModelTest` 全绿；JVM 单测绿；`lintDebug` 0 error。
+
+**仍开着的条目**：我喜欢页收藏为 0 时头部仍显示「共 0 首」+ `♪` 空块（工单 012 只禁了卡片上的 0 计数，
+页头没同步，属既有观感决定，未擅自改）；规格轴其余项 —— 工单 004「在播改上限不断流」仍无设备测试、
+`cache_hint` 还写着死值"上限 128 MB"、工单 013 未回写 PLAN、网易云取封面走的是整榜目录而非轻请求、
+位图缓存 32 格装不下 36 张榜封面。逐条见 `REVIEW.md` 第 5 节。

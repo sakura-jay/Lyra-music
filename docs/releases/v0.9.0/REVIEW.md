@@ -130,13 +130,15 @@
 真实专辑图 → 我喜欢页头图 / "共 1 首" / 无序号列 / 行内实心 ♥ / 行尾 ⋯ 全在 → 点 ♥ 行立即消失并给页内
 引导 → 回音乐库卡片回到"还没有喜欢的歌"。
 
-**新抓到三处观感问题（都未改，等定夺）**：
-1. 失败文案把 Java 异常原样给用户看：`榜单加载失败：kw 榜单请求失败：UnknownHostException Unable to
-   resolve host "wbd.kuwo.cn": No address associated with hostname`。断网该说"网络不通"，
-   这一串是 `LeaderboardException` 的消息直接透到 `UiState.failed`（`LeaderboardDetailViewModel.kt` 的
-   catch 拼 `e.message`）。要么消息在适配器侧就说人话，要么 UI 侧按类型翻译。
-2. 我喜欢页在收藏为 0 时头部显示「共 0 首」+ 一个 `♪` 空块。工单 012 对**卡片**明确写了"不再出现 0 首
+**新抓到三处观感问题**：
+1. ✅ **已修（同日）**失败文案把 Java 异常原样给用户看：`榜单加载失败：kw 榜单请求失败：UnknownHostException Unable to
+   resolve host "wbd.kuwo.cn": No address associated with hostname`。改法是两边各取所需：
+   `LeaderboardException` 带上 `cause`，界面按 `cause` 翻译（`IOException` → "网络不通，连不上榜单接口"，
+   其余 → "接口没给回数据，稍后再试"），原始异常与堆栈交给 `Log.w("LyraBoardDetail", …)`。
+   模拟器复验：断网点重载显示"榜单加载失败：网络不通，连不上榜单接口"+「重试」，
+   logcat 里该标签仍有完整堆栈可查。
+2. ⏳ **未修，待定夺**我喜欢页在收藏为 0 时头部显示「共 0 首」+ 一个 `♪` 空块。工单 012 对**卡片**明确写了"不再出现 0 首
    这种计数"，页头没同步这条判断（`TrackListScreen` 的头部总数无空态分支）。
-3. `strings.xml` 里的 `♥`（U+2665）在系统字体下渲染成**红色 emoji ❤**，跳出整套配色——出现在
-   `library_empty` 与 `library_no_favorite_playlists` 两条空态引导里。要么补 U+FE0E 强制文本样式，
-   要么改成图标内联。
+3. ✅ **已修（同日）**`strings.xml` 里的 `♥`（U+2665）在系统字体下渲染成**红色 emoji ❤**，跳出整套配色——出现在
+   `library_empty` 与 `library_no_favorite_playlists` 两条空态引导里。改成 `&#x2665;&#xFE0E;`
+   （补文本变体选择符），模拟器复验：♥ 已按正文字色渲染，不再是红色 emoji。

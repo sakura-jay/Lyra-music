@@ -38,8 +38,10 @@ data class BoardPage(val board: Board, val songs: List<Song>, val total: Int?)
  *
  * 与"这一榜确实是空的"是两回事——折叠成空列表会让界面上分不清"接口挂了"和"没歌"。
  * 形状对齐同包的 `AlbumException` / `SearchException`。
+ *
+ * [cause] 原样留着：日志要看得懂是哪一种失败，而界面要说的话不是异常名，所以两边各取所需。
  */
-class LeaderboardException(message: String) : Exception(message)
+class LeaderboardException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
  * 三家的共同形状：GET →（可选解密）→ JSON。
@@ -71,7 +73,7 @@ internal fun fetchBoardJson(
     throw e
 } catch (e: Exception) {
     Log.w(tag, "榜单请求失败：${e.javaClass.simpleName} ${e.message}")
-    throw LeaderboardException("$source 榜单请求失败：${e.javaClass.simpleName} ${e.message}")
+    throw LeaderboardException("$source 榜单请求失败：${e.javaClass.simpleName} ${e.message}", cause = e)
 }
 
 /**

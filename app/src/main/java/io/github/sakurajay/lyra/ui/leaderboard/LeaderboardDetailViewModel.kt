@@ -1,6 +1,7 @@
 package io.github.sakurajay.lyra.ui.leaderboard
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -94,9 +95,7 @@ class LeaderboardDetailViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(loading = false, failed = "榜单加载失败：${e.message ?: e.javaClass.simpleName}")
-                }
+                _uiState.update { it.copy(loading = false, failed = "榜单加载失败：${reasonFor(e)}") }
             }
         }
     }
@@ -139,7 +138,7 @@ class LeaderboardDetailViewModel(
                     _uiState.update {
                         it.copy(
                             loadingMore = false,
-                            failed = "后面的榜单没取到：${e.message ?: e.javaClass.simpleName}",
+                            failed = "后面的榜单没取到：${reasonFor(e)}",
                         )
                     }
                 },
@@ -155,6 +154,21 @@ class LeaderboardDetailViewModel(
      */
     private fun noMoreAfter(fetched: Int, distinctCount: Int, total: Int?): Boolean =
         fetched == 0 || fetched < PAGE_SIZE || (total != null && distinctCount >= total)
+
+    /**
+     * 说给人听的失败原因。
+     *
+     * 异常名不是人话——断网时用户该看到"网络不通"，而不是
+     * `UnknownHostException Unable to resolve host "wbd.kuwo.cn"`；原始异常交给日志，
+     * 排查的人在那里看。
+     */
+    private fun reasonFor(e: Throwable): String {
+        Log.w(TAG, "榜单取数失败", e)
+        return when (e.cause ?: e) {
+            is java.io.IOException -> "网络不通，连不上榜单接口"
+            else -> "接口没给回数据，稍后再试"
+        }
+    }
 
     fun play(song: Song) {
         val queue = _uiState.value.songs
@@ -189,6 +203,8 @@ class LeaderboardDetailViewModel(
     }
 
     companion object {
+        private const val TAG = "LyraBoardDetail"
+
         /** 服务端单页上限就是 100（实测 rn=300 也只回 100） */
         private const val PAGE_SIZE = 100
 

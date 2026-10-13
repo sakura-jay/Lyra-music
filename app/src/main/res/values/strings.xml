@@ -37,7 +37,7 @@
     <string name="search_title">搜索</string>
     <string name="library_title">音乐库</string>
     <string name="library_open_sources">音源管理</string>
-    <string name="library_empty">还没有喜欢的歌。在播放页点 ♥ 把当前这首歌收进来。</string>
+    <string name="library_empty">还没有喜欢的歌。在播放页点 &#x2665;&#xFE0E; 把当前这首歌收进来。</string>
     <string name="library_liked_none">还没有喜欢的歌</string>
     <string name="library_favorite">我喜欢</string>
     <string name="library_my_playlists">我的歌单</string>
@@ -45,7 +45,7 @@
     <string name="library_favorite_playlists">收藏的歌单</string>
     <string name="library_no_saved_short">还没收藏歌单</string>
     <string name="library_unit_count">%1$d 个</string>
-    <string name="library_no_favorite_playlists">还没有收藏的歌单。在首页或歌单广场点封面右上角的 ♥ 收进来。</string>
+    <string name="library_no_favorite_playlists">还没有收藏的歌单。在首页或歌单广场点封面右上角的 &#x2665;&#xFE0E; 收进来。</string>
     <string name="library_unfavorite_playlist">把「%1$s」移出收藏</string>
     <string name="library_new_playlist">新建歌单</string>
     <string name="library_create_and_add">创建并加入</string>
