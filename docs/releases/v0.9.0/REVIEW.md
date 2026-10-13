@@ -79,21 +79,26 @@
 10. 验收口径：`compileDebugAndroidTestKotlin` + JVM 单测 + `lintDebug` 0 error，模拟器跑
     三家 provider 测试 + `LeaderboardDetailPagingTest` + `LeaderboardSquareViewModelTest`。Jank 不在这片影响面里。
 
-## 4. P2 结构性异味（排进 M9，不与补丁混提交）
+## 4. P2 结构性异味 —— 前五组已完成，第六组（共享翻页件）推到 M9
 
-1. 重复：三份 `USER_AGENT` + `defaultClient()`（`Kuwo:135,171` / `KuGou:135,158` / `NetEase:165,184`）、
-   `KuGou:114-127` ≈ `KuGouSearchProvider.kt:158-171`、分页状态机两份（`LeaderboardDetailViewModel.kt:71-133`
-   与 `PlaylistSquareViewModel.kt:79-168`）、触底探针块两份（`LeaderboardDetailScreen.kt:67-74` vs `PlaylistSquareScreen.kt:67-73`）。
-   → 抽包内 `BuiltinHttp`（client 工厂 + UA + https 归一 + MB 格式化）与一个共享翻页件；只收敛 builtin provider 一族，别动音源链。
-2. `TrackListScreen.kt:53-69` 十二个参数、其中四个只服务 `LikedRoute` → 收参数对象；`Song` 换 import。
-3. `ServiceLocator.kt:176-201` 三份 volatile 双检锁样板 + `leaderboardProvider()`/`leaderboardProviders()` 只差一个 s → 注册表化、前者改名。
-4. `LyraCache.kt:48` 自造 `AppSettings`（应走 `ServiceLocator.settings(context)`，`ServiceLocator.kt:89`）；
-   `LyraCache.kt:68-71` 两次全量 `entries()` 扫描算释放量 → 让 evictor 直接返回淘汰字节数（改动局限这两个文件 + `LruEvictionBudgetTest`）。
-5. 小项：`LeaderboardSquareScreen.kt:17` 未用 import；`HomeScreen.kt:167` 榜单区复用 `home_playlists_more` 键；
-   `LyraApp.kt:230,425` 手拼 `"leaderboard/$boardId"` 该有 `boardRoute()`（对照 `:126`）；`LyraApp.kt:431` 的 `defaultValue = ""`
-   配 `LeaderboardDetailViewModel.kt:188-193` 会伪造 `bangId` 去打第一个来源，查不到榜应直接给空榜；
-   `NetEaseLeaderboardProvider.kt:52` 缺 `ifBlank`、`:79` 的 id 未校验数字且未按 100 分片（`:26` 自己写了上限）；
-   `MyPlaylistsScreen.kt:53` / `SavedPlaylistsScreen.kt:53` 各构造整份 `LibraryViewModel`，`init` 每次扫 MediaStore。
+| # | 条目 | 结果 |
+| --- | --- | --- |
+| 1 | 三份 `USER_AGENT` + 九份 `defaultClient` + 三份 https 归一 + Mb 格式化跨平台引用 | ✅ `06e4a91` 新建 `BuiltinHttp`。**超时秒数故意留在各家调用点**：榜单/歌词是轻响应（10/15s），搜索/专辑/歌单要翻整页（15/20s），只收样板不改数值。三家档位表那个 `(quality to 字段名)` 形状**没合**——每家的键名与是否带独立 hash 不同，硬抽就要把平台差异塞进参数团 |
+| 2 | `TrackListScreen` 十二个参数 | ✅ `699c3a2` 行内 ♥ 那一对（读状态 + 切换）总是一起动，捏成 `RowFavorites`（12→11）；`Song` 全限定名换 import |
+| 3 | `ServiceLocator` 三份双检锁样板 + 只差一个 s 的两个方法 | ✅ `818e563` 换成一份 `lazy` 列表；三个单独访问器经查**没有外部调用方**，删掉 |
+| 4 | `LyraCache` 自造 `AppSettings`；两次 `entries()` 扫描算释放量 | ✅ `818e563` 走 `ServiceLocator.settings`；释放量由 `AdjustableLruCacheEvictor.setLimit` 记账返回 |
+| 5 | 小项包 | ✅ `699c3a2`：未用 import、`home_more` 取代借用的 `home_playlists_more`、`boardRoute()`、榜 id 查不到时不再冒充 `bangId`、网易云 `c` 参数按 100 分批且只认数字 id、`LibraryViewModel` 的 MediaStore 扫描移到真正展示本地音乐的 `LibraryScreen` |
+| 6 | 分页状态机两份（`LeaderboardDetailViewModel` 与 `PlaylistSquareViewModel`）+ 触底探针块两份 | ⏳ **未做**，见下 |
+
+**第 6 组为什么不在这片做**：P1 只改了榜单详情的翻页语义（`total` 可空、失败不再等于到底、
+`failed` 与空榜分开），歌单广场那份还是老语义——两边现在**语义不同构**。这时候抽"共享 Pager"
+要么把差异塞进参数、要么顺手改掉歌单广场的行为，两者都不是清理，是又一次设计。
+该做的是先在 M9 把两页的分页语义对齐（`total` 未知怎么判、失败怎么给重试），再抽。
+`LeaderboardDetailPagingTest` 已经把语义钉住了，抽取时那六条测试就是回归线。
+
+另外两处审查记的问题**明确不改**：`navArgument(...) { defaultValue = "" }` 是这一族详情页的
+统一写法（专辑/歌单/自建歌单都这样），不是榜单的疏忽；VM 消息里直接写中文（`"正在取址…"` 等）
+是仓库既有分工——界面文案进 `strings.xml`，运行时提示留在 VM。
 
 ## 5. 规格轴未处理项（要动 PLAN/工单，不只是动代码）
 
