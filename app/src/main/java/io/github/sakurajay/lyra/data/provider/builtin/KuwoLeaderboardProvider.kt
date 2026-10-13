@@ -19,8 +19,9 @@ import org.json.JSONObject
 /**
  * 内置酷我榜单。
  *
- * 端点与签名方案取自 lx-music-mobile 的 `musicSdk/kw/leaderboard.js`（2026-10 读取）：
- * 请求体先 base64 再用 AES-128-ECB(NoPadding) 加密，sign = MD5(appId + data + time) 大写；
+ * 端点与签名方案取自 lx-music-mobile 的 `musicSdk/kw/leaderboard.js`（2026-10 读取），
+ * 但加密细节以真接口实测为准：明文是原始 JSON、填充是 PKCS5，见 [encrypt]——lx 字面上那套
+ * "先 base64 再 AES-ECB(NoPadding)"服务端已经不认。sign = MD5(appId + data + time) 大写；
  * 响应同样是加密串，先 URL 解码再解密。榜单 id 沿用它的静态表里常用的一批。
  *
  * 为什么走内置而不是音源：与歌词同理，音源格式里榜单能力罕见，而首页榜单是 M5 的门面。

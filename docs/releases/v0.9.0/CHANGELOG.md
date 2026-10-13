@@ -227,3 +227,34 @@ JVM 单测套件与 `lintDebug`（0 error）同样通过。
 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，只能先卸载——应用数据（含 `files/source-store/`
 里的音源）随之清空，而 **JSON 导出不含音源**，所以音源必须自己留好文件重新导入。
 本次由用户事先导出备份并备好音源文件，两步恢复均已验证可用。
+
+## 发版后修订（2026-10-13，代码审查标准轴 P0 三条）
+
+发布后按双轴审查跑了标准轴的 P0 三条，都在 `v0.9.0` 之上修掉；**没有任何播放/取数行为改动**，
+用户可感知的变化只有"两条测试现在抓得住它们声称要抓的陷阱"。
+
+- **酷狗榜的明文端点经实测无法改 https**：`mobilecdnbj.kugou.com` 挂在网宿 CDN 的默认站点上，
+  证书 subject 是 `CN=default.chinanetcenter.com`，SAN 里不含这个域，换 https 必在 TLS 名称校验
+  阶段失败（`SEC_E_WRONG_PRINCIPAL`；`mobilecdn` / `exrank` / `api` 同样握手失败，`www` 与
+  `songsearch` TLS 正常但没有这条路径）。工单 007 第 60 行的决定成立。改的是**文档失实**：
+  `network_security_config.xml` 原写"App 自身的接口请求仍走 https"，现补上这条例外与理由，
+  适配器端点注释记下证据，免得下一个人重趟。
+- **两条"看陷阱"的测试其实是瞎的**：`KuGouLeaderboardProviderTest` 只断言非空，而参数被拒时
+  接口照样 200 只回 0–4 首——现在断言单页 ≥20 首且 total>100（`assumeTrue` 收窄为"请求根本没
+  回来"才跳）。红色形态已取证：同一端点喂 lx 老参数得 `total=4 / 4 首`，旧断言全绿、新断言当场判红。
+  `NetEaseLeaderboardProviderTest` 原来的 `all { it in Quality.entries }` 恒真（适配器只可能构造
+  那四档），换成新增的 `qualitiesMatchRawTiers`：自己再打一次明文 `song/detail`，逐档核对
+  "报出的可用"与"原始节点 size>0"是否一致——192k（`m`）被塞成 320k 时唯一会红的地方。
+- **三处注释在讲代码没做的事**：酷我签名的"先 base64 再 AES-ECB(NoPadding)"早已实测证伪（原始
+  JSON + PKCS5），旧句删除并指向 `encrypt`；榜单广场封面并非"每一片内部并发"，实为片间并发、
+  片内顺序（12 张榜同时在飞是 3 路）；`ArtworkLoader` 的 32 格位图缓存装不下三家各 12 张共 36 张
+  榜封面，被挤出去那几张滚回来要重解一次——这条同时是规格轴 D1 的缺口，抬上限属换图片库的决策，
+  本版不动。
+
+验证：`compileDebugKotlin` + `compileDebugAndroidTestKotlin` + JVM 单测全绿；Pixel_8 模拟器实跑
+两条 provider 测试 `tests=5 / failures=0 / skipped=0`（新测试真联网 2.8s，没被 assume 跳过）；
+`lintDebug` 0 error。
+
+**标准轴剩下的 P1/P2 与规格轴各条尚未处理**：三家适配器把失败折叠成空榜（C7 的"错误态"因此在
+UI 上不可达）、`total` 缺失时兜底成页大小导致提前判到底、工单 004 的"在播改上限不断流"仍无设备
+测试、`cache_hint` 还写着死值"上限 128 MB"、工单 013 未回写 PLAN。

@@ -18,7 +18,12 @@ class KuGouLeaderboardProviderTest {
     @Test
     fun fetchesSongsForTopBoard() = runBlocking {
         val page = provider.songs(KuGouLeaderboardProvider.BOARDS.first { it.bangId == "8888" }, page = 1, limit = 30)
-        assumeTrue("酷狗榜单接口不可达或参数被拒（返回空）", page.songs.isNotEmpty())
+        assumeTrue("酷狗榜单接口不可达（请求根本没回来）", page.songs.isNotEmpty())
+
+        // 参数被拒时接口照样回 200，只是榜缩成 0–4 首，界面上与"这榜本来就是空的"长得一样。
+        // 所以"够一页"和 total 必须是断言而不是 println——只断非空等于对这条陷阱是瞎的。
+        assertTrue("单页要给够一页，实际 ${page.songs.size} 首", page.songs.size >= 20)
+        assertTrue("total 应是整榜量级，实际 ${page.total}", page.total > 100)
 
         val first = page.songs.first()
         assertTrue("歌名不能空", first.name.isNotBlank())

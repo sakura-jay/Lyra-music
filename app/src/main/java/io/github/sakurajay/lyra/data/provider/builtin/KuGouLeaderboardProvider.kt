@@ -129,6 +129,12 @@ class KuGouLeaderboardProvider(
     companion object {
         /** 榜单接口认的版本号；写成常量是因为换版号会让整批榜变成空榜 */
         private const val VERSION = "9108"
+        /**
+         * 明文不是我们选的，是这个域只给明文：它挂在网宿 CDN 的默认站点上，证书 subject 是
+         * `CN=default.chinanetcenter.com`，SAN 里没有 `mobilecdnbj.kugou.com`，换 https 必在 TLS
+         * 名称校验阶段失败（2026-10-13 实测 `SEC_E_WRONG_PRINCIPAL`；`mobilecdn` / `exrank` / `api`
+         * 同样握手失败，`www` 与 `songsearch` TLS 正常但没有这条路径）。别再去试 https。
+         */
         private const val ENDPOINT = "http://mobilecdnbj.kugou.com/api/v3/rank/song"
         private const val COVER_SIZE = "480"
         private const val TAG = "LyraKgBoard"

@@ -59,10 +59,11 @@ class LeaderboardSquareViewModel(
     }
 
     /**
-     * 取某一段全部门面的封面。
+     * 取某一段全部榜的封面。
      *
      * 分片并发而不是 12 个请求一起发：一进页面就三十几个连发，慢的会把首屏的滚动也拖住。
-     * 每一片内部仍然是并发，取回一张填一张。
+     * 片之间并发、片内顺序（[COVER_CONCURRENCY] 张一片），所以 12 张榜同时在飞的是
+     * ⌈12/4⌉=3 路而不是 4 路，取回一张填一张。
      */
     fun ensureCovers(source: String) {
         val state = _uiState.value

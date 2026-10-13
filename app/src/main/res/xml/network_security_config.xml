@@ -4,8 +4,11 @@
   Android 默认禁止明文流量，播放器会报 ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED。
   地址由第三方音源决定，无法预先枚举域名，因此只能整体放开 base-config。
 
-  边界：这只影响播放取到的媒体流；App 自身的接口请求（内置搜索等）仍走 https，
+  边界：这只影响播放取到的媒体流；App 自身的接口请求原则上走 https，
   且音源脚本发起的 request 也受此约束——这是这类聚合播放器的固有取舍。
+  唯一例外是酷狗榜的 mobilecdnbj.kugou.com：该域挂在网宿 CDN 的默认站点上，证书 subject 是
+  CN=default.chinanetcenter.com 且 SAN 不含它，https 必在名称校验阶段失败（2026-10-13 实测），
+  证据记在 KuGouLeaderboardProvider 的端点注释里。
   InsecureBaseConfiguration 是这条取舍的名字，压掉它等于在报告里签下同一句话。
 -->
 <network-security-config xmlns:tools="http://schemas.android.com/tools">
