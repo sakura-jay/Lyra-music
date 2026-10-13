@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -30,7 +30,7 @@ class KuGouLeaderboardProvider(
     private val client: OkHttpClient = defaultClient(),
 ) : LeaderboardProvider {
 
-    override val source: String = "kg"
+    override val source: String = SOURCE
     override val displayName: String = "酷狗"
     override val boards: List<Board> get() = BOARDS
 
@@ -43,35 +43,23 @@ class KuGouLeaderboardProvider(
             append("&page=").append(page)
             append("&rankid=").append(URLEncoder.encode(board.bangId, "UTF-8"))
         }
-        val body = runCatching {
-            client.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
-                .execute().use { response ->
-                    val text = response.body?.string().orEmpty()
-                    if (!response.isSuccessful) {
-                        Log.w(TAG, "榜单 HTTP ${response.code} body=${text.take(120)}")
-                        return@runCatching null
-                    }
-                    text
-                }
-        }.getOrNull() ?: return@withContext BoardPage(board, emptyList(), 0)
-
-        val payload = runCatching { JSONObject(body) }
-            .onFailure { Log.w(TAG, "榜单响应不是 JSON：${body.take(120)}") }
-            .getOrNull() ?: return@withContext BoardPage(board, emptyList(), 0)
+        val payload = fetchBoardJson(client, url, USER_AGENT, TAG, SOURCE)
         // 这套接口出错也回 200；键名是 errcode（不是搜索结果那套的 error_code）
         if (payload.has("errcode") && payload.optInt("errcode") != 0) {
             Log.w(TAG, "榜单 errcode=${payload.optInt("errcode")} ${payload.optString("error")}")
-            return@withContext BoardPage(board, emptyList(), 0)
+            throw LeaderboardException("酷狗榜单返回 errcode=${payload.optInt("errcode")}")
         }
-        val data = payload.optJSONObject("data") ?: return@withContext BoardPage(board, emptyList(), 0)
-        val list = data.optJSONArray("info") ?: return@withContext BoardPage(board, emptyList(), 0)
+        val data = payload.optJSONObject("data")
+            ?: throw LeaderboardException("酷狗榜单响应里没有 data")
+        // 空数组才是"这一榜没有歌"
+        val list = data.optJSONArray("info") ?: JSONArray()
 
         val songs = (0 until list.length()).mapNotNull { index -> list.optJSONObject(index)?.let(::toSong) }
         BoardPage(
             // 榜级图片接口不给，用榜首的专辑图代替——比一张纯色卡片更像"这是一榜歌"
             board = board.copy(coverUrl = songs.firstOrNull()?.artworkUrl.orEmpty().ifBlank { board.coverUrl }),
             songs = songs,
-            total = data.optInt("total").takeIf { it > 0 } ?: songs.size,
+            total = data.optInt("total").takeIf { it > 0 },
         )
     }
 
@@ -81,7 +69,7 @@ class KuGouLeaderboardProvider(
         if (id.isBlank() || name.isBlank()) return null
         return Song(
             id = id,
-            source = "kg",
+            source = SOURCE,
             name = name,
             artists = readAuthors(item.optJSONArray("authors")),
             albumName = KuwoSearchProvider.decodeName(item.optString("album_name")),
@@ -93,7 +81,7 @@ class KuGouLeaderboardProvider(
         )
     }
 
-    private fun readAuthors(authors: org.json.JSONArray?): List<String> {
+    private fun readAuthors(authors: JSONArray?): List<String> {
         authors ?: return emptyList()
         return List(authors.length()) { index ->
             KuwoSearchProvider.decodeName((authors.opt(index) as? JSONObject)?.optString("author_name"))
@@ -127,6 +115,8 @@ class KuGouLeaderboardProvider(
     }
 
     companion object {
+        private const val SOURCE = "kg"
+
         /** 榜单接口认的版本号；写成常量是因为换版号会让整批榜变成空榜 */
         private const val VERSION = "9108"
         /**
@@ -147,18 +137,18 @@ class KuGouLeaderboardProvider(
          * `id` 带 `kg__` 前缀保证多来源下唯一；名字取短名，与酷我表一致——榜单广场已按来源分段。
          */
         val BOARDS: List<Board> = listOf(
-            Board("kg__8888", "kg", "TOP500", "8888"),
-            Board("kg__6666", "kg", "飙升榜", "6666"),
-            Board("kg__52144", "kg", "抖音热歌榜", "52144"),
-            Board("kg__31308", "kg", "内地榜", "31308"),
-            Board("kg__31310", "kg", "欧美榜", "31310"),
-            Board("kg__31311", "kg", "韩国榜", "31311"),
-            Board("kg__31312", "kg", "日本榜", "31312"),
-            Board("kg__33165", "kg", "粤语金曲榜", "33165"),
-            Board("kg__24971", "kg", "DJ热歌榜", "24971"),
-            Board("kg__51341", "kg", "民谣榜", "51341"),
-            Board("kg__44412", "kg", "说唱先锋榜", "44412"),
-            Board("kg__51340", "kg", "伤感榜", "51340"),
+            Board("kg__8888", SOURCE, "TOP500", "8888"),
+            Board("kg__6666", SOURCE, "飙升榜", "6666"),
+            Board("kg__52144", SOURCE, "抖音热歌榜", "52144"),
+            Board("kg__31308", SOURCE, "内地榜", "31308"),
+            Board("kg__31310", SOURCE, "欧美榜", "31310"),
+            Board("kg__31311", SOURCE, "韩国榜", "31311"),
+            Board("kg__31312", SOURCE, "日本榜", "31312"),
+            Board("kg__33165", SOURCE, "粤语金曲榜", "33165"),
+            Board("kg__24971", SOURCE, "DJ热歌榜", "24971"),
+            Board("kg__51341", SOURCE, "民谣榜", "51341"),
+            Board("kg__44412", SOURCE, "说唱先锋榜", "44412"),
+            Board("kg__51340", SOURCE, "伤感榜", "51340"),
         )
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()

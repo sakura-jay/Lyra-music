@@ -43,11 +43,14 @@ class LeaderboardDetailViewModel(
     data class UiState(
         val board: Board = Board(id = "", source = "", name = "", bangId = ""),
         val songs: List<Song> = emptyList(),
-        val total: Int = 0,
+        /** null = 平台没给总数；不能拿本页条数冒充它 */
+        val total: Int? = null,
         val page: Int = 1,
         val loading: Boolean = false,
         val loadingMore: Boolean = false,
         val noMore: Boolean = false,
+        /** 取数失败的原因；与"这一榜真的是空的"分开，界面上才给得出重试 */
+        val failed: String? = null,
         val loadingSongId: String? = null,
         val playingSongId: String? = null,
         val message: String? = null,
@@ -73,7 +76,7 @@ class LeaderboardDetailViewModel(
         moreJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.update {
-                it.copy(loading = true, message = null, songs = emptyList(), total = 0, page = 1, loadingMore = false, noMore = false)
+                it.copy(loading = true, failed = null, message = null, songs = emptyList(), total = null, page = 1, loadingMore = false, noMore = false)
             }
             try {
                 val first = fetchBoard(_uiState.value.board, 1, PAGE_SIZE)
@@ -85,13 +88,15 @@ class LeaderboardDetailViewModel(
                         loading = false,
                         songs = songs,
                         total = first.total,
-                        noMore = first.songs.isEmpty() || songs.size >= first.total,
+                        noMore = noMoreAfter(first.songs.size, songs.size, first.total),
                     )
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _uiState.update { it.copy(loading = false, message = "榜单加载失败：${e.message ?: e.javaClass.simpleName}") }
+                _uiState.update {
+                    it.copy(loading = false, failed = "榜单加载失败：${e.message ?: e.javaClass.simpleName}")
+                }
             }
         }
     }
@@ -104,33 +109,52 @@ class LeaderboardDetailViewModel(
         moreJob?.cancel()
         moreJob = viewModelScope.launch {
             _uiState.update { it.copy(loadingMore = true) }
-            val result = runCatching { fetchBoard(board, target, PAGE_SIZE) }
+            // 不用 runCatching：它会把协程取消也吞成"这一次失败"，取消信号就丢了
+            val result = try {
+                Result.success(fetchBoard(board, target, PAGE_SIZE))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
             if (_uiState.value.board != board) return@launch
             result.fold(
                 onSuccess = { page ->
                     _uiState.update {
                         val seen = it.songs.map { song -> "${song.source}:${song.id}" }.toHashSet()
                         val merged = it.songs + page.songs.filter { song -> seen.add("${song.source}:${song.id}") }
+                        val total = page.total ?: it.total
                         it.copy(
                             loadingMore = false,
+                            failed = null,
                             page = target,
                             songs = merged,
-                            noMore = page.songs.isEmpty() || merged.size >= it.total,
+                            total = total,
+                            noMore = noMoreAfter(page.songs.size, merged.size, total),
                         )
                     }
                 },
                 onFailure = { e ->
+                    // 不把 noMore 置真：翻页失败是"这一次没取到"，不是"后面没有了"
                     _uiState.update {
                         it.copy(
                             loadingMore = false,
-                            noMore = true,
-                            message = "后面的榜单没取到：${e.message ?: e.javaClass.simpleName}",
+                            failed = "后面的榜单没取到：${e.message ?: e.javaClass.simpleName}",
                         )
                     }
                 },
             )
         }
     }
+
+    /**
+     * 到底了没有。
+     *
+     * 平台给了总数就按总数判；没给总数时唯一的信号是"这一页没取满"。
+     * 拿本页条数冒充总数会让"只翻了第一页"看起来像"已经翻完"（v0.9.0 就栽在这里）。
+     */
+    private fun noMoreAfter(fetched: Int, distinctCount: Int, total: Int?): Boolean =
+        fetched == 0 || fetched < PAGE_SIZE || (total != null && distinctCount >= total)
 
     fun play(song: Song) {
         val queue = _uiState.value.songs

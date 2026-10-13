@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -33,44 +32,50 @@ class NetEaseLeaderboardProvider(
     override val displayName: String = "网易云"
     override val boards: List<Board> get() = BOARDS
 
-    /** 榜的歌单是一次性读出来的：分页要按 trackIds 切，不能让每一页都重新拉一遍 200 个 id。 */
+    /** 榜的歌单是一次性读出来的：分页按 trackIds 切，不能让每一页都重读整张目录。 */
     private data class Catalog(val coverUrl: String, val total: Int, val ids: List<String>)
 
     private val catalogs = ConcurrentHashMap<String, Catalog>()
 
     override suspend fun songs(board: Board, page: Int, limit: Int): BoardPage = withContext(Dispatchers.IO) {
         // 第一页总是重读榜：ServiceLocator 里的适配器是常驻单例，不重读的话"重载"按钮
-        // 只会一直端着一份旧名单，用户看到的榜就不会变新；翻页则复用，不让每一页都重拉 200 个 id
+        // 只会一直端着一份旧名单，用户看到的榜就不会变新；翻页则复用，不让每一页都重拉整张目录。
+        // 重读失败会直接抛出去，不再静默端着旧目录——那会让"重载"看起来成功而榜其实没更新。
         val catalog = if (page == 1) {
-            loadCatalog(board)?.also { catalogs[board.id] = it }
+            loadCatalog(board).also { catalogs[board.id] = it }
         } else {
-            catalogs[board.id] ?: loadCatalog(board)?.also { catalogs[board.id] = it }
-        } ?: return@withContext BoardPage(board, emptyList(), 0)
+            catalogs[board.id] ?: loadCatalog(board).also { catalogs[board.id] = it }
+        }
 
         val from = (page - 1) * limit
         if (from >= catalog.ids.size) {
-            return@withContext BoardPage(board.copy(coverUrl = catalog.coverUrl), emptyList(), catalog.total)
+            return@withContext BoardPage(
+                board.copy(coverUrl = catalog.coverUrl.ifBlank { board.coverUrl }),
+                emptyList(),
+                catalog.total,
+            )
         }
         val slice = catalog.ids.subList(from, minOf(from + limit, catalog.ids.size))
         val songs = loadSongs(slice)
         BoardPage(
             board = board.copy(coverUrl = catalog.coverUrl.ifBlank { board.coverUrl }),
             songs = songs,
-            total = catalog.total.takeIf { it > 0 } ?: catalog.ids.size,
+            total = catalog.total,
         )
     }
 
-    private fun loadCatalog(board: Board): Catalog? = get("$PLAYLIST_DETAIL?id=${board.bangId}&n=100000&s=0")
-        ?.optJSONObject("playlist")
-        ?.let { playlist ->
-            val trackIds = playlist.optJSONArray("trackIds") ?: JSONArray()
-            Catalog(
-                coverUrl = playlist.optString("coverImgUrl"),
-                total = playlist.optInt("trackCount").takeIf { it > 0 } ?: trackIds.length(),
-                ids = List(trackIds.length()) { index -> (trackIds.opt(index) as? JSONObject)?.optString("id") ?: "" }
-                    .filter { it.isNotBlank() },
-            )
-        }
+    private fun loadCatalog(board: Board): Catalog {
+        val payload = get("$PLAYLIST_DETAIL?id=${board.bangId}&n=100000&s=0")
+        val playlist = payload.optJSONObject("playlist")
+            ?: throw LeaderboardException("网易云榜单响应里没有 playlist")
+        val trackIds = playlist.optJSONArray("trackIds") ?: JSONArray()
+        return Catalog(
+            coverUrl = playlist.optString("coverImgUrl"),
+            total = playlist.optInt("trackCount").takeIf { it > 0 } ?: trackIds.length(),
+            ids = List(trackIds.length()) { index -> (trackIds.opt(index) as? JSONObject)?.optString("id") ?: "" }
+                .filter { it.isNotBlank() },
+        )
+    }
 
     /** `c` 是一个 JSON 数组，形如 [{"id":287398},{"id":...}]；上限按实测 100 一批 */
     private fun loadSongs(ids: List<String>): List<Song> {
@@ -79,30 +84,18 @@ class NetEaseLeaderboardProvider(
             ids.joinTo(this, separator = ",") { """{"id":$it}""" }
             append(']')
         }
-        val body = get("$SONG_DETAIL?c=${URLEncoder.encode(param, "UTF-8")}") ?: return emptyList()
-        val songs = body.optJSONArray("songs") ?: return emptyList()
+        val body = get("$SONG_DETAIL?c=${URLEncoder.encode(param, "UTF-8")}")
+        val songs = body.optJSONArray("songs")
+            ?: throw LeaderboardException("网易云曲目详情响应里没有 songs：${param.take(60)}")
         return (0 until songs.length()).mapNotNull { index -> (songs.opt(index) as? JSONObject)?.let(::toSong) }
     }
 
-    private fun get(url: String): JSONObject? {
-        val text = runCatching {
-            client.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
-                .execute().use { response ->
-                    val body = response.body?.string().orEmpty()
-                    if (!response.isSuccessful) {
-                        Log.w(TAG, "榜单 HTTP ${response.code} body=${body.take(120)}")
-                        null
-                    } else body
-                }
-        }.getOrNull() ?: return null
-
-        val payload = runCatching { JSONObject(text) }
-            .onFailure { Log.w(TAG, "榜单响应不是 JSON：${text.take(120)}") }
-            .getOrNull() ?: return null
+    private fun get(url: String): JSONObject {
+        val payload = fetchBoardJson(client, url, USER_AGENT, TAG, SOURCE)
         // 网易云这套也是出错回 200、靠 body 里的 code 说话
         if (payload.has("code") && payload.optInt("code") != 200) {
             Log.w(TAG, "榜单 code=${payload.optInt("code")} ${payload.optString("message")} url=${url.take(120)}")
-            return null
+            throw LeaderboardException("网易云榜单返回 code=${payload.optInt("code")}")
         }
         return payload
     }

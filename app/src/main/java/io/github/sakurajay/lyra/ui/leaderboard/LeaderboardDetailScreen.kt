@@ -131,9 +131,9 @@ fun LeaderboardDetailScreen(
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(text = state.board.name, style = MaterialTheme.typography.titleMedium)
-                        if (state.total > 0) {
+                        state.total?.let { total ->
                             Text(
-                                text = stringResource(R.string.home_total, state.total),
+                                text = stringResource(R.string.home_total, total),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -145,7 +145,8 @@ fun LeaderboardDetailScreen(
                 }
             }
 
-            if (state.songs.isEmpty() && !state.loading) {
+            // 空榜与"取数失败"是两回事：失败的那一支由页脚给原因和重试，这里只说真的没歌
+            if (state.songs.isEmpty() && !state.loading && state.failed == null) {
                 item {
                     Text(
                         text = stringResource(R.string.leaderboard_detail_empty),
@@ -170,21 +171,59 @@ fun LeaderboardDetailScreen(
             }
 
             item {
-                when {
-                    state.loadingMore -> Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                        horizontalArrangement = Arrangement.Center,
-                    ) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) }
-
-                    state.noMore && state.songs.isNotEmpty() -> Text(
-                        text = stringResource(R.string.home_end_of_list, state.songs.size, state.total),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                ListFooter(
+                    loading = state.loadingMore,
+                    failed = state.failed,
+                    noMore = state.noMore,
+                    count = state.songs.size,
+                    total = state.total,
+                    onRetry = viewModel::reload,
+                )
             }
+        }
+    }
+}
+
+/**
+ * 列表尾部：转圈 / 取失败了给重试 / 真的到底了。
+ *
+ * 到底的文案分两种——平台给了总数就说"X / Y"，没给只能说"已显示 X 首"，
+ * 不能拿已显示的条数冒充总数（那正是"只翻一页却宣布翻完"的来源）。
+ */
+@Composable
+private fun ListFooter(
+    loading: Boolean,
+    failed: String?,
+    noMore: Boolean,
+    count: Int,
+    total: Int?,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        when {
+            loading -> CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+
+            failed != null -> {
+                Text(
+                    text = failed,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
+            }
+
+            noMore && count > 0 -> Text(
+                text = total?.let { stringResource(R.string.home_end_of_list, count, it) }
+                    ?: stringResource(R.string.home_end_of_list_unknown, count),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

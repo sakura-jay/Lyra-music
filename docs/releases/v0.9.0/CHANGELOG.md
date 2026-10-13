@@ -255,6 +255,36 @@ JVM 单测套件与 `lintDebug`（0 error）同样通过。
 两条 provider 测试 `tests=5 / failures=0 / skipped=0`（新测试真联网 2.8s，没被 assume 跳过）；
 `lintDebug` 0 error。
 
+## 发版后修订（二）：三家榜单失败语义与 `total`（标准轴 P1，解规格轴 C7）
+
+上一节末尾列的"失败折叠成空榜"与"`total` 缺失时冒充总数"两条一起处理了。**这是行为变更**，
+所以单独一片做，不与纯注释/纯测试的 P0 混提交。
+
+- **取数失败不再是空榜**：新增 `LeaderboardException`（形状对齐同包的 `AlbumException`/`SearchException`），
+  三家把"HTTP 非 2xx / 解密失败 / 响应不是 JSON / 平台错误码（`code`!=200、`errcode`!=0）"一律抛出；
+  只有"接口正常回来而 `musiclist`/`info`/`songs` 是空数组"才算空榜。共同的 GET→解密→JSON 形状抽到
+  `fetchBoardJson`，顺手把三条没人写的守卫补齐：酷我原来缺 `has("code")`，与另两家不一致；
+  协程取消不再被 `runCatching` 吞掉（provider 与详情页翻页各补一处显式上抛）。
+- **界面上的错误态因此可达了**：详情页 `UiState` 增 `failed`，首屏失败显示原因 + 「重试」
+  （形状照抄歌单广场的 `GridFooter`），不再只会说"这个榜暂时没有内容"；翻页失败保留已取到的曲目，
+  且**不再把 `noMore` 置真**——"这一次没取到"不是"后面没有了"。
+  空榜与失败从此是两条分支：`leaderboard_detail_empty` 只说真的没歌。
+- **`BoardPage.total` 改为可空**（null＝平台没给总数），三家不再拿"本页条数"兜底。
+  详情页判到底改用双条件：总数已知按总数，总数未知按"这一页没取满一页"。
+  新增文案 `home_end_of_list_unknown`（"已显示 N 首"），未知总数时不再说"已显示全部 N/0 首"。
+- **网易云重载失败不再端着旧目录**：原本重读返回 null 就静默复用缓存的旧名单（"重载"看着成功、
+  榜其实没更新），现在直接抛出。取封面的 `ifBlank` 保护补齐（此前翻页越界那支会把封面糊成空串）。
+- **测试**：`LeaderboardDetailPagingTest` 加两条——`keepsPagingWhenTotalUnknownUntilShortPage`
+  （总数未知且本页取满时不许判到底，短页才停）、`surfacesFailureAndRecoversOnRetry`
+  （抛异常进 `failed` 且不判到底，重载能拉回第一页）。三家 provider 测试的"跳过"判定点从
+  `songs.isEmpty()` 挪到捕获 `LeaderboardException`：断网仍然跳过不判红，但"榜是空的"重新归断言管。
+
+验证：main + androidTest 编译 + JVM 单测绿；Pixel_8 模拟器实跑 16 条（三家 provider、
+`LeaderboardDetailPagingTest` 六条、`LeaderboardSquareViewModelTest` 四条）
+`tests=16 / failures=0 / skipped=0`；`lintDebug` 0 error。Jank 不在这片影响面内。
+
+**标准轴剩下的 P2 与规格轴其余条目见 `REVIEW.md`。**
+
 **标准轴剩下的 P1/P2 与规格轴各条尚未处理**：三家适配器把失败折叠成空榜（C7 的"错误态"因此在
 UI 上不可达）、`total` 缺失时兜底成页大小导致提前判到底、工单 004 的"在播改上限不断流"仍无设备
 测试、`cache_hint` 还写着死值"上限 128 MB"、工单 013 未回写 PLAN。

@@ -11,6 +11,7 @@ import io.github.sakurajay.lyra.core.source.repo.SourceRepository
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.BoardPage
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider
+import io.github.sakurajay.lyra.data.provider.builtin.LeaderboardException
 import io.github.sakurajay.lyra.domain.model.Song
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -19,6 +20,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -152,6 +154,58 @@ class LeaderboardDetailPagingTest {
         val state = model.uiState.value
         assertEquals("被取代的那次加载不许把列表接成两倍", PAGE, state.songs.size)
         assertTrue("曲目必须都来自那一次成功的加载", state.songs.all { it.id.startsWith(board.bangId) })
+    }
+
+    /**
+     * 平台没给总数时，"这一页取满了"不能算到底——只有取不满一页才是停下来的信号。
+     *
+     * 这条钉的是 v0.9.0 的坑：适配器过去把 total 兜底成本页条数，于是"只翻了第一页"
+     * 在状态机眼里等于"已经翻完 100/100"。现在 total 是可空的，冒充不了任何东西。
+     */
+    @Test
+    fun keepsPagingWhenTotalUnknownUntilShortPage() = runBlocking {
+        val model = viewModel { at, page, limit ->
+            // 前两页取满，第三页只有 30 首
+            val size = if (page <= 2) limit else 30
+            BoardPage(at, List(size) { i -> song("${at.bangId}-$page-$i") }, null)
+        }
+        model.awaitFirstPage()
+        assertNull("平台没给总数就该是 null，不该是本页条数", model.uiState.value.total)
+        assertFalse("总数未知、这一页又取满了，不许判到底", model.uiState.value.noMore)
+
+        model.loadMore()
+        model.awaitPage(2)
+        assertFalse(model.uiState.value.noMore)
+
+        model.loadMore()
+        model.awaitPage(3)
+        assertTrue("第三页只取到 30 首，这才是到底的信号", model.uiState.value.noMore)
+        assertEquals(230, model.uiState.value.songs.size)
+    }
+
+    /**
+     * 取数失败要走"失败态"，不是"空榜"。
+     *
+     * 适配器以前把失败折叠成空列表，于是 catch 分支根本不可达，界面只能显示"这个榜暂时没有内容"。
+     * 现在失败抛 [LeaderboardException]，这里钉两件事：失败时 `failed` 有值、不给曲目、也不判到底；
+     * 重载能把它拉回来。
+     */
+    @Test
+    fun surfacesFailureAndRecoversOnRetry() = runBlocking {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val model = viewModel { at, page, limit ->
+            if (calls.incrementAndGet() == 1) throw LeaderboardException("模拟：接口挂了")
+            fakePage(at, page, limit, TOTAL)
+        }
+
+        withTimeout(TIMEOUT_MS) { model.uiState.first { !it.loading && it.failed != null } }
+        val failed = model.uiState.value
+        assertTrue("失败态不该带曲目", failed.songs.isEmpty())
+        assertFalse("失败不等于到底：还得留着重试的余地", failed.noMore)
+
+        model.reload()
+        withTimeout(TIMEOUT_MS) { model.uiState.first { it.songs.isNotEmpty() && it.failed == null } }
+        assertEquals("重试该把第一页接回来", PAGE, model.uiState.value.songs.size)
     }
 
     private companion object {

@@ -15,10 +15,25 @@ class KuwoLeaderboardProviderTest {
 
     private val provider = KuwoLeaderboardProvider()
 
+    /**
+     * 接口不通时跳过、不判红：这条回归的形状依赖网络。
+     *
+     * 适配器现在把失败抛成 [LeaderboardException]（不再折叠成空榜），所以"跳过"的判定点
+     * 从 `songs.isEmpty()` 挪到了这里——空榜重新变回断言对象。
+     */
+    private suspend fun songsOrSkip(board: Board, page: Int, limit: Int): BoardPage? =
+        try {
+            provider.songs(board, page = page, limit = limit)
+        } catch (e: LeaderboardException) {
+            null
+        }
+
     @Test
     fun fetchesSongsForABoard() = runBlocking {
-        val page = provider.songs(KuwoLeaderboardProvider.BOARDS.first { it.bangId == "93" }, page = 1, limit = 20)
-        assumeTrue("榜单接口不可达或签名被拒（返回空）", page.songs.isNotEmpty())
+        val fetched = songsOrSkip(KuwoLeaderboardProvider.BOARDS.first { it.bangId == "93" }, page = 1, limit = 20)
+        assumeTrue("榜单接口不可达或签名被拒", fetched != null)
+        val page = checkNotNull(fetched)
+        assertTrue("这一榜该有歌，实际 ${page.songs.size} 首", page.songs.isNotEmpty())
 
         val first = page.songs.first()
         assertTrue("歌名不能空", first.name.isNotBlank())
@@ -33,16 +48,16 @@ class KuwoLeaderboardProviderTest {
     @Test
     fun pagingProbe() = runBlocking {
         val board = KuwoLeaderboardProvider.BOARDS.first { it.bangId == "93" }
-        val p1 = provider.songs(board, page = 1, limit = 20)
-        val p2 = provider.songs(board, page = 2, limit = 20)
-        assumeTrue("榜单接口不可达或签名被拒（返回空）", p1.songs.isNotEmpty() && p2.songs.isNotEmpty())
+        val p1 = songsOrSkip(board, page = 1, limit = 20)
+        val p2 = songsOrSkip(board, page = 2, limit = 20)
+        assumeTrue("榜单接口不可达或签名被拒", p1 != null && p2 != null)
 
-        val ids1 = p1.songs.map { it.id }
-        val ids2 = p2.songs.map { it.id }
+        val ids1 = checkNotNull(p1).songs.map { it.id }
+        val ids2 = checkNotNull(p2).songs.map { it.id }
         println("第1页 ${ids1.size} 首：${ids1.take(3)}；第2页 ${ids2.size} 首：${ids2.take(3)}")
         assertTrue("pn 没生效：两页重叠 ${ids1.intersect(ids2.toSet())}", ids2.none { it in ids1.toSet() })
 
-        val big = provider.songs(board, page = 1, limit = 300)
-        println("一次要 300：实得 ${big.songs.size} 首，total=${big.total}")
+        val big = songsOrSkip(board, page = 1, limit = 300)
+        println("一次要 300：实得 ${checkNotNull(big).songs.size} 首，total=${checkNotNull(big).total}")
     }
 }

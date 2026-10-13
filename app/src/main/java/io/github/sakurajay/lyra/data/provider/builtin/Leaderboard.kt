@@ -1,6 +1,11 @@
 package io.github.sakurajay.lyra.data.provider.builtin
 
+import android.util.Log
 import io.github.sakurajay.lyra.domain.model.Song
+import kotlinx.coroutines.CancellationException
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 
 /**
  * 一张榜。
@@ -20,7 +25,54 @@ data class Board(
     val coverUrl: String = "",
 )
 
-data class BoardPage(val board: Board, val songs: List<Song>, val total: Int)
+/**
+ * 一页榜。
+ *
+ * [total] 为 null 表示**平台没给总数**——调用方不能拿"这一页的条数"冒充总数，
+ * 那会让"只翻了一页"看起来像"已经翻完"（v0.9.0 的榜详情就栽在这里）。
+ */
+data class BoardPage(val board: Board, val songs: List<Song>, val total: Int?)
+
+/**
+ * 内置适配器取榜失败：请求不通、解密不通、响应不是 JSON、平台返回错误码。
+ *
+ * 与"这一榜确实是空的"是两回事——折叠成空列表会让界面上分不清"接口挂了"和"没歌"。
+ * 形状对齐同包的 `AlbumException` / `SearchException`。
+ */
+class LeaderboardException(message: String) : Exception(message)
+
+/**
+ * 三家的共同形状：GET →（可选解密）→ JSON。
+ *
+ * 失败一律成 [LeaderboardException]。**协程取消照常上抛**：`runCatching` 那种写法会把
+ * `CancellationException` 也吞成"这次取数失败"，取消信号就丢了。
+ */
+internal fun fetchBoardJson(
+    client: OkHttpClient,
+    url: String,
+    userAgent: String,
+    tag: String,
+    source: String,
+    decrypt: (String) -> String = { it },
+): JSONObject = try {
+    val text = client.newCall(Request.Builder().url(url).header("User-Agent", userAgent).build())
+        .execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                Log.w(tag, "榜单 HTTP ${response.code} body=${body.take(120)}")
+                throw LeaderboardException("$source 榜单 HTTP ${response.code}")
+            }
+            body
+        }
+    JSONObject(decrypt(text.trim()))
+} catch (e: CancellationException) {
+    throw e
+} catch (e: LeaderboardException) {
+    throw e
+} catch (e: Exception) {
+    Log.w(tag, "榜单请求失败：${e.javaClass.simpleName} ${e.message}")
+    throw LeaderboardException("$source 榜单请求失败：${e.javaClass.simpleName} ${e.message}")
+}
 
 /**
  * 榜单内置适配器。

@@ -13,7 +13,7 @@ import javax.crypto.spec.SecretKeySpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -51,29 +51,15 @@ class KuwoLeaderboardProvider(
             .put("rn", limit)
 
         val url = "$ENDPOINT?${buildParam(body.toString())}"
-        val raw = runCatching {
-            client.newCall(Request.Builder().url(url).header("User-Agent", USER_AGENT).build())
-                .execute().use { response ->
-                    val body = response.body?.string().orEmpty()
-                    if (!response.isSuccessful) {
-                        Log.w(TAG, "榜单 HTTP ${response.code} body=${body.take(120)}")
-                        null
-                    } else body
-                }
-        }.getOrNull() ?: return@withContext BoardPage(board, emptyList(), 0)
-
-        val decrypted = runCatching { decrypt(raw.trim()) }
-            .onFailure { Log.w(TAG, "榜单解密失败：${it.javaClass.simpleName} ${it.message} raw=${raw.take(80)}") }
-            .getOrNull() ?: return@withContext BoardPage(board, emptyList(), 0)
-        val payload = runCatching { JSONObject(decrypted) }
-            .onFailure { Log.w(TAG, "榜单响应不是 JSON：${decrypted.take(120)}") }
-            .getOrNull() ?: return@withContext BoardPage(board, emptyList(), 0)
-        if (payload.optInt("code") != 200) {
+        val payload = fetchBoardJson(client, url, USER_AGENT, TAG, SOURCE) { decrypt(it.trim()) }
+        if (payload.has("code") && payload.optInt("code") != 200) {
             Log.w(TAG, "榜单 code=${payload.optInt("code")} msg=${payload.optString("msg")} ${payload.toString().take(160)}")
-            return@withContext BoardPage(board, emptyList(), 0)
+            throw LeaderboardException("酷我榜单返回 code=${payload.optInt("code")}")
         }
-        val data = payload.optJSONObject("data") ?: return@withContext BoardPage(board, emptyList(), 0)
-        val list = data.optJSONArray("musiclist") ?: return@withContext BoardPage(board, emptyList(), 0)
+        val data = payload.optJSONObject("data")
+            ?: throw LeaderboardException("酷我榜单响应里没有 data")
+        // 空数组才是"这一榜没有歌"；请求本身坏了在上面就已经抛了
+        val list = data.optJSONArray("musiclist") ?: JSONArray()
 
         val songs = (0 until list.length()).mapNotNull { index -> list.optJSONObject(index)?.let(::toSong) }
         // 封面与总数只有这一份响应里有，所以带图的 board 从这里回去
@@ -81,7 +67,7 @@ class KuwoLeaderboardProvider(
         BoardPage(
             board = board.copy(coverUrl = pic.ifBlank { board.coverUrl }),
             songs = songs,
-            total = data.optString("total").toIntOrNull() ?: songs.size,
+            total = data.optString("total").toIntOrNull(),
         )
     }
 

@@ -15,15 +15,29 @@ class KuGouLeaderboardProviderTest {
 
     private val provider = KuGouLeaderboardProvider()
 
+    /**
+     * 接口不通时跳过、不判红。
+     *
+     * 适配器现在把失败抛成 [LeaderboardException]，"跳过"的判定点因此从 `songs.isEmpty()`
+     * 挪到这里；空榜重新归断言管——参数被拒时接口照样 200，那正是下面两条断言要抓的。
+     */
+    private suspend fun songsOrSkip(board: Board, page: Int, limit: Int): BoardPage? =
+        try {
+            provider.songs(board, page = page, limit = limit)
+        } catch (e: LeaderboardException) {
+            null
+        }
+
     @Test
     fun fetchesSongsForTopBoard() = runBlocking {
-        val page = provider.songs(KuGouLeaderboardProvider.BOARDS.first { it.bangId == "8888" }, page = 1, limit = 30)
-        assumeTrue("酷狗榜单接口不可达（请求根本没回来）", page.songs.isNotEmpty())
+        val fetched = songsOrSkip(KuGouLeaderboardProvider.BOARDS.first { it.bangId == "8888" }, page = 1, limit = 30)
+        assumeTrue("酷狗榜单接口不可达", fetched != null)
+        val page = checkNotNull(fetched)
 
         // 参数被拒时接口照样回 200，只是榜缩成 0–4 首，界面上与"这榜本来就是空的"长得一样。
         // 所以"够一页"和 total 必须是断言而不是 println——只断非空等于对这条陷阱是瞎的。
         assertTrue("单页要给够一页，实际 ${page.songs.size} 首", page.songs.size >= 20)
-        assertTrue("total 应是整榜量级，实际 ${page.total}", page.total > 100)
+        assertTrue("total 应是整榜量级，实际 ${page.total}", (page.total ?: 0) > 100)
 
         val first = page.songs.first()
         assertTrue("歌名不能空", first.name.isNotBlank())
@@ -38,12 +52,12 @@ class KuGouLeaderboardProviderTest {
     @Test
     fun pagingProbe() = runBlocking {
         val board = KuGouLeaderboardProvider.BOARDS.first { it.bangId == "8888" }
-        val p1 = provider.songs(board, page = 1, limit = 20)
-        val p2 = provider.songs(board, page = 2, limit = 20)
-        assumeTrue("酷狗榜单接口不可达（返回空）", p1.songs.isNotEmpty() && p2.songs.isNotEmpty())
+        val p1 = songsOrSkip(board, page = 1, limit = 20)
+        val p2 = songsOrSkip(board, page = 2, limit = 20)
+        assumeTrue("酷狗榜单接口不可达", p1 != null && p2 != null)
 
-        val ids1 = p1.songs.map { it.id }
-        val ids2 = p2.songs.map { it.id }
+        val ids1 = checkNotNull(p1).songs.map { it.id }
+        val ids2 = checkNotNull(p2).songs.map { it.id }
         println("第1页 ${ids1.size} 首：${ids1.take(3)}；第2页 ${ids2.size} 首：${ids2.take(3)}")
         assertTrue("第 2 页必须换一批", ids1.intersect(ids2.toSet()).isEmpty())
     }

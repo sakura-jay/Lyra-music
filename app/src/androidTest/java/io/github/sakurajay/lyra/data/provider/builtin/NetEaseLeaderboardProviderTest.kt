@@ -30,10 +30,19 @@ class NetEaseLeaderboardProviderTest {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    private suspend fun songsOrSkip(board: Board, page: Int, limit: Int): BoardPage? =
+        try {
+            provider.songs(board, page = page, limit = limit)
+        } catch (e: LeaderboardException) {
+            null
+        }
+
     @Test
     fun fetchesSongsForHotBoard() = runBlocking {
-        val page = provider.songs(NetEaseLeaderboardProvider.BOARDS.first { it.bangId == "3778678" }, page = 1, limit = 30)
-        assumeTrue("网易云接口不可达或被拒（返回空）", page.songs.isNotEmpty())
+        val fetched = songsOrSkip(NetEaseLeaderboardProvider.BOARDS.first { it.bangId == "3778678" }, page = 1, limit = 30)
+        assumeTrue("网易云接口不可达", fetched != null)
+        val page = checkNotNull(fetched)
+        assertTrue("这一榜该有歌，实际 ${page.songs.size} 首", page.songs.isNotEmpty())
 
         val first = page.songs.first()
         assertTrue("歌名不能空", first.name.isNotBlank())
@@ -51,12 +60,12 @@ class NetEaseLeaderboardProviderTest {
     @Test
     fun pagingProbe() = runBlocking {
         val board = NetEaseLeaderboardProvider.BOARDS.first { it.bangId == "3778678" }
-        val p1 = provider.songs(board, page = 1, limit = 20)
-        val p2 = provider.songs(board, page = 2, limit = 20)
-        assumeTrue("网易云接口不可达（返回空）", p1.songs.isNotEmpty() && p2.songs.isNotEmpty())
+        val p1 = songsOrSkip(board, page = 1, limit = 20)
+        val p2 = songsOrSkip(board, page = 2, limit = 20)
+        assumeTrue("网易云接口不可达", p1 != null && p2 != null)
 
-        val ids1 = p1.songs.map { it.id }
-        val ids2 = p2.songs.map { it.id }
+        val ids1 = checkNotNull(p1).songs.map { it.id }
+        val ids2 = checkNotNull(p2).songs.map { it.id }
         println("第1页 ${ids1.size} 首：${ids1.take(3)}；第2页 ${ids2.size} 首：${ids2.take(3)}")
         assertTrue("第 2 页必须换一批", ids1.intersect(ids2.toSet()).isEmpty())
     }
@@ -70,9 +79,10 @@ class NetEaseLeaderboardProviderTest {
      */
     @Test
     fun qualitiesMatchRawTiers() = runBlocking {
-        val page = provider.songs(NetEaseLeaderboardProvider.BOARDS.first { it.bangId == "3778678" }, page = 1, limit = 30)
-        val firstSong = page.songs.firstOrNull()
-        assumeTrue("网易云接口不可达或被拒（返回空）", firstSong != null)
+        val page = songsOrSkip(NetEaseLeaderboardProvider.BOARDS.first { it.bangId == "3778678" }, page = 1, limit = 30)
+        assumeTrue("网易云接口不可达", page != null)
+        val firstSong = checkNotNull(page).songs.firstOrNull()
+        assumeTrue("这一榜为空", firstSong != null)
         val song = checkNotNull(firstSong)
         val raw = rawSongDetail(song.id)
         assumeTrue("原始 song/detail 不可达", raw != null)
