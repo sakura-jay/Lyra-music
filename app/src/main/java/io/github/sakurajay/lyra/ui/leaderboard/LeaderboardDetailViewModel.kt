@@ -8,7 +8,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.BoardPage
-import io.github.sakurajay.lyra.data.provider.builtin.LeaderboardProvider
+import io.github.sakurajay.lyra.data.provider.builtin.LeaderboardException
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.player.LaunchOutcome
@@ -195,8 +195,9 @@ class LeaderboardDetailViewModel(
         /**
          * 按 `board.id` 找榜。
          *
-         * 找不到时不抛：路由参数可能来自一个已被改名的静态表，抛出去就是整个 App 崩。
-         * 这里给一张空榜，页面照常显示"这个榜暂时没有内容"，用户还能退回上页。
+         * 找不到时不把异常抛到进程外（路由参数可能来自一张已被改名的静态表，那等于整个 App 崩），
+         * 但也**不拿 boardId 冒充 bangId 去打第一个来源**：那必然是一次无谓请求，还会让榜名显示成
+         * `kw__93` 这种内部 id。这里让取数直接失败，页面走 `failed` 那一条分支说清原因。
          */
         fun factory(boardId: String): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -205,20 +206,20 @@ class LeaderboardDetailViewModel(
                 extras: androidx.lifecycle.viewmodel.CreationExtras,
             ): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
-                val providers: List<LeaderboardProvider> = ServiceLocator.leaderboardProviders()
-                val found = providers.firstNotNullOfOrNull { provider ->
+                val found = ServiceLocator.leaderboardProviders().firstNotNullOfOrNull { provider ->
                     provider.boards.firstOrNull { it.id == boardId }?.let { provider to it }
                 }
-                val (provider, board) = found ?: (providers.firstOrNull() ?: error("没有可用的榜单来源")) to Board(
-                    id = boardId,
-                    source = providers.firstOrNull()?.source.orEmpty(),
-                    name = boardId,
-                    bangId = boardId,
-                )
+                val provider = found?.first
+                val board = found?.second ?: Board(id = boardId, source = "", name = boardId, bangId = "")
+                val fetchBoard: suspend (Board, Int, Int) -> BoardPage = if (provider != null) {
+                    { at, page, limit -> provider.songs(at, page, limit) }
+                } else {
+                    { _, _, _ -> throw LeaderboardException("找不到这张榜：$boardId 不在任何来源的静态表里") }
+                }
                 return LeaderboardDetailViewModel(
                     application,
                     board,
-                    fetchBoard = { at, page, limit -> provider.songs(at, page, limit) },
+                    fetchBoard,
                     ServiceLocator.switchingPlayUseCase(application),
                 ) as T
             }

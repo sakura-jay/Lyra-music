@@ -122,6 +122,7 @@ private const val ROUTE_LEADERBOARD_DETAIL = "leaderboard/{boardId}"
  */
 private fun albumRoute(albumId: String) = "album/$albumId"
 private fun playlistRoute(listId: String) = "playlist/$listId"
+private fun boardRoute(boardId: String) = "leaderboard/$boardId"
 
 /** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
 private val DETAIL_ROUTES = setOf(
@@ -227,7 +228,7 @@ fun LyraApp() {
                             TopDestination.Home -> HomeScreen(
                                 onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
                                 onOpenPlaylistSquare = { navController.navigate(ROUTE_PLAYLIST_SQUARE) },
-                                onOpenBoard = { boardId -> navController.navigate("leaderboard/$boardId") },
+                                onOpenBoard = { boardId -> navController.navigate(boardRoute(boardId)) },
                                 onOpenLeaderboardSquare = { navController.navigate(ROUTE_LEADERBOARD_SQUARE) },
                             )
 
@@ -422,7 +423,7 @@ fun LyraApp() {
                 Box(Modifier.fillMaxSize().padding(innerPadding)) {
                     LeaderboardSquareScreen(
                         onBack = { navController.popBackStack() },
-                        onOpenBoard = { boardId -> navController.navigate("leaderboard/$boardId") },
+                        onOpenBoard = { boardId -> navController.navigate(boardRoute(boardId)) },
                     )
                 }
             }

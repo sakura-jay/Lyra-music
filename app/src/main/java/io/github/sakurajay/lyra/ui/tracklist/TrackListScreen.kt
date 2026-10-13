@@ -35,10 +35,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.HeartGlyph
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
+
+/**
+ * 行内 ♥：读当前行的收藏状态 + 点它切换。
+ *
+ * 这两个总是一起动（只有"我喜欢"页给，其余列表页的收藏走顶栏或长按菜单），
+ * 分成两个可空参数就会各自为政，所以捏成一个。
+ */
+data class RowFavorites(
+    val isFavorite: (Song) -> Boolean,
+    val onToggle: (Song) -> Unit,
+)
 
 /**
  * 曲目列表详情：封面 + 归属 + 简介 + 曲目。
@@ -53,17 +65,15 @@ import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 fun TrackListScreen(
     state: TrackListViewModel.UiState,
     onBack: () -> Unit,
-    onPlay: (io.github.sakurajay.lyra.domain.model.Song) -> Unit,
+    onPlay: (Song) -> Unit,
     onOpenAlbum: ((String) -> Unit)?,
-    onMore: ((io.github.sakurajay.lyra.domain.model.Song) -> Unit)? = null,
+    onMore: ((Song) -> Unit)? = null,
     onMessageShown: () -> Unit = {},
     favorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     /** 序号列：榜单/专辑/歌单要看名次，"我喜欢"不看，同一个页面按需关掉 */
     showRank: Boolean = true,
-    /** 行内 ♥：只有"我喜欢"页给（点它=移出）；其余列表页要收藏走顶栏或长按菜单 */
-    isRowFavorite: ((io.github.sakurajay.lyra.domain.model.Song) -> Boolean)? = null,
-    onToggleRowFavorite: ((io.github.sakurajay.lyra.domain.model.Song) -> Unit)? = null,
+    rowFavorites: RowFavorites? = null,
     /** 空态文案：收藏为空时要说"怎么开始"，而不是泛泛一句"这里还没有曲目" */
     emptyText: String? = null,
 ) {
@@ -185,7 +195,7 @@ fun TrackListScreen(
                 // 而 LazyColumn 的 key 撞车会直接崩
                 itemsIndexed(list?.songs.orEmpty()) { index, song ->
                     val more: (() -> Unit)? = onMore?.let { action -> { action(song) } }
-                    val toggleRow: (() -> Unit)? = onToggleRowFavorite?.let { action -> { action(song) } }
+                    val toggleRow: (() -> Unit)? = rowFavorites?.let { fav -> { fav.onToggle(song) } }
                     TrackRow(
                         rank = if (showRank) index + 1 else null,
                         song = song,
@@ -193,7 +203,7 @@ fun TrackListScreen(
                         loading = song.id == state.loadingSongId,
                         onClick = { onPlay(song) },
                         onOpenAlbum = onOpenAlbum,
-                        favorite = isRowFavorite?.invoke(song) == true,
+                        favorite = rowFavorites?.isFavorite?.invoke(song) == true,
                         onToggleFavorite = toggleRow,
                         onLongClick = more,
                         onMore = more,

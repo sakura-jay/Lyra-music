@@ -76,17 +76,16 @@ class NetEaseLeaderboardProvider(
         )
     }
 
-    /** `c` 是一个 JSON 数组，形如 [{"id":287398},{"id":...}]；上限按实测 100 一批 */
-    private fun loadSongs(ids: List<String>): List<Song> {
-        val param = buildString {
-            append('[')
-            ids.joinTo(this, separator = ",") { """{"id":$it}""" }
-            append(']')
-        }
+    /** 一次最多带 [MAX_IDS_PER_REQUEST] 个 id 去要详情（实测 100 个全回），多了就分批 */
+    private fun loadSongs(ids: List<String>): List<Song> = ids.chunked(MAX_IDS_PER_REQUEST).flatMap { batch ->
+        // id 一律只认数字：它们来自接口，混进别的东西会让整个 `c` 变成坏 JSON，一整批都取不回
+        val numeric = batch.filter { it.isNotEmpty() && it.all(Char::isDigit) }
+        if (numeric.isEmpty()) return@flatMap emptyList<Song>()
+        val param = numeric.joinToString(separator = ",", prefix = "[", postfix = "]") { """{"id":$it}""" }
         val body = get("$SONG_DETAIL?c=${URLEncoder.encode(param, "UTF-8")}")
         val songs = body.optJSONArray("songs")
             ?: throw LeaderboardException("网易云曲目详情响应里没有 songs：${param.take(60)}")
-        return (0 until songs.length()).mapNotNull { index -> (songs.opt(index) as? JSONObject)?.let(::toSong) }
+        (0 until songs.length()).mapNotNull { index -> (songs.opt(index) as? JSONObject)?.let(::toSong) }
     }
 
     private fun get(url: String): JSONObject {
@@ -151,6 +150,9 @@ class NetEaseLeaderboardProvider(
         private const val SOURCE = "wy"
         private const val PLAYLIST_DETAIL = "https://music.163.com/api/v6/playlist/detail"
         private const val SONG_DETAIL = "https://music.163.com/api/v3/song/detail"
+
+        /** `song/detail` 的 `c` 参数实测一次能带 100 个 id，再多就没验过——所以按这个数分批 */
+        private const val MAX_IDS_PER_REQUEST = 100
         private const val TAG = "LyraWyBoard"
 
         /** 榜即歌单：bangId 用网易云的歌单 id（沿用 lx 的 topList 里常用的一批短名） */

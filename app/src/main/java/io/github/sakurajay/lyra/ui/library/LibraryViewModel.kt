@@ -67,7 +67,8 @@ class LibraryViewModel(
             runCatching { playlistsRepository.refresh() }
             runCatching { playlistFavorites.refresh() }
         }
-        scanLocal()
+        // 本地音乐不在这里扫：这一份 VM 现在被「我的歌单」「收藏的歌单」两页各持一份，
+        // 而它们不显示本地音乐——MediaStore 扫描该由真正展示它的那页自己发起（LibraryScreen）
     }
 
     /**

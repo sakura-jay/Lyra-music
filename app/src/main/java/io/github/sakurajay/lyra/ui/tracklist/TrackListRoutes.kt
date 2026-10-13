@@ -211,8 +211,11 @@ fun LikedRoute(onBack: () -> Unit, onMore: (Song) -> Unit) {
         onMore = onMore,
         onMessageShown = viewModel::clearMessage,
         showRank = false,
-        isRowFavorite = { true },
-        onToggleRowFavorite = { song -> scope.launch { favorites.toggle(song) } },
+        rowFavorites = RowFavorites(
+            // 这一页的每一行天然都在"我喜欢"里，点 ♥ 就是移出
+            isFavorite = { true },
+            onToggle = { song -> scope.launch { favorites.toggle(song) } },
+        ),
         emptyText = stringResource(R.string.library_empty),
     )
 }

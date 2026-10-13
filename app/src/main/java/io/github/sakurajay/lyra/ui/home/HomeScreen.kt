@@ -116,7 +116,7 @@ private fun PlaylistSection(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onOpenSquare) { Text(stringResource(R.string.home_playlists_more)) }
+            TextButton(onClick = onOpenSquare) { Text(stringResource(R.string.home_more)) }
         }
 
         when {
@@ -164,7 +164,7 @@ private fun BoardSection(boards: List<Board>, onOpenBoard: (String) -> Unit, onO
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onOpenSquare) { Text(stringResource(R.string.home_playlists_more)) }
+            TextButton(onClick = onOpenSquare) { Text(stringResource(R.string.home_more)) }
         }
 
         LazyRow(
