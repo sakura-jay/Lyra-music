@@ -100,21 +100,32 @@
 统一写法（专辑/歌单/自建歌单都这样），不是榜单的疏忽；VM 消息里直接写中文（`"正在取址…"` 等）
 是仓库既有分工——界面文案进 `strings.xml`，运行时提示留在 VM。
 
-## 5. 规格轴未处理项（要动 PLAN/工单，不只是动代码）
-- **B7 / 工单 004「在播期间改上限不断流」没有任何验证**：PLAN §5 明写放设备测试（对照 `LyraCacheTest`），
-  但 `LyraCacheTest` 本版一字未动，CHANGELOG 的"待续"没收回。ADR-0008 的全部理由就是这条，目前无人看管。
-- ~~**C5 头部总数在 `total` 未知时整块消失**~~：随 P1 一起解决——头部只在平台真给了总数时显示
+## 5. 规格轴条目现状（2026-10-13 更新）
+
+- ✅ **B7 / 工单 004「在播期间改上限不断流」已补设备测试**：`LyraCacheTest` 加两条——
+  `loweringLimitEvictsAtOnceWithoutRebuildingTheCache`（调低当场淘汰最久没听的，`assertSame` 钉住
+  `SimpleCache` 没被重建）与 `changingLimitWhileAStreamIsOpenDoesNotBreakTheStream`（开一条真在读的流
+  再把上限压到 1 字节：在播那条删不掉是合法的，但改上限不许打断它、也不许把异常抛给调用方）。
+  写第一条时我把上限设得比另一条资源本身还小，结果两条都该腾掉——**产品是对的、断言错了**，已改。
+  CHANGELOG 里那句"待续"到此收回。
+- ✅ ~~C5 头部总数在 `total` 未知时整块消失~~：随 P1 一起解决——头部只在平台真给了总数时显示
   "共 N 首"，页脚用 `home_end_of_list_unknown` 说"已显示 N 首"，不再拿本页条数冒充总数。
-- **PLAN:126 要求"懒加载这些轻请求"，网易云那条不轻**：取一张封面要走 `n=100000` 的整榜目录（`NetEaseLeaderboardProvider.kt:63`），
-  36 张榜 = 36 次整榜目录读。Jank 实测达标掩盖了它。
-- **D1「滚出滚回不重复解码」在最坏情况不成立**：位图缓存 32 格 < 36 张 320px 封面（`ArtworkLoader.kt:38`），字节缓存只有 8 格。
-  抬上限等于承认该换图片库，需要决策而不是改常量。
-- **工单 004「调高不删除任何条目」没有用例**：`LruEvictionBudgetTest` 七例覆盖了下限读值/LRU 顺序/触碰刷新/调低即刻超限，缺"调高后 size 不变"。
-- **B1/B6 只改了一半**：`strings.xml:91` 的 `cache_hint` 仍写死"上限 128 MB"。
-- **C6「切榜丢弃晚到响应」不是靠丢弃逻辑实现的**：`LeaderboardDetailViewModel.kt:108` 的 `board != board` 守卫比较的是含 `coverUrl`
-  的 data class，同榜重载时恒等；真正兜住的是 `:72` 的 `loadJob?.cancel()` 加 `LyraApp.kt:441` 按 boardId 建独立 VM。
-  被取消的 `OkHttp.execute()` 仍会跑完（`Kuwo:54-61`）。测试覆盖的是 reload 不是切榜。
-- **工单 013 没回写规格**：PLAN §4 已定决策、§7 切片清单、§5「完成长什么样」都没有它（只提了 012），按"规格有洞要回写"该补。
+- ⏳ **PLAN:126 要求"懒加载这些轻请求"，网易云那条不轻**：取一张封面要走 `n=100000` 的整榜目录
+  （`NetEaseLeaderboardProvider.kt:63`），36 张榜 = 36 次整榜目录读。**这条没做，因为它要动接口形状**：
+  要么给 `LeaderboardProvider` 加一个"只要封面"的轻方法（`v6/playlist/detail?n=0` 确实给 `coverImgUrl`），
+  要么让目录按窗口增量重取——两者都是设计，不是清理。Jank 实测达标掩盖了它，但约束确实还穿着。
+- ✅ **D1「滚出滚回不重复解码」已修**：位图缓存从 32 抬到 48（`ArtworkLoader.kt`），按 320px ≈0.4MB/张
+  算满打满算约 19MB，装得下广场 36 张再留 12 张给详情头图与首页。注释里的内存账同步改了。
+  字节缓存 8 格没动：位图命中就不回字节层，它只在"同 URL 多处共用一次下载"那一层起作用。
+- ✅ **工单 004「调高不删除任何条目」已有用例**：`raisingLimitLeavesEverythingInPlace`（P2 那批补的）。
+- ✅ **B1/B6 补全**：`cache_hint` 不再写死"上限 128 MB"，改成"超过上面的上限"——数字由页顶的
+  上限段与「当前 X」给，帮助文案里重复一个会过期的数字正是这次审查抓到的病根。
+- **C6「切榜丢弃晚到响应」不是靠丢弃逻辑实现的**（未改）：`LeaderboardDetailViewModel.kt` 的
+  `board != board` 守卫比较的是含 `coverUrl` 的 data class，同榜重载时恒等；真正兜住的是
+  `loadJob?.cancel()` 加 `LyraApp.kt` 按 boardId 建独立 VM。被取消的 `OkHttp.execute()` 仍会跑完。
+  测试覆盖的是 reload 不是切榜。
+- ✅ **工单 013 已回写规格**：PLAN §5 加了"仪器化测试一律走独立数据库"这条硬约束与其后果，
+  §7 切片清单补上 S6（`012` + `013`）。
 
 ## 6. 模拟器截图走查（2026-10-13，P1/P2 之后）
 
