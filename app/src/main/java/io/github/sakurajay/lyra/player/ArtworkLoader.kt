@@ -32,11 +32,12 @@ object ArtworkLoader {
      * 键带尺寸：同一张封面在列表里要 160px、在详情页头部要 320px，混用一张会把大图塞进小方块，
      * 或者反过来让大图糊掉。
      *
-     * 32 张是按"320×320 ARGB_8888 ≈ 0.4MB"算的：满打满算约 13MB。这个数**装不下**一整个
-     * 榜单广场（三家各 12 张、共 36 张，卡片一律按 320px 取，见 `PlaylistCard`），
-     * 最被挤出去的那几张滚回来要重解一次；再往上抬就该换图片库而不是改这个常量。
+     * 48 张是按"320×320 ARGB_8888 ≈ 0.4MB"算的：满打满算约 19MB。这个数要**装得下**一整个
+     * 榜单广场——三家各 12 张、共 36 张，卡片一律按 320px 取（见 `PlaylistCard`），再留 12 张
+     * 给详情页头图与首页那几排。装不下就意味着"滚出去再滚回来要重解一次"，那正是 D1 不许发生的
+     * 事；再往上抬就该换图片库，而不是继续改这个常量。
      */
-    private const val MAX_BITMAP_ENTRIES = 32
+    private const val MAX_BITMAP_ENTRIES = 48
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)

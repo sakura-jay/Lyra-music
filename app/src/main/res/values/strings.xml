@@ -89,7 +89,7 @@
     <string name="cache_limit_label">上限</string>
     <string name="cache_limit_custom">自定义</string>
     <string name="cache_limit_current">当前 %1$s</string>
-    <string name="cache_hint">缓存是播放时顺手下的字节，上限 128 MB，超了自动淘汰最久没听的。删掉某条只是让它下次重新下载，不影响我喜欢与歌单。</string>
+    <string name="cache_hint">缓存是播放时顺手下的字节，超过上面的上限就自动淘汰最久没听的。删掉某条只是让它下次重新下载，不影响我喜欢与歌单。</string>
     <string name="settings_data">数据</string>
     <string name="settings_export_backup">导出备份</string>
     <string name="settings_import_backup">导入备份</string>

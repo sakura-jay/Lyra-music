@@ -8,13 +8,16 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
 import androidx.test.core.app.ApplicationProvider
+import io.github.sakurajay.lyra.data.settings.AppSettings
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.domain.model.QualityAvailability
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.domain.model.SongCodec
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -140,5 +143,66 @@ class LyraCacheTest {
 
         assertTrue(LyraCache.entries(context).isEmpty())
         assertFalse("删不存在的键不该报成功", LyraCache.remove(context, SongCodec.toLazyUri(remote)))
+    }
+
+    /**
+     * 调低上限要当场淘汰最久没听的，而且**不许重建 `SimpleCache`**。
+     *
+     * ADR-0008 的全部理由就在这：重建会打断在播的读取（播放链还握着媒体文件句柄），
+     * 所以淘汰器是自己实现的、上限是个可变值。这条测试钉住"改小即淘汰 + 实例没换"。
+     */
+    @Test
+    fun loweringLimitEvictsAtOnceWithoutRebuildingTheCache() {
+        prime(remote, 5_000)   // 先写的那条就是最久没听的
+        prime(local, 6_000)
+        val cacheBefore = LyraCache.get(context)
+        try {
+            val freed = LyraCache.setLimit(context, 6_500L)
+
+            assertEquals("该把最久没听的那条腾掉", 5_000L, freed)
+            assertEquals(listOf("手机里的歌"), LyraCache.entries(context).mapNotNull { it.song?.name })
+            assertSame("改上限不许销毁重建 SimpleCache", cacheBefore, LyraCache.get(context))
+        } finally {
+            LyraCache.setLimit(context, AppSettings.CACHE_LIMIT_DEFAULT_BYTES)
+        }
+    }
+
+    /**
+     * 正在播的时候改上限——B7 与工单 004 验收标准 4/5，此前只有推理、没有测试。
+     *
+     * 做法是开一条真在读的流（模拟播放链握着文件），然后把上限压到 1 字节：
+     * 正在读的这条删不掉是合法的，但**改上限这个动作不许把在播的流打断**，
+     * 也不许把异常抛到调用方（设置页那个协程没有 catch，抛出来就是崩）。
+     */
+    @Test
+    fun changingLimitWhileAStreamIsOpenDoesNotBreakTheStream() {
+        prime(remote, 8_000)
+        prime(local, 8_000)
+        val cacheBefore = LyraCache.get(context)
+        val expected = ByteArray(8_000) { (it % 251).toByte() }
+        val reading = LyraCache.factory(context, DataSource.Factory { ByteArrayDataSource(expected) })
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+            .createDataSource()
+        try {
+            val opened = reading.open(DataSpec(Uri.parse(SongCodec.toLazyUri(local)), 0, 8_000L))
+            assertEquals(8_000L, opened)
+            reading.read(ByteArray(2_000), 0, 2_000)
+
+            LyraCache.setLimit(context, 1L)
+
+            val rest = ByteArray(6_000)
+            var read = 0
+            while (read < rest.size) {
+                val n = reading.read(rest, read, rest.size - read)
+                if (n == androidx.media3.common.C.RESULT_END_OF_INPUT) break
+                read += n
+            }
+            assertEquals("在播的这条该继续读完", 6_000, read)
+            assertArrayEquals(expected.copyOfRange(2_000, 8_000), rest)
+            assertSame("在播期间改上限也不该重建缓存", cacheBefore, LyraCache.get(context))
+        } finally {
+            reading.close()
+            LyraCache.setLimit(context, AppSettings.CACHE_LIMIT_DEFAULT_BYTES)
+        }
     }
 }
