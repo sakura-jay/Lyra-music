@@ -63,8 +63,16 @@ class NetEaseLeaderboardProvider(
         )
     }
 
-    private fun loadCatalog(board: Board): Catalog {
-        val payload = get("$PLAYLIST_DETAIL?id=${board.bangId}&n=100000&s=0")
+    /**
+     * 读榜的目录：榜名、榜封面与整张 `trackIds`。
+     *
+     * `n=0` 不是笔误，是刻意省的：这个端点的 `n` 控制的是**顺带内嵌多少个 `tracks` 完整对象**，
+     * 而目录我们只用 `trackIds`（曲目详情另外打 `v3/song/detail`）。实测四张榜：`n=0` 与
+     * `n=100000` 回的 `trackIds` 条目数一模一样（200/100/50/100），体积却是 38KB 对 485KB、
+     * 12KB 对 129KB——原来那版每次进榜都白下几百 KB 再整个丢掉（PLAN:126 说的"轻请求"）。
+     */
+    private suspend fun loadCatalog(board: Board): Catalog {
+        val payload = get("$PLAYLIST_DETAIL?id=${board.bangId}&n=0&s=0")
         val playlist = payload.optJSONObject("playlist")
             ?: throw LeaderboardException("网易云榜单响应里没有 playlist")
         val trackIds = playlist.optJSONArray("trackIds") ?: JSONArray()
@@ -77,7 +85,7 @@ class NetEaseLeaderboardProvider(
     }
 
     /** 一次最多带 [MAX_IDS_PER_REQUEST] 个 id 去要详情（实测 100 个全回），多了就分批 */
-    private fun loadSongs(ids: List<String>): List<Song> = ids.chunked(MAX_IDS_PER_REQUEST).flatMap { batch ->
+    private suspend fun loadSongs(ids: List<String>): List<Song> = ids.chunked(MAX_IDS_PER_REQUEST).flatMap { batch ->
         // id 一律只认数字：它们来自接口，混进别的东西会让整个 `c` 变成坏 JSON，一整批都取不回
         val numeric = batch.filter { it.isNotEmpty() && it.all(Char::isDigit) }
         if (numeric.isEmpty()) return@flatMap emptyList<Song>()
@@ -88,7 +96,7 @@ class NetEaseLeaderboardProvider(
         (0 until songs.length()).mapNotNull { index -> (songs.opt(index) as? JSONObject)?.let(::toSong) }
     }
 
-    private fun get(url: String): JSONObject {
+    private suspend fun get(url: String): JSONObject {
         val payload = fetchBoardJson(client, url, BuiltinHttp.USER_AGENT, TAG, SOURCE)
         // 网易云这套也是出错回 200、靠 body 里的 code 说话
         if (payload.has("code") && payload.optInt("code") != 200) {

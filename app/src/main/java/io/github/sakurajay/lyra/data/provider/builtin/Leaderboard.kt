@@ -2,9 +2,14 @@ package io.github.sakurajay.lyra.data.provider.builtin
 
 import android.util.Log
 import io.github.sakurajay.lyra.domain.model.Song
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.json.JSONObject
 
 /**
@@ -48,32 +53,48 @@ class LeaderboardException(message: String, cause: Throwable? = null) : Exceptio
  *
  * 失败一律成 [LeaderboardException]。**协程取消照常上抛**：`runCatching` 那种写法会把
  * `CancellationException` 也吞成"这次取数失败"，取消信号就丢了。
+ *
+ * 用 `enqueue` 而不是 `execute`：详情页重载时上一张请求会被取消，阻塞式 `execute()`
+ * 收不到取消——请求照跑完、字节白花，晚到的响应还得靠上层认号丢弃。这里把 `Call`
+ * 挂到协程上，取消即断。
  */
-internal fun fetchBoardJson(
+internal suspend fun fetchBoardJson(
     client: OkHttpClient,
     url: String,
     userAgent: String,
     tag: String,
     source: String,
     decrypt: (String) -> String = { it },
-): JSONObject = try {
-    val text = client.newCall(Request.Builder().url(url).header("User-Agent", userAgent).build())
-        .execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                Log.w(tag, "榜单 HTTP ${response.code} body=${body.take(120)}")
-                throw LeaderboardException("$source 榜单 HTTP ${response.code}")
+): JSONObject = suspendCancellableCoroutine { cont ->
+    val call = client.newCall(Request.Builder().url(url).header("User-Agent", userAgent).build())
+    cont.invokeOnCancellation { call.cancel() }
+    call.enqueue(
+        object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                cont.resumeWith(Result.failure(boardFailure(tag, source, e)))
             }
-            body
-        }
-    JSONObject(decrypt(text.trim()))
-} catch (e: CancellationException) {
-    throw e
-} catch (e: LeaderboardException) {
-    throw e
-} catch (e: Exception) {
+
+            override fun onResponse(call: Call, response: Response) {
+                val outcome = runCatching {
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        Log.w(tag, "榜单 HTTP ${response.code} body=${body.take(120)}")
+                        throw LeaderboardException("$source 榜单 HTTP ${response.code}")
+                    }
+                    JSONObject(decrypt(body.trim()))
+                }.recoverCatching { e ->
+                    if (e is CancellationException) throw e
+                    throw boardFailure(tag, source, e)
+                }
+                cont.resumeWith(outcome)
+            }
+        },
+    )
+}
+
+private fun boardFailure(tag: String, source: String, e: Throwable): LeaderboardException {
     Log.w(tag, "榜单请求失败：${e.javaClass.simpleName} ${e.message}")
-    throw LeaderboardException("$source 榜单请求失败：${e.javaClass.simpleName} ${e.message}", cause = e)
+    return LeaderboardException("$source 榜单请求失败：${e.javaClass.simpleName} ${e.message}", cause = e)
 }
 
 /**

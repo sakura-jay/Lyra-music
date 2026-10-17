@@ -208,6 +208,41 @@ class LeaderboardDetailPagingTest {
         assertEquals("重试该把第一页接回来", PAGE, model.uiState.value.songs.size)
     }
 
+    /**
+     * 第二页还在途时用户按了重载：晚到的那一页不许接到新列表后面。
+     *
+     * C6 要的是"丢弃晚到的响应"。今天挡住它的是 `moreJob?.cancel()`；VM 里另有一个加载代次号，
+     * 管的是取消来不及的那一瞬（响应已经回到协程、正要写状态）。这一条钉的是**行为**——
+     * 谁去丢的都无所谓，不许串就行；代次号本身没法在测试里被逼到唯一起作用的那条时序上。
+     */
+    @Test
+    fun dropsLatePageFromSupersededLoadMore() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val model = viewModel { at, page, limit ->
+            if (page == 2) {
+                started.complete(Unit)
+                gate.await()
+            }
+            fakePage(at, page, limit, TOTAL)
+        }
+        model.awaitFirstPage()
+
+        model.loadMore()
+        withTimeout(TIMEOUT_MS) { started.await() }
+
+        model.reload()
+        withTimeout(TIMEOUT_MS) { model.uiState.first { it.page == 1 && it.songs.size == PAGE && !it.loading } }
+
+        gate.complete(Unit)
+        kotlinx.coroutines.yield()
+
+        val state = model.uiState.value
+        assertEquals("晚到的第二页不许接进来", PAGE, state.songs.size)
+        assertEquals(1, state.page)
+        assertFalse("也不许把新这次加载标成正在翻页", state.loadingMore)
+    }
+
     private companion object {
         const val PAGE = 100
         const val TOTAL = 250

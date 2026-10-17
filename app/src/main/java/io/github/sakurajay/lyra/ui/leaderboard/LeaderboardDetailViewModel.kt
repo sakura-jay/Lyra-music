@@ -66,6 +66,15 @@ class LeaderboardDetailViewModel(
     private var loadJob: Job? = null
     private var moreJob: Job? = null
 
+    /**
+     * 每一次加载一个号。
+     *
+     * 光靠 `loadJob?.cancel()` 不够：网络调用现在虽然能被取消，但"已经回到本协程、正要写状态"
+     * 的那一瞬取消不掉。认号丢弃才是 C6 要的"切榜/重载丢弃晚到响应"——晚到的那份连自己的号
+     * 都对不上，就不许写列表、也不许把页面写成失败。
+     */
+    private var generation = 0
+
     init {
         load()
     }
@@ -75,12 +84,14 @@ class LeaderboardDetailViewModel(
     private fun load() {
         loadJob?.cancel()
         moreJob?.cancel()
+        val mine = ++generation
         loadJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(loading = true, failed = null, message = null, songs = emptyList(), total = null, page = 1, loadingMore = false, noMore = false)
             }
             try {
                 val first = fetchBoard(_uiState.value.board, 1, PAGE_SIZE)
+                if (mine != generation) return@launch
                 _uiState.update {
                     val songs = first.songs.distinctBy { song -> "${song.source}:${song.id}" }
                     it.copy(
@@ -95,6 +106,7 @@ class LeaderboardDetailViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (mine != generation) return@launch
                 _uiState.update { it.copy(loading = false, failed = "榜单加载失败：${reasonFor(e)}") }
             }
         }
@@ -104,19 +116,19 @@ class LeaderboardDetailViewModel(
         val state = _uiState.value
         if (state.loading || state.loadingMore || state.noMore || state.songs.isEmpty()) return
         val target = state.page + 1
-        val board = state.board
+        val mine = generation
         moreJob?.cancel()
         moreJob = viewModelScope.launch {
             _uiState.update { it.copy(loadingMore = true) }
             // 不用 runCatching：它会把协程取消也吞成"这一次失败"，取消信号就丢了
             val result = try {
-                Result.success(fetchBoard(board, target, PAGE_SIZE))
+                Result.success(fetchBoard(state.board, target, PAGE_SIZE))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Result.failure(e)
             }
-            if (_uiState.value.board != board) return@launch
+            if (mine != generation) return@launch
             result.fold(
                 onSuccess = { page ->
                     _uiState.update {
