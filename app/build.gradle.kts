@@ -25,10 +25,10 @@ android {
         // ADR-0005：minSdk 31 换取 RenderEffect 模糊与 Material 3 动态取色的单一路径
         minSdk = 31
         targetSdk = 36
-        // 与"已收口的里程碑"对齐：M8（v0.9.0）已完成开发，等真机验收后打 tag。
+        // 与"已收口的里程碑"对齐：M8 = v0.9.0，其审查修订批次作为补丁版 0.9.1 发布。
         // 版本权威仍是 tag，这里只给"设置→关于"和一个可辨识的安装包用。
-        versionCode = 5
-        versionName = "0.9.0"
+        versionCode = 6
+        versionName = "0.9.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -9,7 +9,8 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 | 版本 | 里程碑 | 记录位置 |
 | --- | --- | --- |
 | `0.1.0` – `0.8.0` | M0 – M7 | 本文件下方各节（历史） |
-| `0.9.0` | M8 | [`docs/releases/v0.9.0/`](docs/releases/v0.9.0/) · [计划](docs/releases/v0.9.0/PLAN.md) · [变更](docs/releases/v0.9.0/CHANGELOG.md) |
+| `0.9.0` | M8 | [`docs/releases/v0.9.0/`](docs/releases/v0.9.0/) · [计划](docs/releases/v0.9.0/PLAN.md) · [变更](docs/releases/v0.9.0/CHANGELOG.md) · [审查记录](docs/releases/v0.9.0/REVIEW.md) |
+| `0.9.1` | M8 补丁 | [`docs/releases/v0.9.1/`](docs/releases/v0.9.1/) · [计划](docs/releases/v0.9.1/PLAN.md) · [变更](docs/releases/v0.9.1/CHANGELOG.md) |
 
 > **约定**：自 `v0.9.0` 起，每个版本的变更记录写在 `docs/releases/vX.Y.Z/CHANGELOG.md`；本文件只保留总索引与 M0–M7 历史。一个里程碑一个 minor，`1.0` 保留给"全部完善"的终点里程碑；分支与提交约定见 `CONTEXT.md`。
 
