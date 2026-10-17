@@ -110,20 +110,26 @@
   CHANGELOG 里那句"待续"到此收回。
 - ✅ ~~C5 头部总数在 `total` 未知时整块消失~~：随 P1 一起解决——头部只在平台真给了总数时显示
   "共 N 首"，页脚用 `home_end_of_list_unknown` 说"已显示 N 首"，不再拿本页条数冒充总数。
-- ⏳ **PLAN:126 要求"懒加载这些轻请求"，网易云那条不轻**：取一张封面要走 `n=100000` 的整榜目录
-  （`NetEaseLeaderboardProvider.kt:63`），36 张榜 = 36 次整榜目录读。**这条没做，因为它要动接口形状**：
-  要么给 `LeaderboardProvider` 加一个"只要封面"的轻方法（`v6/playlist/detail?n=0` 确实给 `coverImgUrl`），
-  要么让目录按窗口增量重取——两者都是设计，不是清理。Jank 实测达标掩盖了它，但约束确实还穿着。
+- ✅ **已修（同日）网易云取封面的"轻请求"**，且诊断要更正：这个端点的 `n` 控制的**不是** `trackIds`
+  的长度，而是**顺带内嵌多少个 `tracks` 完整对象**。实测四张榜（200/100/50/100 首）：`n=0` 与
+  `n=100000` 回的 `trackIds` 条目数一模一样，体积是 38KB 对 485KB、12KB 对 129KB。
+  而 `loadCatalog` 只用 `trackIds`（曲目详情另外打 `v3/song/detail`），等于每次进榜白下几百 KB 再丢掉。
+  改成 `n=0` 就好，**不需要给 `LeaderboardProvider` 加"只要封面"的方法**——原以为要动接口形状，是错的。
 - ✅ **D1「滚出滚回不重复解码」已修**：位图缓存从 32 抬到 48（`ArtworkLoader.kt`），按 320px ≈0.4MB/张
   算满打满算约 19MB，装得下广场 36 张再留 12 张给详情头图与首页。注释里的内存账同步改了。
   字节缓存 8 格没动：位图命中就不回字节层，它只在"同 URL 多处共用一次下载"那一层起作用。
 - ✅ **工单 004「调高不删除任何条目」已有用例**：`raisingLimitLeavesEverythingInPlace`（P2 那批补的）。
 - ✅ **B1/B6 补全**：`cache_hint` 不再写死"上限 128 MB"，改成"超过上面的上限"——数字由页顶的
   上限段与「当前 X」给，帮助文案里重复一个会过期的数字正是这次审查抓到的病根。
-- **C6「切榜丢弃晚到响应」不是靠丢弃逻辑实现的**（未改）：`LeaderboardDetailViewModel.kt` 的
-  `board != board` 守卫比较的是含 `coverUrl` 的 data class，同榜重载时恒等；真正兜住的是
-  `loadJob?.cancel()` 加 `LyraApp.kt` 按 boardId 建独立 VM。被取消的 `OkHttp.execute()` 仍会跑完。
-  测试覆盖的是 reload 不是切榜。
+- ✅ **C6「切榜丢弃晚到响应」现在真有丢弃逻辑了**（同日）：两层。
+  ① `fetchBoardJson` 从阻塞 `execute()` 换成 `enqueue` + `invokeOnCancellation { call.cancel() }`——
+  原先取消协程只是不写状态，请求照跑完、字节白花；现在取消即断。
+  ② `LeaderboardDetailViewModel` 加代次号（每次 `load()` 自增，写状态前认号），管的是取消来不及的
+  那一瞬：响应已经回到协程、正要写列表。同时删掉了原先那个恒等的 `board != board` 假守卫
+  （`Board` 是含 `coverUrl` 的 data class，同榜重载时两边相等，它一直什么都没做）。
+  新增 `dropsLatePageFromSupersededLoadMore` 钉住行为（第二页在途时重载，不许接进新列表、
+  不许把新加载标成正在翻页）。诚实一句：这条测试今天靠取消也能过，代次号独有的那条时序在
+  测试里逼不出来——它钉的是"不许串"这个结果，不是"谁去丢"。
 - ✅ **工单 013 已回写规格**：PLAN §5 加了"仪器化测试一律走独立数据库"这条硬约束与其后果，
   §7 切片清单补上 S6（`012` + `013`）。
 
