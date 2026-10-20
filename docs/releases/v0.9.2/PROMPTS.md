@@ -68,8 +68,10 @@ No matching pattern（没有匹配模式：这是"动效时长从哪里来"的�
 ### Interaction behavior
 
 触发方式：应用启动时读系统设置，或测试直接把缩放传进来。开始状态：`scale = 1`，各层用基准时长。
-变化过程：`scale` 按乘算作用于基准值；`scale ≤ 0.1` 时全部走 `snap()` 到终态而不是"很短的 tween"。
-最终状态：`0` 时所有 spec 动画瞬时完成，反馈级形变不发生但点击照常生效。取消 / 失败状态：
+变化过程：`scale` 按乘算作用于基准值；`scale ≤ 0.1` 时**当帧到终态**。注意这里原本写的是
+"全部走 `snap()`"，那句话在落地时被量证为不够：`animate*AsState` 的目标由提交之后的协程追，
+`snap()` 照样晚一帧（实测 1525 / 1130 像素）。正确的形状是**关掉动画就不读动画值**。
+最终状态：`0` 时所有动画当帧落在终态，反馈级形变不发生但点击照常生效。取消 / 失败状态：
 设置读不到（负值 / `NaN`）时按 `1` 处理，不能因为解析异常把界面变成幻灯片。触控区域无关。
 
 ### Copyable prompt
@@ -83,7 +85,7 @@ Add a motion foundation to an existing Jetpack Compose Android app. Do not chang
 2. Read the system animation scales `Settings.Global.ANIMATOR_DURATION_SCALE` and `Settings.Global.TRANSITION_ANIMATION_SCALE`, take the SMALLER of the two (do not average them: either switch being 0 is an explicit "do not animate" statement), and clamp the result into 0..1 (never scale up). If a value is unreadable, negative, or NaN, treat it as 1.
 3. Provide that value through a composition local (name it LocalMotionScale) from a provider placed OUTSIDE the theme so that navigation transition lambdas, which are not composable, can read it too. Default the composition local to 1 so that forgetting the provider degrades to "motion does not follow the system setting" rather than "no motion".
 4. Real duration = base duration × scale, rounded down to a whole millisecond with a floor of 1 ms.
-5. Reduced motion: when the scale is 0 (or very small, treat <= 0.1 as 0) every animation must SNAP to its end state, not run a very short tween: emit `snap()` rather than `tween(0)` so that no extra frame is scheduled. Animations with no duration to scale — springs — must be either fully played or fully skipped; never play a spring when the scale is 0.
+5. Reduced motion: when the scale is 0 (or very small, treat <= 0.1 as 0) every animation must land on its end state ON THE CURRENT FRAME. Do not express this with a zero-length spec. `snap()` instead of `tween(0)` is NOT enough: `animate*AsState` hands the target to a coroutine-driven `Animatable` that only runs AFTER the current composition commits, so frame 0 still paints the old value — measured on device as a 1525 px / 1130 px difference between frame 0 and frame 1 with `snap()` in place. The correct shape is to not read the animated value at all when the scale is 0: `val x = if (shouldAnimate) animateFloatAsState(...).value else endValue`. Same for `AnimatedContent` — `EnterTransition.None togetherWith ExitTransition.None` still paints both copies for one frame, so render the end content directly instead. Animations with no duration to scale — springs — must be either fully played or fully skipped; never play a spring when the scale is 0.
 6. Provide a pure, unit-testable function for stagger delays: min(index * 40 ms, 240 ms).
 
 Keep the existing route transitions' visual values and signatures unchanged; only change how those values are computed. Keep any existing blurred backdrop cross-fade at its current 450 ms with a fixed radius.

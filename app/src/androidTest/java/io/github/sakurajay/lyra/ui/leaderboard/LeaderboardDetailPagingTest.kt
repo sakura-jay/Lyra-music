@@ -214,6 +214,18 @@ class LeaderboardDetailPagingTest {
      * C6 要的是"丢弃晚到的响应"。今天挡住它的是 `moreJob?.cancel()`；VM 里另有一个加载代次号，
      * 管的是取消来不及的那一瞬（响应已经回到协程、正要写状态）。这一条钉的是**行为**——
      * 谁去丢的都无所谓，不许串就行；代次号本身没法在测试里被逼到唯一起作用的那条时序上。
+     *
+     * **等重载落地的判据必须带上 `!loadingMore`**，这是踩过一次才知道的：
+     * 光等 `page == 1 && songs.size == PAGE && !loading` 会在**重载之前**的那个状态上就满足
+     * （那时第一页早就在列表里、loading 也早是 false），于是这一句根本没等，测试读到的还是
+     * `loadMore()` 自己写下的 `loadingMore = true`，于是"偶发"失败——全量跑时设备更忙、
+     * 主线程更慢，概率就高；单独跑几乎必过。单独跑与全量跑结果不一致，是判据写错的信号，
+     * 不是环境噪声。重载那一次 update 是把 `loadingMore` 与 `loading` 一起写回的，
+     * 所以少了 `loadingMore` 就不算"落定"。
+     *
+     * 收尾也不得不用 `yield()`：测试协程跑在 instrumentation 线程上，而 VM 的协程在
+     * **应用主线程**上，`yield()` 只让本线程的调度器转一圈，等不到对面那条线程的续跑。
+     * 要的是"主线程把已经排队的活儿都干完了"这个屏障，用 `runOnMainSync { }` 取。
      */
     @Test
     fun dropsLatePageFromSupersededLoadMore() = runBlocking {
@@ -232,10 +244,13 @@ class LeaderboardDetailPagingTest {
         withTimeout(TIMEOUT_MS) { started.await() }
 
         model.reload()
-        withTimeout(TIMEOUT_MS) { model.uiState.first { it.page == 1 && it.songs.size == PAGE && !it.loading } }
+        withTimeout(TIMEOUT_MS) {
+            model.uiState.first { it.page == 1 && it.songs.size == PAGE && !it.loading && !it.loadingMore }
+        }
 
         gate.complete(Unit)
-        kotlinx.coroutines.yield()
+        // 主线程屏障：给晚到的那份续跑一次"真要写也已经写完了"的机会，然后再判
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { }
 
         val state = model.uiState.value
         assertEquals("晚到的第二页不许接进来", PAGE, state.songs.size)

@@ -40,6 +40,7 @@ import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.FavoriteHeartButton
 import io.github.sakurajay.lyra.ui.common.TrackRow
+import io.github.sakurajay.lyra.ui.common.lyraCoverDetail
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 
@@ -127,7 +128,10 @@ fun TrackListScreen(
                 Box(
                     modifier = Modifier
                         .size(96.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp)),
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+                        // 共享元素的另一头：路径由注册处给（见 LyraApp 的 CoverPageHost），
+                        // 卡片那头按同一张卡的目的地算，两边各自推导却必然相等
+                        .lyraCoverDetail(12.dp, state.artwork?.asImageBitmap()),
                     contentAlignment = Alignment.Center,
                 ) {
                     state.artwork?.let {

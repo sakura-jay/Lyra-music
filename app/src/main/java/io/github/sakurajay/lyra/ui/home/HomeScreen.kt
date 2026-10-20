@@ -32,6 +32,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
+import io.github.sakurajay.lyra.ui.nav.LyraRoutes
 import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 
@@ -137,6 +138,7 @@ private fun PlaylistSection(
                         modifier = Modifier.width(110.dp),
                         favorite = item.listId in favoriteIds,
                         onToggleFavorite = { onToggleFavorite(item) },
+                        coverPath = LyraRoutes.playlist(item.listId),
                     )
                 }
             }
@@ -187,6 +189,7 @@ private fun BoardSection(
                     coverUrl = board.coverUrl,
                     onClick = { onOpenBoard(board.id) },
                     modifier = Modifier.width(110.dp),
+                    coverPath = LyraRoutes.board(board.id),
                 )
             }
         }

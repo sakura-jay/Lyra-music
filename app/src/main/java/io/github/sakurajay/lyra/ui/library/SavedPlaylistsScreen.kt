@@ -40,7 +40,9 @@ import io.github.sakurajay.lyra.ui.common.HeartGlyph
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.lyraPressable
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
+import io.github.sakurajay.lyra.ui.common.lyraCoverSource
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
+import io.github.sakurajay.lyra.ui.nav.LyraRoutes
 
 /**
  * 「收藏的歌单」列表页：音乐库把它收成一张入口卡片之后，曲目按 listId 现取的规则不变，
@@ -115,13 +117,14 @@ private fun SavedPlaylistRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        val artwork = rememberRemoteArtwork(entry.coverUrl, maxEdgePx = 160)
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(10.dp)),
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(10.dp))
+                .lyraCoverSource(LyraRoutes.playlist(entry.listId), 10.dp, artwork?.asImageBitmap()),
             contentAlignment = Alignment.Center,
         ) {
-            val artwork = rememberRemoteArtwork(entry.coverUrl, maxEdgePx = 160)
             if (artwork != null) {
                 Image(
                     bitmap = artwork.asImageBitmap(),

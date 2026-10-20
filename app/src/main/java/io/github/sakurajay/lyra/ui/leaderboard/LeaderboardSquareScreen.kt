@@ -35,6 +35,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
+import io.github.sakurajay.lyra.ui.nav.LyraRoutes
 
 /**
  * 榜单广场：按来源分段，段内列出该来源的全部榜。
@@ -95,6 +96,7 @@ fun LeaderboardSquareScreen(
                         coverUrl = state.covers[board.id].orEmpty(),
                         onClick = { onOpenBoard(board.id) },
                         modifier = Modifier.fillMaxWidth(),
+                        coverPath = LyraRoutes.board(board.id),
                     )
                 }
             }

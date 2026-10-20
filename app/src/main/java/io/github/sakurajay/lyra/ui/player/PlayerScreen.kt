@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -23,7 +24,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
@@ -31,13 +31,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,8 +44,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,16 +60,16 @@ import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.player.PlayMode
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.CoverKeys
 import io.github.sakurajay.lyra.ui.common.FavoriteHeartButton
 import io.github.sakurajay.lyra.ui.common.ModeGlyph
 import io.github.sakurajay.lyra.ui.common.TuneGlyph
 import io.github.sakurajay.lyra.ui.common.NextGlyph
 import io.github.sakurajay.lyra.ui.common.PlayPauseButton
 import io.github.sakurajay.lyra.ui.common.PreviousGlyph
+import io.github.sakurajay.lyra.ui.common.lyraCoverAnchor
 import io.github.sakurajay.lyra.ui.motion.LocalMotionScale
-import io.github.sakurajay.lyra.ui.motion.LyraMotion
 import io.github.sakurajay.lyra.ui.motion.MotionSpec
-import io.github.sakurajay.lyra.ui.motion.MotionTier
 import kotlin.math.roundToLong
 
 /**
@@ -76,7 +77,7 @@ import kotlin.math.roundToLong
  *
  * 第 0 页是"正在播放"（封面 + 进度 + 控件 + 音质），向左滑到第 1 页纯歌词页——
  * 与主流播放器一致：详情与歌词各占整屏，而不是把歌词挤在控件下面半屏。
- * 顶栏与页码点跨两页共用，翻页时不跟着跳。
+ * 顶栏跨两页共用、不跟着跳；页码点从 012 起**跟手**（见 PageIndicator）。
  */
 @Composable
 fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
@@ -85,6 +86,9 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
     val effective by viewModel.effectiveQuality.collectAsStateWithLifecycle()
     val lyricSize by viewModel.lyricTextSize.collectAsStateWithLifecycle()
     val pagerState = rememberPagerState(initialPage = 0) { 2 }
+    // 连续页位置：一个在**绘制期**读的函数（见 rememberPagerPosition）。
+    // 在组合期读它的话，翻页的每一帧会重组指示器那一行与封面那一摞
+    val position = rememberPagerPosition(pagerState)
 
     // 背景要铺到状态栏与底部手势条后面，所以这一页自己处理 insets；
     // 外层 NavHost 已经不再给播放页加内边距。
@@ -131,19 +135,37 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
             }
 
             Column(Modifier.weight(1f).padding(horizontal = 20.dp)) {
-                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+                // 页宽要喂给视差：位移是"页宽的百分比"，不能是写死的 dp，
+                // 否则折叠屏与横屏上视差量会跟着变形。它只在尺寸变化时写一次。
+                var pagerWidthPx by remember { mutableFloatStateOf(0f) }
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.weight(1f).onSizeChanged { pagerWidthPx = it.width.toFloat() },
+                ) { page ->
                     when (page) {
-                        0 -> DetailPage(state, requested, effective, viewModel)
+                        0 -> DetailPage(
+                            state,
+                            requested,
+                            effective,
+                            viewModel,
+                            // 只给封面视差：歌词页唯一要读的就是字，文字跟着另一个速度漂
+                            // 读到的是"字在晃"，不是深度
+                            coverParallax = Modifier.lyraParallax(position, page) { pagerWidthPx },
+                        )
                         else -> LyricPage(state, lyricSize, viewModel)
                     }
                 }
 
-                PageIndicator(pages = 2, current = pagerState.currentPage)
+                PageIndicator(pages = 2, current = pagerState.currentPage, position = position)
             }
             Spacer(Modifier.height(8.dp))
         }
     }
 }
+
+/** 播放页大图的边长与圆角：共享元素的终点，迷你条那一端是 44dp / 12dp */
+private val COVER_SIZE = 230.dp
+private val COVER_CORNER = 22.dp
 
 @Composable
 private fun DetailPage(
@@ -151,20 +173,33 @@ private fun DetailPage(
     requested: Quality,
     effective: Quality?,
     viewModel: PlayerViewModel,
+    /**
+     * 封面的视差层（012）。不给就是普通的一页，不参与视差。
+     *
+     * 只给封面而不给整页：整页一起位移时 `verticalScroll` 的可视高度不变，
+     * 用户看到的还是"一整页在动"，深度感为零，反而多一层重绘。
+     */
+    coverParallax: Modifier = Modifier,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val artwork = state.artwork?.asImageBitmap()
         Box(
             modifier = Modifier
-                .size(230.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(MaterialTheme.colorScheme.secondaryContainer),
+                .size(COVER_SIZE)
+                // 视差挂在封面这一层：它与下面那摞文字以不同速度移动，那才是深度。
+                // 挂在共享元素**之前**：`boundsInRoot()` 会把图层位移算进去，所以报给
+                // 覆盖层的矩形就是它此刻真正所在的位置（011 那条"终点现量"同一个道理）
+                .then(coverParallax)
+                .clip(RoundedCornerShape(COVER_CORNER))
+                .background(MaterialTheme.colorScheme.secondaryContainer)
+                // 封面共享的另一端：大图的矩形与圆角由这里报给覆盖层
+                .lyraCoverAnchor(CoverKeys.PLAYER, COVER_CORNER, artwork),
             contentAlignment = Alignment.Center,
         ) {
-            val artwork = state.artwork?.asImageBitmap()
             if (artwork != null) {
                 Image(
                     bitmap = artwork,
@@ -297,30 +332,186 @@ private fun QualityRow(requested: Quality, effective: Quality?, onPick: (Quality
     }
 }
 
+/**
+ * 进度条 + 时间。
+ *
+ * 013 在这条上加了**惯性**（模式 4 Velocity-Based Slider Snap）：松手时用释放速度投影一个
+ * 落点，并把播放位置 seek 到那个值。与模式定义有一处关键偏离——**过冲就是真实落点**，
+ * 不弹回来（进度轴上没有刻度可回弹；弹回手指处等于惯性是假的）。
+ * 算术在 [SeekInertia]，"这一下是不是手指的松手"在 [SeekDragState]，这里只管接线与显示。
+ *
+ * 三个读数各指各的，别把它们混成一个：
+ * - **拇指**在手指处（`dragValue`）；
+ * - **气泡**在落点处（`landedMs`）——手指还在动时它是"若现在松手会落到哪"，
+ *   所以用户看气泡就知道甩出去会跳到哪儿，不必先松手再猜；
+ * - **左下角的时间**跟着 [shown]：拖动中是手指处，松手后是落点。
+ *
+ * 松手到播放位置回来之间有一段空档（位置靠 500ms 轮询 + 播放器事件），所以这里把显示按在
+ * 落点上直到播放器报告出**任何新值**，否则表现是"拇指先跳回旧位置、半秒后再跳过去"。
+ */
 @Composable
-private fun SeekRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
+internal fun SeekRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
     // 拖动期间用本地值显示：每帧都 seek 会被播放位置拽回来，表现是"拖不动"
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
+    var landedMs by remember { mutableLongStateOf(0L) }
+    // 松手那一刻播放位置最后报告的值；-1 = 没有要按住的东西
+    var positionAtRelease by remember { mutableLongStateOf(-1L) }
+    val drag = rememberSeekDragState()
+    var rowWidthPx by remember { mutableFloatStateOf(0f) }
+    val scale = LocalMotionScale.current
+    val animate = MotionSpec.shouldAnimate(scale)
     val total = durationMs.coerceAtLeast(1L).toFloat()
-    val shown = if (dragging) dragValue * total else positionMs.toFloat()
+
+    // 留显示的条件是"播放器还在报告松手前那一个值"。判据不能是"与落点相差多远"：
+    // 往回拖时（60s → 30s）旧的滞后值离落点比离 1s 容差远得多，一松手就被清掉，
+    // 拇指会先跳回 60s 再跳来 30s——正是要避免的那一下。
+    val held = positionAtRelease >= 0L && positionMs == positionAtRelease
+    val shown = when {
+        dragging -> dragValue * total
+        held -> landedMs.toFloat()
+        else -> positionMs.toFloat()
+    }
 
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Slider(
-            value = (shown / total).coerceIn(0f, 1f),
-            onValueChange = { dragging = true; dragValue = it },
-            valueRange = 0f..1f,
-            onValueChangeFinished = {
-                if (dragging) onSeek((dragValue * total).roundToLong())
-                dragging = false
-            },
-        )
+        Box(modifier = Modifier.fillMaxWidth().onSizeChanged { rowWidthPx = it.width.toFloat() }) {
+            Slider(
+                value = (shown / total).coerceIn(0f, 1f),
+                onValueChange = { fraction ->
+                    dragging = true
+                    dragValue = fraction
+                    val fingerMs = (fraction * total).roundToLong()
+                    // 样本只在手指按下时积累（见 SeekDragState），键盘因此不会被投影带进步长
+                    drag.note(positionMs = fingerMs)
+                    landedMs = SeekInertia.projectSeek(
+                        releaseMs = fingerMs,
+                        velocityMsPerMs = drag.liveVelocity(),
+                        durationMs = durationMs,
+                        animate = animate,
+                    )
+                },
+                valueRange = 0f..1f,
+                onValueChangeFinished = {
+                    val fingerMs = (dragValue * total).roundToLong()
+                    // null = 这不是手指的结束（点轨道、键盘、TalkBack 设值）→ 不做投影
+                    val velocity = drag.finishVelocity()
+                    val target = SeekInertia.projectSeek(
+                        releaseMs = fingerMs,
+                        velocityMsPerMs = velocity ?: 0f,
+                        durationMs = durationMs,
+                        animate = animate && velocity != null,
+                    )
+                    if (dragging) {
+                        // 落点可能与手指处相同（慢速松手），也可能被投影带出去最多 ±3s
+                        onSeek(target)
+                        positionAtRelease = positionMs
+                    } else {
+                        positionAtRelease = -1L
+                    }
+                    landedMs = target
+                    dragging = false
+                },
+                modifier = Modifier.fillMaxWidth().lyraSeekPointerObserver(drag),
+            )
+            SeekBubble(
+                // 显隐跟的是**手指在不在**，不是 dragging：dragging 在松手后仍是 true 的那一瞬
+                // 已经不再代表"正在拖"，而气泡只在按住期间有意义
+                visible = drag.isPointerDown.value,
+                // 按下去还没挪动时 `landedMs` 仍是上一次拖动的残留（首次是 0），照它画的话
+                // 气泡会先出现在歌首、等第一次 onValueChange 才跳回手指处——那一下"先在别处
+                // 再回来"比没有气泡更刺眼。dragging 恰好在这时还是 false，所以未拖动就显示当前
+                // 显示值（也就是手指马上要去的那里）。
+                labelMs = if (dragging) landedMs else positionMs,
+                durationMs = durationMs,
+                rowWidthPx = rowWidthPx,
+            )
+        }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(clock(shown.toLong()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(clock(durationMs), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
+
+/**
+ * 时间气泡（013）：拇指上方那一枚小胶囊，显示"这一甩会落到哪"。
+ *
+ * 它是**画在滑杆自己的 44dp 触摸区里**的一层覆盖，不是插进 Column 的一个节点：
+ * 插进去就得把这一行垫高，而动画 `height` / `size` 是 ADR-0009 护栏二明令禁止的，
+ * 用不垫高的写法（外挂绘制）又会盖到上面的标题。放在 Box 里之后行高一个像素都不变，
+ * 位置用 `graphicsLayer.translationX` 走绘制期——与护栏二同一条路。
+ *
+ * 它不吃触摸：Text 没有 pointerInput，不消费事件，命中测试因此继续往下给 Slider，
+ * 手指压在气泡上照样能拖。
+ *
+ * 语义上它是 `clearAndSetSemantics {}` 的空节点。这里要说清一件事：屏幕阅读器读到的
+ * **不是**投影落点而是滑杆自己的 range info（手指处的值），因为这一层根本不在语义树里。
+ * 013 的提示词原本要求"播报必须等于投影落点"，**这条没做到**，理由有两条：
+ * 一是投影值每帧都在变，把它做成一条 live region 会让 TalkBack 在拖动途中反复播报，
+ * 那比"读的是手指处"更糟；二是松手之后播放位置回来，滑杆自己的播报自然变成真正的落点,
+ * 用户要念到的那一个数最终是对的。
+ */
+@Composable
+private fun BoxScope.SeekBubble(
+    visible: Boolean,
+    labelMs: Long,
+    durationMs: Long,
+    rowWidthPx: Float,
+) {
+    // 钩子一律放在早退**之前**：visible 一翻false/true 来回，槽位数量就得稳定
+    val measurer = rememberTextMeasurer(cacheSize = 4)
+    val density = LocalDensity.current
+    val label = clock(labelMs)
+    // style / 颜色都得在**组合期**取出来再交给 remember：MaterialTheme 是组合期参数，
+    // 在 remember 的 lambda 里读它编译不过（"@Composable invocations ..."）
+    val textStyle = MaterialTheme.typography.labelSmall
+    val horizontalPaddingPx = with(density) { BUBBLE_PADDING_HORIZONTAL.toPx() }
+    // M3 的拇指中心 = HandleWidth/2 + f × (行宽 − HandleWidth)，见 SeekInertia.bubbleLeftPx
+    val handleInsetPx = with(density) { (SLIDER_HANDLE_WIDTH / 2).toPx() }
+    // 宽度在**组合期**量一次，而不是等 onSizeChanged 回报：后者要跑完整趟 traversal 才有值，
+    // 于是气泡出现的那一帧只能先画在最左边、下一帧才跳到位——那一下"先偏再纠"在拖动开始时
+    // 特别显眼。代价很小：label 是定长的 "m:ss"，一秒才变一次，不随拖动帧变。
+    val bubbleWidthPx = remember(measurer, label, textStyle, density, horizontalPaddingPx) {
+        measurer
+            .measure(
+                text = AnnotatedString(label),
+                style = textStyle,
+                density = density,
+            )
+            .size
+            .width
+            .toFloat() + horizontalPaddingPx * 2f
+    }
+    if (!visible || rowWidthPx <= 0f) return
+    Text(
+        text = label,
+        style = textStyle,
+        // M3 的命名是 inverseOnSurface（"配合 inverseSurface 用的前景色"），不是 onInverseSurface
+        color = MaterialTheme.colorScheme.inverseOnSurface,
+        modifier = Modifier
+            .align(Alignment.TopStart)
+            .clearAndSetSemantics { }
+            .graphicsLayer {
+                translationX = SeekInertia.bubbleLeftPx(
+                    fraction = (labelMs.toFloat() / durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f),
+                    rowPx = rowWidthPx,
+                    bubblePx = bubbleWidthPx,
+                    handleInsetPx = handleInsetPx,
+                )
+            }
+            .background(
+                MaterialTheme.colorScheme.inverseSurface,
+                RoundedCornerShape(BUBBLE_CORNER),
+            )
+            .padding(horizontal = BUBBLE_PADDING_HORIZONTAL, vertical = BUBBLE_PADDING_VERTICAL),
+    )
+}
+
+/** M3 滑杆拇指的宽度（`SliderTokens.HandleWidth`）：气泡要对齐的是它的中心，不是轨道端点 */
+private val SLIDER_HANDLE_WIDTH = 4.dp
+private val BUBBLE_CORNER = 9.dp
+private val BUBBLE_PADDING_HORIZONTAL = 8.dp
+private val BUBBLE_PADDING_VERTICAL = 3.dp
 
 @Composable
 private fun ControlRow(
@@ -384,79 +575,6 @@ private fun OffsetRow(offsetMs: Long, onNudge: (Long) -> Unit) {
         TextButton(onClick = { onNudge(500) }) { Text("+0.5s") }
     }
 }
-
-/**
- * 页码指示器：当前页是一枚 18dp 的药丸，其余是 7dp 的圆点。
- *
- * 关键手法是**不动画 `size()`**：每个点都按 18dp 宽布局，"缩小"由 `scaleX = 7/18`
- * 表达。动画尺寸会让整行在切换过程中反复测量，邻居被推来推去——那正是"两个点在打架"
- * 的来源；走 scaleX 之后布局从第一帧就是最终位置。
- *
- * 缩放之后邻居之间会多出一段视觉空隙（18dp 的坑里只画了 7dp 的圆），所以邻居再往药丸
- * 方向平移 5.5dp 把空隙补回来，和"7dp + 6dp 间距 + 18dp"的原观感对齐。位移量小到
- * 看起来只是"让开"，但少了它就会觉得点之间忽然变松。
- */
-@Composable
-private fun PageIndicator(pages: Int, current: Int) {
-    val scale = LocalMotionScale.current
-    val density = LocalDensity.current
-    val shiftPx = with(density) { PAGE_DOT_SHIFT.toPx() }
-    val spec = if (MotionSpec.shouldAnimate(scale)) LyraMotion.stateSpec<Float>(scale) else snap()
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-    ) {
-        repeat(pages) { index ->
-            val active = index == current
-            // 变量名不能叫 scaleX：那样会把 graphicsLayer 作用域里的 scaleX 挡住，
-            // 变成"给一个 val 赋值"
-            val pillScale by animateFloatAsState(
-                targetValue = if (active) 1f else PAGE_DOT_SCALE,
-                animationSpec = spec,
-                label = "pageDotScale",
-            )
-            val shift by animateFloatAsState(
-                targetValue = when {
-                    // 只有紧邻当前页的那一个让位：更远的点在另一侧，让位就会撞上去
-                    index == current - 1 || index == current + 1 -> if (index < current) shiftPx else -shiftPx
-                    else -> 0f
-                },
-                animationSpec = spec,
-                label = "pageDotShift",
-            )
-            val color by animateColorAsState(
-                targetValue = if (active) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                },
-                animationSpec = tween(MotionSpec.durationMs(MotionTier.SMALL, scale)),
-                label = "pageDotColor",
-            )
-            Box(
-                modifier = Modifier
-                    .size(width = PAGE_DOT_WIDTH, height = PAGE_DOT_HEIGHT)
-                    // 形变只走图形层：布局宽度永远是 18dp，邻居的位置不会被动画推着走
-                    .graphicsLayer {
-                        scaleX = pillScale
-                        translationX = shift
-                    }
-                    .clip(CircleShape)
-                    .background(color),
-            )
-        }
-    }
-}
-
-/** 当前页那颗药丸的宽度，也是每个点的布局宽度 */
-private val PAGE_DOT_WIDTH = 18.dp
-private val PAGE_DOT_HEIGHT = 7.dp
-
-/** 7dp ÷ 18dp：静止时用 scaleX 把它画成一颗 7dp 的圆点 */
-private const val PAGE_DOT_SCALE = 0.39f
-
-/** 补回"18dp 坑里只画 7dp 圆"多出来的那 5.5dp 空隙 */
-private val PAGE_DOT_SHIFT = 5.5.dp
 
 /** 正数=往后推（歌词晚出现），与校准按钮上的 +/- 语义一致 */
 private fun formatOffset(offsetMs: Long): String =

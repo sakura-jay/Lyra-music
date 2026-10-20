@@ -87,4 +87,29 @@ object LyraRoutes {
     fun playlist(listId: String) = "playlist/$listId"
     fun board(boardId: String) = "leaderboard/$boardId"
     fun myPlaylist(playlistId: Int) = "my-playlist/$playlistId"
+
+    /**
+     * 这一页有没有"详情大图那一端"的封面，有的话它的共享元素路径是哪条。
+     *
+     * 只有**页头封面就是这一页自己的封面**的那四条路由参与共享元素：专辑、平台歌单、
+     * 榜单、自建歌单。「我喜欢」与「本地音乐」的页头是"第一首曲目的图"——那是份代理，
+     * 不是目的地的封面，从卡片飞过去会飞错东西；广场、设置、音源这些页根本没有 96dp 页头。
+     *
+     * 参数名沿用 [DETAILS] 那张表，所以这里不再抄一遍 `albumId` / `listId`：
+     * 表在这里、注册在这里、路径也在这里，三条迟早漂移的复制品收成一处。
+     */
+    fun coverPath(route: String?, id: String?): String? {
+        // 空 id 会拼出 "album/" 这种看着像路径、谁也匹配不上的键：宁可不飞，也不要让一张卡片
+        // 对上一个永远为空的端点
+        val value = id?.takeIf { it.isNotBlank() } ?: return null
+        return when (route) {
+            ALBUM -> album(value)
+            PLAYLIST -> playlist(value)
+            LEADERBOARD_DETAIL -> board(value)
+            // 自建歌单的 id 来自 navArgument(defaultValue = 0)，而 SQLite 自增 id 从 1 起：
+            // 0 与认不出来的值都是"还没拿到参数"，不能当成一张真歌单的键
+            MY_PLAYLIST -> value.toIntOrNull()?.takeIf { it > 0 }?.let(::myPlaylist)
+            else -> null
+        }
+    }
 }

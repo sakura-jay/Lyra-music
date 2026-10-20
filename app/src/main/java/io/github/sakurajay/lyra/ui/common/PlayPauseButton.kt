@@ -1,8 +1,6 @@
 package io.github.sakurajay.lyra.ui.common
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -112,34 +110,49 @@ fun PlayPauseButton(
 @Composable
 private fun PlayPauseGlyph(isPlaying: Boolean, tint: Color, size: Dp) {
     val scale = LocalMotionScale.current
+    if (!MotionSpec.shouldAnimate(scale)) {
+        // 系统动画关掉时**不进 AnimatedContent**。这里原先写的是
+        // `EnterTransition.None togetherWith ExitTransition.None`，以为那就是"直接换"，
+        // 但实测（014 的像素差分）它仍会把两个图标**同画一帧**：第 0 帧与两个稳态都比不拢
+        // （静止↔第0帧 413px、第0帧↔稳定态 198px），也就是播放键会闪一下"两个图标叠在一起"。
+        // ADR-0009 把"0"定成直接到终态，只有走这条分支才真办得到。014 抄的就是这一处，
+        // 所以两边一起改。
+        Glyph(isPlaying = isPlaying, tint = tint, size = size)
+        return
+    }
     AnimatedContent(
         targetState = isPlaying,
         transitionSpec = {
-            if (!MotionSpec.shouldAnimate(scale)) {
-                // 系统动画关掉时不要"很短地滑一下"：直接换
-                EnterTransition.None togetherWith ExitTransition.None
-            } else {
-                val enterMs = MotionSpec.durationMs(MotionTier.MICRO, scale)
-                val exitMs = MotionSpec.durationMs(MotionTier.MICRO, scale, enter = false)
-                (
-                    slideInVertically(
-                        animationSpec = tween(enterMs, easing = LinearOutSlowInEasing),
-                        initialOffsetY = { height -> height },
-                    ) + fadeIn(tween(enterMs))
-                    ) togetherWith (
-                    slideOutVertically(
-                        animationSpec = tween(exitMs, easing = FastOutLinearInEasing),
-                        targetOffsetY = { height -> -height },
-                    ) + fadeOut(tween(exitMs))
-                    )
-            }.using(null)
+            val enterMs = MotionSpec.durationMs(MotionTier.MICRO, scale)
+            val exitMs = MotionSpec.durationMs(MotionTier.MICRO, scale, enter = false)
+            val swap = (
+                slideInVertically(
+                    animationSpec = tween(enterMs, easing = LinearOutSlowInEasing),
+                    initialOffsetY = { height -> height },
+                ) + fadeIn(tween(enterMs))
+                ) togetherWith (
+                slideOutVertically(
+                    animationSpec = tween(exitMs, easing = FastOutLinearInEasing),
+                    targetOffsetY = { height -> -height },
+                ) + fadeOut(tween(exitMs))
+                )
+            // `using` 是 AnimatedContentTransitionScope 的成员扩展，只能在 lambda 里调，
+            // 而且必须收在 ContentTransform 整体上：写成 `A togetherWith B.using(null)`
+            // 会被判给右边的 ExitTransition，编译直接拒
+            swap.using(null)
         },
         label = "playPauseGlyph",
     ) { playing ->
-        if (playing) {
-            PauseGlyph(modifier = Modifier.size(size), tint = tint, label = null)
-        } else {
-            PlayGlyph(modifier = Modifier.size(size), tint = tint, label = null)
-        }
+        Glyph(isPlaying = playing, tint = tint, size = size)
+    }
+}
+
+/** 图标本体。开不开动画都画同一个东西，所以"到终态"与"交替结束"长得一模一样 */
+@Composable
+private fun Glyph(isPlaying: Boolean, tint: Color, size: Dp) {
+    if (isPlaying) {
+        PauseGlyph(modifier = Modifier.size(size), tint = tint, label = null)
+    } else {
+        PlayGlyph(modifier = Modifier.size(size), tint = tint, label = null)
     }
 }

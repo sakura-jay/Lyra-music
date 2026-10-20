@@ -45,6 +45,8 @@ import io.github.sakurajay.lyra.domain.lyric.LyricLine
 import io.github.sakurajay.lyra.domain.lyric.LyricTextSize
 import io.github.sakurajay.lyra.domain.lyric.LyricTimeline
 import io.github.sakurajay.lyra.ui.common.lyraReveal
+import io.github.sakurajay.lyra.ui.motion.LocalMotionScale
+import io.github.sakurajay.lyra.ui.motion.MotionSpec
 
 
 /**
@@ -150,12 +152,35 @@ private fun LyricLineRow(
      * 关键是**排版尺寸固定用当前行那一档**，非当前行靠 scale 缩小而不是改 fontSize。
      * 改字号会让行高在动画中途变化，而滚动目标正是"滚到这一行"——目标自己会移动，
      * 看起来就是切换瞬间整屏抖一下。缩放只在 GPU 上做，行高始终稳定。
+     *
+     * **这一处原本不吃动效缩放**：写的是裸 `tween(EMPHASIS_MS)`，那一级里没有任何 `scale`，
+     * 正撞上层级表开头那句"任何一页都不该再自己写 `tween(230)` 这种数"。
+     *
+     * 但"调到 0 之后歌词还会慢 320ms"这句要说准确：**只有 `transition = 0` 而 `animator` 仍为 1
+     * 时才是这样**。animation-core 1.12.1 的 `doAnimationFrameWithScale` 在
+     * `durationScale == 0f` 时直接把 `playTimeNanos` 给成 `anim.durationNanos`，所以平台自己
+     * 读的那一档（`animator_duration_scale`）为 0 时，裸 tween 也会在动画跑到的第一帧落终值。
+     * 我们这层的 intent 取的是两档的较小值，平台只看其中一档——`transition = 0` 那一半
+     * 原本完全没有作用到这里。基准值 320ms 保持不动（三轮真机调出来的观感，与路由转场同性质），
+     * 走 `durationMsOf` 换算而不是塞进某一层。
+     *
+     * 关掉动画时照 005 / 006 / 014 的结论**不读动画值**：终值要等动画协程跑到的那一帧才落地，
+     * 而那一帧仍然比状态变化晚。这一处的"晚一帧"没有像素测试钉过（换行同时整列表在滚，
+     * 两次截图相减分不开），理由见 v0.9.3 CHANGELOG 决策 8 的落点表。
      */
-    val emphasis by animateFloatAsState(
-        targetValue = if (active) 1f else 0f,
-        animationSpec = tween(EMPHASIS_MS, easing = FastOutSlowInEasing),
-        label = "lyricEmphasis",
-    )
+    val motionScale = LocalMotionScale.current
+    val emphasis = if (MotionSpec.shouldAnimate(motionScale)) {
+        animateFloatAsState(
+            targetValue = if (active) 1f else 0f,
+            animationSpec = tween(
+                durationMillis = MotionSpec.durationMsOf(EMPHASIS_MS, motionScale),
+                easing = FastOutSlowInEasing,
+            ),
+            label = "lyricEmphasis",
+        ).value
+    } else {
+        if (active) 1f else 0f
+    }
     val inactiveRatio = textSize.inactiveSp / textSize.activeSp
     val scale = inactiveRatio + (1f - inactiveRatio) * emphasis
 

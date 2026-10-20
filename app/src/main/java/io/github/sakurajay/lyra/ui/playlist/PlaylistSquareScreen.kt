@@ -43,6 +43,7 @@ import io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
+import io.github.sakurajay.lyra.ui.nav.LyraRoutes
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -146,6 +147,7 @@ fun PlaylistSquareScreen(
                             onToggleFavorite = { viewModel.toggleFavorite(item) },
                             onClick = { onOpenPlaylist(item.listId) },
                             modifier = Modifier.fillMaxWidth(),
+                            coverPath = LyraRoutes.playlist(item.listId),
                         )
                     }
                     item(span = { GridItemSpan(maxLineSpan) }) {

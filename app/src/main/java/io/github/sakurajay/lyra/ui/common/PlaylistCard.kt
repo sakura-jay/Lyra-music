@@ -38,7 +38,16 @@ fun PlaylistCard(
     subtitle: String? = null,
     favorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
+    /**
+     * 这张卡点进去的那条路径（`LyraRoutes.playlist(...)` / `LyraRoutes.board(...)`）。
+     *
+     * 给了它，封面才成为共享元素的起点：详情页头按同一条路径认出彼此，封面从卡片飞到页头。
+     * 不给（或这一页没登记身份）就是普通卡片，行为与今天一致。
+     */
+    coverPath: String? = null,
 ) {
+    // 封面在卡片这一层取一次：既要给 Image 画，也要报给共享元素当端点位图
+    val artwork = rememberRemoteArtwork(coverUrl, maxEdgePx = 320)
     Column(
         // 形变挂在这一层（整张卡一起缩），点击与涟漪跟着走
         modifier = modifier.lyraPressable(onClick = onClick),
@@ -49,10 +58,11 @@ fun PlaylistCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp)),
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+                    // 登记在底色之后、内容之前：矩形就是这块封面框自己，飞行时它原地隐身
+                    .lyraCoverSource(coverPath, 12.dp, artwork?.asImageBitmap()),
                 contentAlignment = Alignment.Center,
             ) {
-                val artwork = rememberRemoteArtwork(coverUrl, maxEdgePx = 320)
                 if (artwork != null) {
                     Image(
                         bitmap = artwork.asImageBitmap(),

@@ -72,11 +72,23 @@ fun FavoriteHeartButton(
     // 读屏只念当前这一个状态：两张叠图会让读屏念成"加入我喜欢 移出我喜欢"
     val label = stringResource(if (favorite) labelOn else labelOff)
     // 选中档（150ms）而不是微交互档：颜色要看清才叫"交叉淡出"，100ms 太快会看成一跳
-    val fill by animateFloatAsState(
-        targetValue = if (favorite) 1f else 0f,
-        animationSpec = tween(MotionSpec.durationMs(MotionTier.SMALL, scale, enter = favorite)),
-        label = "favoriteFill",
-    )
+    //
+    // 关掉动画时**压根不用 animateFloatAsState**，直接给终值。第一版在这里写的是
+    // `if (shouldAnimate) tween(...) else snap()`，看着已经满足"当帧到终态"，实测第 0 帧
+    // 与第 1 帧仍差 1525 像素：`animateFloatAsState` 是在协程里驱动 `Animatable` 的，
+    // 而那个协程要等本次组合提交之后才被调度——`snap()` 也一样要等这一趟，只是它一旦跑起来
+    // 就没有中间值。同一帧晚一帧，画面上就是那颗心"迟了一下才变实"。
+    // 所以正确的写法是绕开动画 API，而不是给它一个零时长的 spec。
+    // 与 005 播放/暂停、014 迷你条那两处同源——都是"关掉动画"这件事没做到底。
+    val fill = if (MotionSpec.shouldAnimate(scale)) {
+        animateFloatAsState(
+            targetValue = if (favorite) 1f else 0f,
+            animationSpec = tween(MotionSpec.durationMs(MotionTier.SMALL, scale, enter = favorite)),
+            label = "favoriteFill",
+        ).value
+    } else {
+        if (favorite) 1f else 0f
+    }
 
     IconButton(
         modifier = modifier.semantics { contentDescription = label },

@@ -42,6 +42,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.TrackRow
+import io.github.sakurajay.lyra.ui.common.lyraCoverDetail
 import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
@@ -112,13 +113,15 @@ fun LeaderboardDetailScreen(
                         .lyraReveal(index = 0),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
+                    val artwork = rememberRemoteArtwork(state.board.coverUrl, maxEdgePx = 320)
                     Box(
                         modifier = Modifier
                             .size(96.dp)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp)),
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+                            // 共享元素的另一头，见 TrackListScreen 里同一处注释
+                            .lyraCoverDetail(12.dp, artwork?.asImageBitmap()),
                         contentAlignment = Alignment.Center,
                     ) {
-                        val artwork = rememberRemoteArtwork(state.board.coverUrl, maxEdgePx = 320)
                         if (artwork != null) {
                             Image(
                                 bitmap = artwork.asImageBitmap(),

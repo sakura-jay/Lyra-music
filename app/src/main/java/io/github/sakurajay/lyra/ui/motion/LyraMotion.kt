@@ -1,5 +1,6 @@
 package io.github.sakurajay.lyra.ui.motion
 
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.AnimationSpec
@@ -19,6 +20,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.unit.IntOffset
 
@@ -48,6 +50,9 @@ object LyraMotion {
     private const val ROUTE_FADE_OUT_MS = 140
     private const val PLAYER_FADE_OUT_MS = 160
     private const val PLAYER_FADE_OUT_DELAY_MS = 60
+
+    /** 换曲文字交替的位移比例：行高的五分之一，见 [songLineSwap] */
+    private const val SLIDE_FRACTION = 0.2f
 
     /**
      * 弹簧常量：取自 material3 1.4.0 的 `ExpressiveMotionTokens`（内部值是
@@ -88,8 +93,16 @@ object LyraMotion {
         )
 
     /**
-     * 时长为 0 时必须 snap 而不是 `tween(0)`：后者仍要排一帧回调，
-     * 而用户给的是"别动"这个表态。
+     * 时长为 0 时给 `snap()` 而不是 `tween(0)`：前者没有中间值，后者还要跑一次
+     * "起始值 → 终值"。
+     *
+     * 但**别把它当成"当帧到终态"的答案**——它只在这条 spec 被真正播起来之后才起作用。
+     * `animate*AsState` 与 `AnimatedContent` 的终值都要等本次组合提交之后的协程才落地，
+     * 换成 `snap()` 一分都没省（M10 实测：♥ 1525px、播放/暂停同画一帧、页码颜色 1130px）。
+     * "关掉动画就不读动画值 / 不进 AnimatedContent"是**调用方**的责任，见
+     * `FavoriteHeartButton`、`PlayPauseButton`、`PageIndicator`、`MiniSongLines`。
+     * 这里剩下的 snap 分支服务的是转场内部（`fadeIn`/`slideIn` 那类 spec），
+     * 而四条转场入口在 `!shouldAnimate` 时已经整条不发。
      */
     private fun <T> snapOrTween(
         durationMs: Int,
@@ -157,6 +170,40 @@ object LyraMotion {
             initialScale = 0.9f,
             transformOrigin = BOTTOM_ORIGIN,
         )
+    }
+
+    /**
+     * 换曲时那两行文字的交替（014）。
+     *
+     * 放在这里而不是写在组件里，是因为"位移多少、哪一档、关掉动画时怎么办"这三件事
+     * 属于层级表，而 014 与 005 的图标交替必须是同一套口径——散在两个文件里迟早漂移成两种说法。
+     *
+     * 位移按**行高**算而不是写死 dp：迷你条的字在小字号档下约 20dp、大字号档下约 28dp，
+     * 写死 6dp 会让前者"几乎看不出来"、后者"看起来像整页在滚"。取五分之一行高
+     * （[SLIDE_FRACTION]），两个字号档的绝对位移都在 4~6dp 这一档，读起来是"换了一行字"。
+     *
+     * `using(null)` 与 [PlayPauseButton] 那处同理：AnimatedContent 默认给内容容器加一层
+     * 尺寸动画，而那**是参与布局的属性**，ADR-0009 的护栏二明令禁止。
+     *
+     * **这一处只在"要动画"时被调用**。关掉动画（scale = 0）不再返回
+     * `None togetherWith None`：实测那种写法仍会把旧、新两份内容**同画一帧**，
+     * 于是"直接到终态"变成"闪一下两份叠在一起"。两个调用点（005 的图标、014 的两行字）
+     * 因此都改成：不动画就压根不进 `AnimatedContent`。
+     */
+    fun songLineSwap(scale: Float): ContentTransform {
+        val enterMs = tierMs(MotionTier.MICRO, scale)
+        val exitMs = tierMs(MotionTier.MICRO, scale, enter = false)
+        return (
+            slideInVertically(
+                animationSpec = snapOrTween<IntOffset>(enterMs, easing = LinearOutSlowInEasing),
+                initialOffsetY = { height -> (height * SLIDE_FRACTION).toInt() },
+            ) + fadeIn(snapOrTween<Float>(enterMs))
+            ) togetherWith (
+            slideOutVertically(
+                animationSpec = snapOrTween<IntOffset>(exitMs, easing = FastOutLinearInEasing),
+                targetOffsetY = { height -> -(height * SLIDE_FRACTION).toInt() },
+            ) + fadeOut(snapOrTween<Float>(exitMs))
+            )
     }
 
     fun collapseToBar(scale: Float): ExitTransition {

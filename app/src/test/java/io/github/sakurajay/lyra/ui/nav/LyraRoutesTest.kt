@@ -3,6 +3,7 @@ package io.github.sakurajay.lyra.ui.nav
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -113,6 +114,43 @@ class LyraRoutesTest {
             .map { constants.getValue(it.groupValues[1]) }
             .toList()
         assertEquals(LyraRoutes.TABS, declared)
+    }
+
+    /**
+     * 共享元素白名单：哪些路由有"详情大图那一端"。
+     *
+     * 认错的后果不是不好看而是飞错东西：「我喜欢」的页头是第一首曲目的图（一份代理），
+     * 广场与设置根本没有页头，这两类一旦给出路径就会出现"从别处的卡片飞向一张不相干的图"。
+     */
+    @Test
+    fun onlyTheFourCoverBearingDetailsHaveAPath() {
+        assertEquals("album/42", LyraRoutes.coverPath(LyraRoutes.ALBUM, "42"))
+        assertEquals("playlist/digest-8__123", LyraRoutes.coverPath(LyraRoutes.PLAYLIST, "digest-8__123"))
+        assertEquals("leaderboard/kw__93", LyraRoutes.coverPath(LyraRoutes.LEADERBOARD_DETAIL, "kw__93"))
+        assertEquals("my-playlist/7", LyraRoutes.coverPath(LyraRoutes.MY_PLAYLIST, "7"))
+
+        // 页头是代理图 / 根本没有页头的那些：不给路径，也就自然不参与共享元素
+        listOf(LyraRoutes.LIKED, LyraRoutes.LOCAL_MUSIC, LyraRoutes.PLAYLIST_SQUARE, LyraRoutes.LEADERBOARD_SQUARE, LyraRoutes.SETTINGS, LyraRoutes.SOURCES, LyraRoutes.CACHE, LyraRoutes.MY_PLAYLISTS, LyraRoutes.SAVED_PLAYLISTS, LyraRoutes.PLAYER, LyraRoutes.HOME).forEach {
+            assertNull("$it 不该有详情页头那一端", LyraRoutes.coverPath(it, "whatever"))
+        }
+    }
+
+    /**
+     * 空与非法的参数不能拼出键。
+     *
+     * `album/`（空 id）与 `my-playlist/0`（navArgument 的默认值）都不是任何一条真路径，
+     * 却让两端的键看起来"算出来了"——表现是飞行发生了、终点却对一个谁也没登记的键，
+     * 封面飞到屏幕左上角去。
+     */
+    @Test
+    fun blankOrPlaceholderIdsYieldNoPath() {
+        assertNull(LyraRoutes.coverPath(LyraRoutes.ALBUM, ""))
+        assertNull(LyraRoutes.coverPath(LyraRoutes.ALBUM, null))
+        assertNull(LyraRoutes.coverPath(LyraRoutes.PLAYLIST, "  "))
+        assertNull(LyraRoutes.coverPath(LyraRoutes.MY_PLAYLIST, "0"))
+        assertNull(LyraRoutes.coverPath(LyraRoutes.MY_PLAYLIST, "not-a-number"))
+        assertNull(LyraRoutes.coverPath(LyraRoutes.MY_PLAYLIST, null))
+        assertNull(LyraRoutes.coverPath(null, "42"))
     }
 
     /** `const val NAME = "pattern"` 的常量名 → 值。表只有一处，扫出来比在测试里再抄一遍稳 */
