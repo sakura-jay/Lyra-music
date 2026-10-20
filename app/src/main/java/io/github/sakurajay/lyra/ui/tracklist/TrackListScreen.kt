@@ -35,10 +35,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
-import io.github.sakurajay.lyra.ui.common.HeartGlyph
+import io.github.sakurajay.lyra.ui.common.FavoriteHeartButton
 import io.github.sakurajay.lyra.ui.common.TrackRow
+import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 
 /**
@@ -103,16 +105,15 @@ fun TrackListScreen(
                 },
                 actions = {
                     if (onToggleFavorite != null) {
-                        IconButton(onClick = onToggleFavorite) {
-                            HeartGlyph(
-                                modifier = Modifier.size(22.dp),
-                                tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                filled = favorite,
-                                label = stringResource(
-                                    if (favorite) R.string.playlist_favorite_on else R.string.playlist_favorite,
-                                ),
-                            )
-                        }
+                        FavoriteHeartButton(
+                            favorite = favorite,
+                            onToggle = onToggleFavorite,
+                            glyphSize = 22.dp,
+                            labelOn = R.string.playlist_favorite_on,
+                            labelOff = R.string.playlist_favorite,
+                            // 顶栏背景是页面底色而不是封面，用 onSurface 更清楚
+                            offTint = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 },
             )
@@ -193,14 +194,22 @@ fun TrackListScreen(
             }
 
             LazyColumn {
-                // 不传 key：同一首歌在一份列表里出现两次是合法数据（歌单重复曲目），
-                // 而 LazyColumn 的 key 撞车会直接崩
-                itemsIndexed(list?.songs.orEmpty()) { index, song ->
+                // 默认不传 key：同一首歌在一份列表里出现两次是合法数据（歌单重复曲目），
+                // 而 LazyColumn 的 key 撞车会直接崩。
+                //
+                // 「我喜欢」是唯一例外：那一页点行内 ♥ 会把这一行**移出列表**，让位动画需要
+                // 认出"少的就是这一行"，而收藏的 key（source:id）天然唯一。判据用
+                // rowFavorites 而不是路由名——只有这一页给了行内 ♥。
+                val rowKey: ((Int, Song) -> Any)? =
+                    if (rowFavorites != null) { _, song -> FavoritesRepository.keyOf(song) } else null
+                itemsIndexed(list?.songs.orEmpty(), key = rowKey) { index, song ->
                     val more: (() -> Unit)? = onMore?.let { action -> { action(song) } }
                     val toggleRow: (() -> Unit)? = rowFavorites?.let { fav -> { fav.onToggle(song) } }
                     TrackRow(
                         rank = if (showRank) index + 1 else null,
                         song = song,
+                        // 移出一首之后，下面的行滑上来补位，而不是瞬间跳到新位置
+                        modifier = lyraAnimatedItem(),
                         highlighted = song.id == state.playingSongId,
                         loading = song.id == state.loadingSongId,
                         onClick = { onPlay(song) },

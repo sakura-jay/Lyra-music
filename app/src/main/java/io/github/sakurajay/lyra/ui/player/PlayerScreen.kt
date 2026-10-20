@@ -2,7 +2,6 @@ package io.github.sakurajay.lyra.ui.player
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,9 +29,12 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -42,8 +44,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,13 +59,16 @@ import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.player.PlayMode
 import io.github.sakurajay.lyra.ui.common.BackGlyph
-import io.github.sakurajay.lyra.ui.common.HeartGlyph
+import io.github.sakurajay.lyra.ui.common.FavoriteHeartButton
 import io.github.sakurajay.lyra.ui.common.ModeGlyph
 import io.github.sakurajay.lyra.ui.common.TuneGlyph
 import io.github.sakurajay.lyra.ui.common.NextGlyph
-import io.github.sakurajay.lyra.ui.common.PauseGlyph
-import io.github.sakurajay.lyra.ui.common.PlayGlyph
+import io.github.sakurajay.lyra.ui.common.PlayPauseButton
 import io.github.sakurajay.lyra.ui.common.PreviousGlyph
+import io.github.sakurajay.lyra.ui.motion.LocalMotionScale
+import io.github.sakurajay.lyra.ui.motion.LyraMotion
+import io.github.sakurajay.lyra.ui.motion.MotionSpec
+import io.github.sakurajay.lyra.ui.motion.MotionTier
 import kotlin.math.roundToLong
 
 /**
@@ -116,14 +123,11 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
                 )
                 // 收藏放这里而不是详情页正文里：那一列本来就不够高，
                 // 多占一行会把最下面的播放顺序挤出屏幕
-                IconButton(onClick = viewModel::toggleFavorite, enabled = song != null) {
-                    HeartGlyph(
-                        modifier = Modifier.size(22.dp),
-                        tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        filled = favorite,
-                        label = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
-                    )
-                }
+                FavoriteHeartButton(
+                    favorite = favorite,
+                    onToggle = viewModel::toggleFavorite,
+                    enabled = song != null,
+                )
             }
 
             Column(Modifier.weight(1f).padding(horizontal = 20.dp)) {
@@ -352,18 +356,7 @@ private fun ControlRow(
             IconButton(onClick = onPrevious) {
                 PreviousGlyph(tint = MaterialTheme.colorScheme.onSurface, label = stringResource(R.string.action_previous))
             }
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp)) {
-                Box(
-                    modifier = Modifier.fillMaxSize().clickable(onClick = onPlayPause),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (isPlaying) {
-                        PauseGlyph(tint = MaterialTheme.colorScheme.onPrimary, label = stringResource(R.string.action_pause))
-                    } else {
-                        PlayGlyph(tint = MaterialTheme.colorScheme.onPrimary, label = stringResource(R.string.action_play))
-                    }
-                }
-            }
+            PlayPauseButton(isPlaying = isPlaying, onClick = onPlayPause)
             IconButton(onClick = onNext) {
                 NextGlyph(tint = MaterialTheme.colorScheme.onSurface, label = stringResource(R.string.action_next))
             }
@@ -392,28 +385,78 @@ private fun OffsetRow(offsetMs: Long, onNudge: (Long) -> Unit) {
     }
 }
 
+/**
+ * 页码指示器：当前页是一枚 18dp 的药丸，其余是 7dp 的圆点。
+ *
+ * 关键手法是**不动画 `size()`**：每个点都按 18dp 宽布局，"缩小"由 `scaleX = 7/18`
+ * 表达。动画尺寸会让整行在切换过程中反复测量，邻居被推来推去——那正是"两个点在打架"
+ * 的来源；走 scaleX 之后布局从第一帧就是最终位置。
+ *
+ * 缩放之后邻居之间会多出一段视觉空隙（18dp 的坑里只画了 7dp 的圆），所以邻居再往药丸
+ * 方向平移 5.5dp 把空隙补回来，和"7dp + 6dp 间距 + 18dp"的原观感对齐。位移量小到
+ * 看起来只是"让开"，但少了它就会觉得点之间忽然变松。
+ */
 @Composable
 private fun PageIndicator(pages: Int, current: Int) {
+    val scale = LocalMotionScale.current
+    val density = LocalDensity.current
+    val shiftPx = with(density) { PAGE_DOT_SHIFT.toPx() }
+    val spec = if (MotionSpec.shouldAnimate(scale)) LyraMotion.stateSpec<Float>(scale) else snap()
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
     ) {
         repeat(pages) { index ->
+            val active = index == current
+            // 变量名不能叫 scaleX：那样会把 graphicsLayer 作用域里的 scaleX 挡住，
+            // 变成"给一个 val 赋值"
+            val pillScale by animateFloatAsState(
+                targetValue = if (active) 1f else PAGE_DOT_SCALE,
+                animationSpec = spec,
+                label = "pageDotScale",
+            )
+            val shift by animateFloatAsState(
+                targetValue = when {
+                    // 只有紧邻当前页的那一个让位：更远的点在另一侧，让位就会撞上去
+                    index == current - 1 || index == current + 1 -> if (index < current) shiftPx else -shiftPx
+                    else -> 0f
+                },
+                animationSpec = spec,
+                label = "pageDotShift",
+            )
+            val color by animateColorAsState(
+                targetValue = if (active) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                },
+                animationSpec = tween(MotionSpec.durationMs(MotionTier.SMALL, scale)),
+                label = "pageDotColor",
+            )
             Box(
                 modifier = Modifier
-                    .size(if (index == current) 18.dp else 7.dp)
+                    .size(width = PAGE_DOT_WIDTH, height = PAGE_DOT_HEIGHT)
+                    // 形变只走图形层：布局宽度永远是 18dp，邻居的位置不会被动画推着走
+                    .graphicsLayer {
+                        scaleX = pillScale
+                        translationX = shift
+                    }
                     .clip(CircleShape)
-                    .background(
-                        if (index == current) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                        },
-                    ),
+                    .background(color),
             )
         }
     }
 }
+
+/** 当前页那颗药丸的宽度，也是每个点的布局宽度 */
+private val PAGE_DOT_WIDTH = 18.dp
+private val PAGE_DOT_HEIGHT = 7.dp
+
+/** 7dp ÷ 18dp：静止时用 scaleX 把它画成一颗 7dp 的圆点 */
+private const val PAGE_DOT_SCALE = 0.39f
+
+/** 补回"18dp 坑里只画 7dp 圆"多出来的那 5.5dp 空隙 */
+private val PAGE_DOT_SHIFT = 5.5.dp
 
 /** 正数=往后推（歌词晚出现），与校准按钮上的 +/- 语义一致 */
 private fun formatOffset(offsetMs: Long): String =

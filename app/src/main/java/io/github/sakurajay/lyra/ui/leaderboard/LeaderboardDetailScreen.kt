@@ -42,6 +42,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.TrackRow
+import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -104,7 +105,11 @@ fun LeaderboardDetailScreen(
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        // 头部先来一步，列表与页脚随后（40ms 错峰）
+                        .lyraReveal(index = 0),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     Box(
@@ -178,6 +183,7 @@ fun LeaderboardDetailScreen(
                     count = state.songs.size,
                     total = state.total,
                     onRetry = viewModel::reload,
+                    modifier = Modifier.lyraReveal(index = 2),
                 )
             }
         }
@@ -198,9 +204,10 @@ private fun ListFooter(
     count: Int,
     total: Int?,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+        modifier = modifier.fillMaxWidth().padding(vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {

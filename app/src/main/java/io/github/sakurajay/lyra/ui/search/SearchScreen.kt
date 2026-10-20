@@ -54,6 +54,8 @@ import io.github.sakurajay.lyra.player.SongPlayController
 import io.github.sakurajay.lyra.player.SongQueueLauncher
 import io.github.sakurajay.lyra.player.describe
 import io.github.sakurajay.lyra.ui.common.MoreGlyph
+import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
+import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -225,13 +227,18 @@ fun SearchScreen(
             }
 
             LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.shownGroups.forEach { group ->
-                    item(key = "header-${group.label}") { GroupHeader(group) }
+                state.shownGroups.forEachIndexed { index, group ->
+                    item(key = "header-${group.label}") {
+                        // 一次搜索会同时冒出好几家的结果，全体同时出现像"整屏闪了一下"；
+                        // 取模式 3 只借错峰机制（step 40ms / 上限 240ms），主交互仍是普通实现
+                        GroupHeader(group, Modifier.lyraReveal(index))
+                    }
                     // 不传 key：同一首歌在一份结果里出现两次是合法数据（歌单重复曲目、
                     // 平台返回同 id 的不同版本），而 LazyColumn 的 key 撞车会直接崩
                     items(group.songs) { song ->
                         SongRow(
                             song = song,
+                            modifier = lyraAnimatedItem(),
                             highlighted = "${song.source}-${song.id}" == state.playingKey,
                             loading = song.id == state.loadingSongId,
                             onClick = { viewModel.play(song, group.songs) },
@@ -248,8 +255,8 @@ fun SearchScreen(
 
 /** 一家供给方一行标题；失败的那家把原因写出来，不要静悄悄少一块结果 */
 @Composable
-private fun GroupHeader(group: SearchGroup) {
-    Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
+private fun GroupHeader(group: SearchGroup, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
         Text(
             text = group.label,
             // 与设置页、音乐库的区块标题同一档：以前这里是 titleSmall，别处是 titleMedium
@@ -300,6 +307,7 @@ private fun GroupFilter(groups: List<SearchGroup>, selected: String?, onSelect: 
 @Composable
 private fun SongRow(
     song: Song,
+    modifier: Modifier = Modifier,
     highlighted: Boolean,
     loading: Boolean,
     onClick: () -> Unit,
@@ -308,7 +316,7 @@ private fun SongRow(
     onMore: (() -> Unit)? = null,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        modifier = modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = CardDefaults.cardColors(
             containerColor = if (highlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
         ),

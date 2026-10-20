@@ -6,6 +6,8 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +46,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.local.LocalMusicRepository
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
+import io.github.sakurajay.lyra.ui.common.lyraPressScale
 
 /**
  * 音乐库：四张入口卡片，各自点进列表页。
@@ -174,13 +178,21 @@ private fun LibraryEntryCard(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            // 形变挂在底色**外面**（整张卡一起缩），点击留在底色**里面**
+            // （涟漪画在底色之上、并被圆角裁住）——两个位置隔着 clip/background
+            .lyraPressScale(interaction)
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current,
+                onClick = onClick,
+            )
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

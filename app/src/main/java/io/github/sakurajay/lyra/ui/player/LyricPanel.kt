@@ -44,6 +44,7 @@ import io.github.sakurajay.lyra.domain.lyric.LyricDoc
 import io.github.sakurajay.lyra.domain.lyric.LyricLine
 import io.github.sakurajay.lyra.domain.lyric.LyricTextSize
 import io.github.sakurajay.lyra.domain.lyric.LyricTimeline
+import io.github.sakurajay.lyra.ui.common.lyraReveal
 
 
 /**
@@ -122,10 +123,13 @@ fun LyricPanel(
 
 @Composable
 private fun PanelHint(text: String) {
+    // 歌词区是整页最后才填上的那块内容：加载完/确认空之后直接怼上文字会显得突兀，
+    // 用 medium 档淡入抬一下，成本只有一次 alpha + translationY
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.lyraReveal(),
     )
 }
 

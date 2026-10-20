@@ -1,6 +1,5 @@
 package io.github.sakurajay.lyra.ui.library
 
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,9 +33,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.sakurajay.lyra.ui.common.lyraPressable
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.local.UserPlaylist
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 
 /**
@@ -97,6 +98,8 @@ fun MyPlaylistsScreen(
                         playlist = playlist,
                         onOpen = { onOpenMyPlaylist(playlist.id) },
                         onManage = { managed = playlist },
+                        // 新建/删除一个歌单时下面的行让位，而不是瞬间跳上来（key 上面已经给了）
+                        modifier = lyraAnimatedItem(),
                     )
                 }
                 item { Spacer(Modifier.size(8.dp)) }
@@ -133,11 +136,16 @@ fun MyPlaylistsScreen(
 }
 
 @Composable
-private fun PlaylistRow(playlist: UserPlaylist, onOpen: () -> Unit, onManage: () -> Unit) {
+private fun PlaylistRow(
+    playlist: UserPlaylist,
+    onOpen: () -> Unit,
+    onManage: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onOpen, onLongClick = onManage)
+            .lyraPressable(onClick = onOpen, onLongClick = onManage)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

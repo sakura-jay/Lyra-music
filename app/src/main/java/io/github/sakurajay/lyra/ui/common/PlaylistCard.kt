@@ -2,7 +2,6 @@ package io.github.sakurajay.lyra.ui.common
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,9 +9,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.sakurajay.lyra.R
@@ -44,7 +40,8 @@ fun PlaylistCard(
     onToggleFavorite: (() -> Unit)? = null,
 ) {
     Column(
-        modifier = modifier.clickable(onClick = onClick),
+        // 形变挂在这一层（整张卡一起缩），点击与涟漪跟着走
+        modifier = modifier.lyraPressable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box {
@@ -66,10 +63,14 @@ fun PlaylistCard(
                 }
             }
             if (onToggleFavorite != null) {
-                PlaylistFavoriteButton(
+                FavoriteHeartButton(
                     favorite = favorite,
                     onToggle = onToggleFavorite,
                     modifier = Modifier.align(Alignment.TopEnd),
+                    glyphSize = 18.dp,
+                    container = true,
+                    labelOn = R.string.playlist_favorite_on,
+                    labelOff = R.string.playlist_favorite,
                 )
             }
         }
@@ -91,31 +92,3 @@ fun PlaylistCard(
     }
 }
 
-/**
- * 歌单封面角上的收藏心。
- *
- * 封面颜色不可预测，浅色封面上直接画心会看不见，所以心形自带一层底；
- * 命中区仍是 48dp（Material 触控下限），只是画出来的圆只有 32dp。
- */
-@Composable
-fun PlaylistFavoriteButton(
-    favorite: Boolean,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    IconButton(onClick = onToggle, modifier = modifier.size(48.dp)) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            HeartGlyph(
-                modifier = Modifier.size(18.dp),
-                tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                filled = favorite,
-                label = stringResource(if (favorite) R.string.playlist_favorite_on else R.string.playlist_favorite),
-            )
-        }
-    }
-}

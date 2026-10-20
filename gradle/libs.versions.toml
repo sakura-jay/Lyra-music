@@ -20,6 +20,11 @@ media3 = "1.11.1"
 junit = "4.13.2"
 androidxTestJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
+# ui-test 1.11.4 自己带的是 espresso-core 3.5.0，它构造 UiController 时走
+# `InputManager.getInstance()`（隐藏 API）。Android 17 / API 37 上这个方法已经没了，
+# 于是任何一个 Compose UI 测试都会在 `Espresso.onIdle()` 里抛 NoSuchMethodException——
+# 还没跑到断言就死。3.7.0 换掉了这条取用路径，与 runner 1.7.0 同批发布
+espressoCore = "3.7.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -35,6 +40,11 @@ androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+# 共享元素/M10 的 AnimatedContent 一族直接在这里显式声明：以前只是 material3 带进来的
+# 传递依赖（版本由 BOM 统一为 1.11.4），哪天 material3 不再依赖它，编译会立刻断
+androidx-compose-animation = { group = "androidx.compose.animation", name = "animation" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 quickjs-wrapper-android = { group = "wang.harlon.quickjs", name = "wrapper-android", version.ref = "quickjs" }
@@ -47,6 +57,7 @@ androidx-media3-session = { group = "androidx.media3", name = "media3-session", 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestJunit" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
+androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 
 [plugins]

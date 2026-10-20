@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -43,6 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.lyraPressScale
+import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.core.source.repo.StoredSource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,6 +139,8 @@ fun SourcesScreen(
                         source = source,
                         onToggle = { viewModel.setEnabled(source.id, it) },
                         onDelete = { viewModel.delete(source.id) },
+                        // 删掉一张卡时下面的卡让位，而不是瞬间跳上来（key 已经在上面给了）
+                        modifier = lyraAnimatedItem(),
                     )
                 }
             }
@@ -148,9 +153,13 @@ private fun SourceCard(
     source: StoredSource,
     onToggle: (Boolean) -> Unit,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    // 整张卡本来没有点击（点卡片什么也不做），所以卡片的按压形变接的是它上面那两个控件的
+    // 按压状态：按开关或删除时整张卡 2% 下压，回答"我按的是这一张卡"
+    val interaction = remember { MutableInteractionSource() }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().lyraPressScale(interaction),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         shape = RoundedCornerShape(18.dp),
     ) {
@@ -184,8 +193,16 @@ private fun SourceCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Switch(checked = source.enabled, onCheckedChange = onToggle)
-            FilledTonalButton(onClick = onDelete, modifier = Modifier.padding(start = 8.dp)) {
+            Switch(
+                checked = source.enabled,
+                onCheckedChange = onToggle,
+                interactionSource = interaction,
+            )
+            FilledTonalButton(
+                onClick = onDelete,
+                modifier = Modifier.padding(start = 8.dp),
+                interactionSource = interaction,
+            ) {
                 Text(stringResource(R.string.action_delete))
             }
         }

@@ -1,6 +1,5 @@
 package io.github.sakurajay.lyra.ui.common
 
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +47,7 @@ fun TrackRow(
     highlighted: Boolean,
     loading: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     rank: Int? = null,
     onOpenAlbum: ((String) -> Unit)? = null,
     favorite: Boolean = false,
@@ -56,9 +56,9 @@ fun TrackRow(
     onMore: (() -> Unit)? = null,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .lyraPressable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -115,14 +115,11 @@ fun TrackRow(
                 // 命中区 48dp（Material 触控下限）。以前是 36dp 的裸 clickable，
                 // 在列表里想精准点中心形其实很难
                 if (onToggleFavorite != null) {
-                    IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
-                        HeartGlyph(
-                            modifier = Modifier.size(20.dp),
-                            tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            filled = favorite,
-                            label = stringResource(if (favorite) R.string.player_favorite_on else R.string.player_favorite),
-                        )
-                    }
+                    FavoriteHeartButton(
+                        favorite = favorite,
+                        onToggle = onToggleFavorite,
+                        glyphSize = 20.dp,
+                    )
                 }
                 if (onMore != null) {
                     IconButton(onClick = onMore, modifier = Modifier.size(48.dp)) {

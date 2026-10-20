@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,15 +31,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,14 +46,17 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NamedNavArgument
 import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.sakurajay.lyra.R
-import io.github.sakurajay.lyra.ui.common.PauseGlyph
-import io.github.sakurajay.lyra.ui.common.PlayGlyph
+import io.github.sakurajay.lyra.ui.common.PlayPauseButton
+import io.github.sakurajay.lyra.ui.common.lyraPressable
 import io.github.sakurajay.lyra.ui.home.HomeScreen
 import io.github.sakurajay.lyra.ui.leaderboard.LeaderboardDetailScreen
 import io.github.sakurajay.lyra.ui.leaderboard.LeaderboardDetailViewModel
@@ -66,6 +67,8 @@ import io.github.sakurajay.lyra.ui.library.PlaylistPickerSheet
 import io.github.sakurajay.lyra.ui.library.PlaylistPickerViewModel
 import io.github.sakurajay.lyra.ui.library.SavedPlaylistsScreen
 import io.github.sakurajay.lyra.ui.motion.LyraMotion
+import io.github.sakurajay.lyra.ui.motion.LocalMotionScale
+import io.github.sakurajay.lyra.ui.nav.LyraRoutes
 import io.github.sakurajay.lyra.ui.player.PlayerScreen
 import io.github.sakurajay.lyra.ui.player.PlayerViewModel
 import io.github.sakurajay.lyra.ui.playlist.PlaylistSquareScreen
@@ -96,40 +99,39 @@ private enum class TopDestination(
     @StringRes val labelRes: Int,
     @StringRes val titleRes: Int,
 ) {
-    Home("home", R.string.tab_home, R.string.home_title),
-    Search("search", R.string.tab_search, R.string.search_title),
-    Library("library", R.string.tab_library, R.string.library_title),
+    Home(LyraRoutes.HOME, R.string.tab_home, R.string.home_title),
+    Search(LyraRoutes.SEARCH, R.string.tab_search, R.string.search_title),
+    Library(LyraRoutes.LIBRARY, R.string.tab_library, R.string.library_title),
 }
 
-private const val ROUTE_SOURCES = "sources"
-private const val ROUTE_PLAYER = "player"
-private const val ROUTE_SETTINGS = "settings"
-private const val ROUTE_ALBUM = "album/{albumId}"
-private const val ROUTE_PLAYLIST = "playlist/{listId}"
-private const val ROUTE_PLAYLIST_SQUARE = "playlists"
-private const val ROUTE_MY_PLAYLIST = "my-playlist/{playlistId}"
-private const val ROUTE_LOCAL_MUSIC = "local-music"
-private const val ROUTE_CACHE = "cache"
-private const val ROUTE_LIKED = "liked"
-private const val ROUTE_MY_PLAYLISTS = "my-playlists"
-private const val ROUTE_SAVED_PLAYLISTS = "saved-playlists"
-private const val ROUTE_LEADERBOARD_SQUARE = "leaderboards"
-private const val ROUTE_LEADERBOARD_DETAIL = "leaderboard/{boardId}"
-
 /**
- * 详情页的参数直接拼进路径：专辑 id 只有数字，歌单 id 是 `digest-8__123` 这种
- * 只含字母数字与 -_ 的形式，都不需要转义。
+ * 详情页的统一注册。
+ *
+ * 这四个转场参数此前一字不差地抄了 13 遍：抄错一条的表现是"某一页底下的 Tab 页
+ * 跟着一起滑"（两个界面同时在动），而且发现不了——没人会为了改一个数字去数 13 个调用点。
+ * 收成一处之后，转场只有一个改动点，"哪条路由属于详情页"由 [LyraRoutes] 那张表回答。
+ *
+ * 播放页不在这里：它是"从迷你播放条长出来"的另一套观感，单独注册（见 `LyraApp`）。
+ * 唯一没被收进来的差异是 `innerPadding`——详情页要垫系统栏，播放页要铺到系统栏后面。
  */
-private fun albumRoute(albumId: String) = "album/$albumId"
-private fun playlistRoute(listId: String) = "playlist/$listId"
-private fun boardRoute(boardId: String) = "leaderboard/$boardId"
-
-/** 压在 Tab 之上的详情页：进出都不该让底下的 Tab 页跟着滑——那是"两个界面同时在动"的错觉来源 */
-private val DETAIL_ROUTES = setOf(
-    ROUTE_SOURCES, ROUTE_PLAYER, ROUTE_SETTINGS, ROUTE_ALBUM, ROUTE_PLAYLIST, ROUTE_PLAYLIST_SQUARE,
-    ROUTE_MY_PLAYLIST, ROUTE_LOCAL_MUSIC, ROUTE_CACHE, ROUTE_LIKED, ROUTE_MY_PLAYLISTS,
-    ROUTE_SAVED_PLAYLISTS, ROUTE_LEADERBOARD_SQUARE, ROUTE_LEADERBOARD_DETAIL,
-)
+private fun NavGraphBuilder.lyraDetailRoute(
+    route: String,
+    motionScale: Float,
+    innerPadding: PaddingValues,
+    arguments: List<NamedNavArgument> = emptyList(),
+    content: @Composable (NavBackStackEntry) -> Unit,
+) {
+    composable(
+        route = route,
+        arguments = arguments,
+        enterTransition = { LyraMotion.slideInto(motionScale) },
+        exitTransition = { LyraMotion.slideOutOf(motionScale, forward = false) },
+        popEnterTransition = { LyraMotion.slideInto(motionScale, forward = false) },
+        popExitTransition = { LyraMotion.slideOutOf(motionScale, forward = false) },
+    ) { entry ->
+        Box(Modifier.fillMaxSize().padding(innerPadding)) { content(entry) }
+    }
+}
 
 @Composable
 fun LyraApp() {
@@ -144,6 +146,8 @@ fun LyraApp() {
     val currentRoute = backStackEntry?.destination?.route
     val topRoutes = TopDestination.entries.map { it.route }
     val onTopLevelDestination = currentRoute in topRoutes
+    // 转场的 lambda 不是 @Composable，读不到 LocalMotionScale，所以在这里取一次带进去
+    val motionScale = LocalMotionScale.current
 
     // 播放页背景是封面模糊，深浅不可预测；状态栏与手势条图标跟着当前配色走，
     // 否则在浅色主题下压深色封面时状态栏图标会看不见
@@ -160,7 +164,7 @@ fun LyraApp() {
         bottomBar = {
             // 播放页占满整屏不需要条；其余页面（含详情页）都要能一眼跳回正在播的那首。
             // 之前只在顶层 Tab 显示，结果在专辑/歌单页点了歌就没有任何入口回到播放页。
-            if (currentRoute != ROUTE_PLAYER) {
+            if (currentRoute != LyraRoutes.PLAYER) {
                 // 顶层 Tab 下 NavigationBar 自己会吃系统安全区；详情页只剩播放条，
                 // 不垫上就会被手势条与大力角切掉一半（真机反馈）
                 Column(
@@ -169,7 +173,7 @@ fun LyraApp() {
                 ) {
                     MiniPlayerBar(
                         viewModel = playerViewModel,
-                        onOpen = { navController.navigate(ROUTE_PLAYER) },
+                        onOpen = { navController.navigate(LyraRoutes.PLAYER) },
                     )
                     if (onTopLevelDestination) {
                         NavigationBar {
@@ -212,239 +216,153 @@ fun LyraApp() {
             TopDestination.entries.forEach { destination ->
                 composable(
                     destination.route,
-                    enterTransition = { LyraMotion.slideInto() },
+                    enterTransition = { LyraMotion.slideInto(motionScale) },
                     exitTransition = {
-                        if (targetState.destination.route in DETAIL_ROUTES) ExitTransition.None else LyraMotion.slideOutOf()
+                        // 目标页是详情页时底下的 Tab 页必须停住：两个界面同时滑是"我点错了"的错觉来源
+                        if (LyraRoutes.isDetail(targetState.destination.route)) ExitTransition.None
+                        else LyraMotion.slideOutOf(motionScale)
                     },
                     popEnterTransition = {
                         // 从详情页退回 Tab 时，底下的 Tab 页本来就在原位，再播一次入场就是用户看到的"错误动画"
-                        if (initialState.destination.route in DETAIL_ROUTES) EnterTransition.None
-                        else LyraMotion.slideInto(forward = false)
+                        if (LyraRoutes.isDetail(initialState.destination.route)) EnterTransition.None
+                        else LyraMotion.slideInto(motionScale, forward = false)
                     },
-                    popExitTransition = { LyraMotion.slideOutOf(forward = false) },
+                    popExitTransition = { LyraMotion.slideOutOf(motionScale, forward = false) },
                 ) {
                     Box(Modifier.fillMaxSize().padding(innerPadding)) {
                         when (destination) {
                             TopDestination.Home -> HomeScreen(
-                                onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
-                                onOpenPlaylistSquare = { navController.navigate(ROUTE_PLAYLIST_SQUARE) },
-                                onOpenBoard = { boardId -> navController.navigate(boardRoute(boardId)) },
-                                onOpenLeaderboardSquare = { navController.navigate(ROUTE_LEADERBOARD_SQUARE) },
+                                onOpenPlaylist = { listId -> navController.navigate(LyraRoutes.playlist(listId)) },
+                                onOpenPlaylistSquare = { navController.navigate(LyraRoutes.PLAYLIST_SQUARE) },
+                                onOpenBoard = { boardId -> navController.navigate(LyraRoutes.board(boardId)) },
+                                onOpenLeaderboardSquare = { navController.navigate(LyraRoutes.LEADERBOARD_SQUARE) },
                             )
 
                             TopDestination.Search -> SearchScreen(
-                                onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
+                                onOpenAlbum = { albumId -> navController.navigate(LyraRoutes.album(albumId)) },
                                 onMore = picker::open,
                             )
 
                             TopDestination.Library -> LibraryScreen(
-                                onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
-                                onOpenLiked = { navController.navigate(ROUTE_LIKED) },
-                                onOpenMyPlaylists = { navController.navigate(ROUTE_MY_PLAYLISTS) },
-                                onOpenSavedPlaylists = { navController.navigate(ROUTE_SAVED_PLAYLISTS) },
-                                onOpenLocalMusic = { navController.navigate(ROUTE_LOCAL_MUSIC) },
+                                onOpenSettings = { navController.navigate(LyraRoutes.SETTINGS) },
+                                onOpenLiked = { navController.navigate(LyraRoutes.LIKED) },
+                                onOpenMyPlaylists = { navController.navigate(LyraRoutes.MY_PLAYLISTS) },
+                                onOpenSavedPlaylists = { navController.navigate(LyraRoutes.SAVED_PLAYLISTS) },
+                                onOpenLocalMusic = { navController.navigate(LyraRoutes.LOCAL_MUSIC) },
                             )
                         }
                     }
                 }
             }
             composable(
-                ROUTE_PLAYER,
-                enterTransition = { LyraMotion.expandFromBar() },
-                exitTransition = { LyraMotion.collapseToBar() },
+                LyraRoutes.PLAYER,
+                enterTransition = { LyraMotion.expandFromBar(motionScale) },
+                exitTransition = { LyraMotion.collapseToBar(motionScale) },
                 popEnterTransition = { EnterTransition.None },
-                popExitTransition = { LyraMotion.collapseToBar() },
+                popExitTransition = { LyraMotion.collapseToBar(motionScale) },
             ) {
                 PlayerScreen(viewModel = playerViewModel, onBack = { navController.popBackStack() })
             }
-            composable(
-                ROUTE_SOURCES,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    SourcesScreen(onBack = { navController.popBackStack() })
-                }
+            lyraDetailRoute(LyraRoutes.SOURCES, motionScale, innerPadding) {
+                SourcesScreen(onBack = { navController.popBackStack() })
             }
-            composable(
-                ROUTE_SETTINGS,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    SettingsScreen(
-                        onBack = { navController.popBackStack() },
-                        onOpenSources = { navController.navigate(ROUTE_SOURCES) },
-                        onOpenCache = { navController.navigate(ROUTE_CACHE) },
-                    )
-                }
+            lyraDetailRoute(LyraRoutes.SETTINGS, motionScale, innerPadding) {
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenSources = { navController.navigate(LyraRoutes.SOURCES) },
+                    onOpenCache = { navController.navigate(LyraRoutes.CACHE) },
+                )
             }
-            composable(
-                ROUTE_CACHE,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    CacheScreen(onBack = { navController.popBackStack() })
-                }
+            lyraDetailRoute(LyraRoutes.CACHE, motionScale, innerPadding) {
+                CacheScreen(onBack = { navController.popBackStack() })
             }
-            composable(
-                ROUTE_ALBUM,
+            lyraDetailRoute(
+                LyraRoutes.ALBUM,
+                motionScale,
+                innerPadding,
                 arguments = listOf(navArgument("albumId") { defaultValue = "" }),
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
             ) { entry ->
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    AlbumRoute(
-                        albumId = entry.arguments?.getString("albumId").orEmpty(),
-                        onBack = { navController.popBackStack() },
-                        onMore = picker::open,
-                    )
-                }
+                AlbumRoute(
+                    albumId = entry.arguments?.getString("albumId").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onMore = picker::open,
+                )
             }
-            composable(
-                ROUTE_PLAYLIST,
+            lyraDetailRoute(
+                LyraRoutes.PLAYLIST,
+                motionScale,
+                innerPadding,
                 arguments = listOf(navArgument("listId") { defaultValue = "" }),
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
             ) { entry ->
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    PlaylistRoute(
-                        listId = entry.arguments?.getString("listId").orEmpty(),
-                        onBack = { navController.popBackStack() },
-                        onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
-                        onMore = picker::open,
-                    )
-                }
+                PlaylistRoute(
+                    listId = entry.arguments?.getString("listId").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onOpenAlbum = { albumId -> navController.navigate(LyraRoutes.album(albumId)) },
+                    onMore = picker::open,
+                )
             }
-            composable(
-                ROUTE_PLAYLIST_SQUARE,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    PlaylistSquareScreen(
-                        onBack = { navController.popBackStack() },
-                        onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
-                    )
-                }
+            lyraDetailRoute(LyraRoutes.PLAYLIST_SQUARE, motionScale, innerPadding) {
+                PlaylistSquareScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenPlaylist = { listId -> navController.navigate(LyraRoutes.playlist(listId)) },
+                )
             }
-            composable(
-                ROUTE_MY_PLAYLIST,
+            lyraDetailRoute(
+                LyraRoutes.MY_PLAYLIST,
+                motionScale,
+                innerPadding,
                 arguments = listOf(navArgument("playlistId") { defaultValue = 0 }),
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
             ) { entry ->
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    MyPlaylistRoute(
-                        playlistId = entry.arguments?.getInt("playlistId") ?: 0,
-                        onBack = { navController.popBackStack() },
-                        onMore = picker::open,
-                    )
-                }
+                MyPlaylistRoute(
+                    playlistId = entry.arguments?.getInt("playlistId") ?: 0,
+                    onBack = { navController.popBackStack() },
+                    onMore = picker::open,
+                )
             }
-            composable(
-                ROUTE_LOCAL_MUSIC,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    LocalMusicRoute(
-                        onBack = { navController.popBackStack() },
-                        onMore = picker::open,
-                    )
-                }
+            lyraDetailRoute(LyraRoutes.LOCAL_MUSIC, motionScale, innerPadding) {
+                LocalMusicRoute(
+                    onBack = { navController.popBackStack() },
+                    onMore = picker::open,
+                )
             }
-            composable(
-                ROUTE_LIKED,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    LikedRoute(
-                        onBack = { navController.popBackStack() },
-                        onMore = picker::open,
-                    )
-                }
+            lyraDetailRoute(LyraRoutes.LIKED, motionScale, innerPadding) {
+                LikedRoute(
+                    onBack = { navController.popBackStack() },
+                    onMore = picker::open,
+                )
             }
-            composable(
-                ROUTE_MY_PLAYLISTS,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    MyPlaylistsScreen(
-                        onBack = { navController.popBackStack() },
-                        onOpenMyPlaylist = { id -> navController.navigate("my-playlist/$id") },
-                    )
-                }
+            lyraDetailRoute(LyraRoutes.MY_PLAYLISTS, motionScale, innerPadding) {
+                MyPlaylistsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenMyPlaylist = { id -> navController.navigate(LyraRoutes.myPlaylist(id)) },
+                )
             }
-            composable(
-                ROUTE_SAVED_PLAYLISTS,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    SavedPlaylistsScreen(
-                        onBack = { navController.popBackStack() },
-                        onOpenPlaylist = { listId -> navController.navigate(playlistRoute(listId)) },
-                    )
-                }
+            lyraDetailRoute(LyraRoutes.SAVED_PLAYLISTS, motionScale, innerPadding) {
+                SavedPlaylistsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenPlaylist = { listId -> navController.navigate(LyraRoutes.playlist(listId)) },
+                )
             }
-            composable(
-                ROUTE_LEADERBOARD_SQUARE,
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
-            ) {
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    LeaderboardSquareScreen(
-                        onBack = { navController.popBackStack() },
-                        onOpenBoard = { boardId -> navController.navigate(boardRoute(boardId)) },
-                    )
-                }
+            lyraDetailRoute(LyraRoutes.LEADERBOARD_SQUARE, motionScale, innerPadding) {
+                LeaderboardSquareScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenBoard = { boardId -> navController.navigate(LyraRoutes.board(boardId)) },
+                )
             }
-            composable(
-                ROUTE_LEADERBOARD_DETAIL,
+            lyraDetailRoute(
+                LyraRoutes.LEADERBOARD_DETAIL,
+                motionScale,
+                innerPadding,
                 arguments = listOf(navArgument("boardId") { defaultValue = "" }),
-                enterTransition = { LyraMotion.slideInto() },
-                exitTransition = { LyraMotion.slideOutOf(forward = false) },
-                popEnterTransition = { LyraMotion.slideInto(forward = false) },
-                popExitTransition = { LyraMotion.slideOutOf(forward = false) },
             ) { entry ->
                 val boardId = entry.arguments?.getString("boardId").orEmpty()
-                Box(Modifier.fillMaxSize().padding(innerPadding)) {
-                    LeaderboardDetailScreen(
-                        // VM 按 boardId 建，换一张榜必须是另一份状态；否则先闪一下上一张榜的列表
-                        viewModel = viewModel(key = "leaderboard-$boardId", factory = LeaderboardDetailViewModel.factory(boardId)),
-                        onBack = { navController.popBackStack() },
-                        onOpenAlbum = { albumId -> navController.navigate(albumRoute(albumId)) },
-                        onMore = picker::open,
-                    )
-                }
+                LeaderboardDetailScreen(
+                    // VM 按 boardId 建，换一张榜必须是另一份状态；否则先闪一下上一张榜的列表
+                    viewModel = viewModel(key = "leaderboard-$boardId", factory = LeaderboardDetailViewModel.factory(boardId)),
+                    onBack = { navController.popBackStack() },
+                    onOpenAlbum = { albumId -> navController.navigate(LyraRoutes.album(albumId)) },
+                    onMore = picker::open,
+                )
             }
         }
     }
@@ -462,7 +380,8 @@ private fun MiniPlayerBar(viewModel: PlayerViewModel, onOpen: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp, vertical = 6.dp)
-            .clickable(onClick = onOpen),
+            // 形变挂在 Surface 的底色外面：整条一起缩，而不是只有里面的字在缩
+            .lyraPressable(onClick = onOpen),
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 3.dp,
@@ -509,28 +428,13 @@ private fun MiniPlayerBar(viewModel: PlayerViewModel, onOpen: () -> Unit) {
                 )
             }
             Spacer(Modifier.size(10.dp))
-            // 视觉上是 38dp 的圆，但可点区域必须是 48dp（Material 触控下限）：
-            // 用 IconButton 承担命中，圆面只是里面的画布
-            IconButton(onClick = viewModel::playPause, modifier = Modifier.size(48.dp)) {
-                Box(
-                    modifier = Modifier.size(38.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (state.isPlaying) {
-                        PauseGlyph(
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            label = stringResource(R.string.action_pause),
-                        )
-                    } else {
-                        PlayGlyph(
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            label = stringResource(R.string.action_play),
-                        )
-                    }
-                }
-            }
+            // 视觉上是 38dp 的圆，可点区域由组件自己补到 48dp（Material 触控下限）
+            PlayPauseButton(
+                isPlaying = state.isPlaying,
+                onClick = viewModel::playPause,
+                diameter = 38.dp,
+                glyphSize = 18.dp,
+            )
         }
     }
 }

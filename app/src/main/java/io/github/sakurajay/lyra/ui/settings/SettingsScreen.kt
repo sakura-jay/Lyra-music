@@ -3,9 +3,13 @@ package io.github.sakurajay.lyra.ui.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -42,11 +46,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,6 +64,9 @@ import io.github.sakurajay.lyra.data.settings.DarkMode
 import io.github.sakurajay.lyra.domain.lyric.LyricTextSize
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.ThemeRippleOverlay
+import io.github.sakurajay.lyra.ui.common.ThemeRippleState
+import io.github.sakurajay.lyra.ui.common.rememberThemeRippleState
 import io.github.sakurajay.lyra.ui.theme.PresetTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -98,125 +109,132 @@ fun SettingsScreen(
         }
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                title = { Text(stringResource(R.string.settings_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        BackGlyph(
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            label = stringResource(R.string.action_back),
-                        )
-                    }
-                },
-            )
-        },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState())
-                .padding(bottom = 24.dp),
-        ) {
-            Section(R.string.settings_appearance) {
-                ChipRow(
-                    label = stringResource(R.string.settings_dark_mode),
-                    options = DarkMode.entries.map { it.name to it.label },
-                    selected = darkMode.name,
-                    enabled = true,
-                    onPick = { name -> viewModel.setDarkMode(DarkMode.valueOf(name)) },
-                )
-                SwitchRow(
-                    label = stringResource(R.string.settings_dynamic),
-                    checked = dynamic,
-                    onChecked = viewModel::setUseDynamicColor,
-                )
-                PresetSwatchRow(
-                    label = stringResource(R.string.settings_color_scheme),
-                    // 存的名字可能来自旧版本，选择器要和实际渲染的那一套一致
-                    selected = PresetTheme.byName(presetName).name,
-                    // 开着动态取色时预设不参与渲染，选项要跟着禁用，否则用户会以为没生效
-                    enabled = !dynamic,
-                    onPick = viewModel::setPreset,
-                )
-            }
+    val ripple = rememberThemeRippleState()
 
-            Section(R.string.settings_playback) {
-                ChipRow(
-                    label = stringResource(R.string.settings_default_quality),
-                    options = Quality.entries.map { it.id to it.label },
-                    selected = quality.id,
-                    enabled = true,
-                    onPick = { id -> Quality.fromId(id)?.let(viewModel::setQuality) },
+    // 涟漪覆盖层要盖在 topBar 与 snackbar 之上：所以它是 Scaffold 的兄弟，不是它的孩子
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    windowInsets = WindowInsets(0, 0, 0, 0),
+                    title = { Text(stringResource(R.string.settings_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            BackGlyph(
+                                modifier = Modifier.size(22.dp),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                label = stringResource(R.string.action_back),
+                            )
+                        }
+                    },
                 )
-                ChipRow(
-                    label = stringResource(R.string.settings_lyric_size),
-                    options = LyricTextSize.entries.map { it.name to it.label },
-                    selected = lyricSize.name,
-                    enabled = true,
-                    onPick = { name -> viewModel.setLyricTextSize(LyricTextSize.valueOf(name)) },
-                )
-                SwitchRow(
-                    label = stringResource(R.string.settings_auto_switch),
-                    checked = autoSwitch,
-                    onChecked = viewModel::setAutoSwitch,
-                )
-            }
-
-            Section(R.string.settings_storage) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Text(
-                        text = stringResource(
-                            R.string.settings_cache,
-                            formatBytes(cacheBytes),
-                            cacheLimit / (1024 * 1024),
-                        ),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
+            },
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState())
+                    .padding(bottom = 24.dp),
+            ) {
+                Section(R.string.settings_appearance) {
+                    ChipRow(
+                        label = stringResource(R.string.settings_dark_mode),
+                        options = DarkMode.entries.map { it.name to it.label },
+                        selected = darkMode.name,
+                        enabled = true,
+                        onPick = { name -> viewModel.setDarkMode(DarkMode.valueOf(name)) },
                     )
-                    // 整行可点进详情：只有一个总字节数时，用户想腾某一首的位置只能全清，
-                    // 把另外几十首的下载一起赔掉
-                    TextButton(onClick = onOpenCache) {
-                        Text(stringResource(R.string.settings_cache_detail))
-                    }
-                    OutlinedButton(onClick = viewModel::clearCache) {
-                        Text(stringResource(R.string.settings_clear_cache))
-                    }
+                    SwitchRow(
+                        label = stringResource(R.string.settings_dynamic),
+                        checked = dynamic,
+                        onChecked = viewModel::setUseDynamicColor,
+                    )
+                    PresetSwatchRow(
+                        label = stringResource(R.string.settings_color_scheme),
+                        // 存的名字可能来自旧版本，选择器要和实际渲染的那一套一致
+                        selected = PresetTheme.byName(presetName).name,
+                        // 开着动态取色时预设不参与渲染，选项要跟着禁用，否则用户会以为没生效
+                        enabled = !dynamic,
+                        onPick = viewModel::setPreset,
+                    ripple = ripple,
+                    )
                 }
-            }
 
-            Section(R.string.settings_data) {
-                Button(onClick = onOpenSources, modifier = Modifier.padding(vertical = 4.dp)) {
-                    Text(stringResource(R.string.library_open_sources))
+                Section(R.string.settings_playback) {
+                    ChipRow(
+                        label = stringResource(R.string.settings_default_quality),
+                        options = Quality.entries.map { it.id to it.label },
+                        selected = quality.id,
+                        enabled = true,
+                        onPick = { id -> Quality.fromId(id)?.let(viewModel::setQuality) },
+                    )
+                    ChipRow(
+                        label = stringResource(R.string.settings_lyric_size),
+                        options = LyricTextSize.entries.map { it.name to it.label },
+                        selected = lyricSize.name,
+                        enabled = true,
+                        onPick = { name -> viewModel.setLyricTextSize(LyricTextSize.valueOf(name)) },
+                    )
+                    SwitchRow(
+                        label = stringResource(R.string.settings_auto_switch),
+                        checked = autoSwitch,
+                        onChecked = viewModel::setAutoSwitch,
+                    )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(
-                        onClick = { exportLauncher.launch(backupFileName()) },
-                        modifier = Modifier.padding(vertical = 4.dp),
-                    ) { Text(stringResource(R.string.settings_export_backup)) }
-                    OutlinedButton(
-                        onClick = {
-                            importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
-                        },
-                        modifier = Modifier.padding(vertical = 4.dp),
-                    ) { Text(stringResource(R.string.settings_import_backup)) }
-                }
-            }
 
-            Text(
-                text = stringResource(R.string.settings_version, versionName()),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+                Section(R.string.settings_storage) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.settings_cache,
+                                formatBytes(cacheBytes),
+                                cacheLimit / (1024 * 1024),
+                            ),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        // 整行可点进详情：只有一个总字节数时，用户想腾某一首的位置只能全清，
+                        // 把另外几十首的下载一起赔掉
+                        TextButton(onClick = onOpenCache) {
+                            Text(stringResource(R.string.settings_cache_detail))
+                        }
+                        OutlinedButton(onClick = viewModel::clearCache) {
+                            Text(stringResource(R.string.settings_clear_cache))
+                        }
+                    }
+                }
+
+                Section(R.string.settings_data) {
+                    Button(onClick = onOpenSources, modifier = Modifier.padding(vertical = 4.dp)) {
+                        Text(stringResource(R.string.library_open_sources))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = { exportLauncher.launch(backupFileName()) },
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        ) { Text(stringResource(R.string.settings_export_backup)) }
+                        OutlinedButton(
+                            onClick = {
+                                importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                            },
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        ) { Text(stringResource(R.string.settings_import_backup)) }
+                    }
+                }
+
+                Text(
+                    text = stringResource(R.string.settings_version, versionName()),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
+        ThemeRippleOverlay(ripple)
     }
 }
 
@@ -283,7 +301,12 @@ private fun PresetSwatchRow(
     selected: String,
     enabled: Boolean,
     onPick: (String) -> Unit,
+    ripple: ThemeRippleState,
 ) {
+    // 涟漪画的是"切过去之后"那一套的主色：浅底取 light、深底取 dark。
+    // 判据用当前背景亮度，而不是"系统是不是深色模式"——动态取色与预设两条来源
+    // 最后都落在 colorScheme 上，只有看它才不会判错。
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(6.dp))
@@ -294,6 +317,13 @@ private fun PresetSwatchRow(
             PresetTheme.All.forEach { preset ->
                 val isSelected = preset.name == selected
                 val tones = preset.swatchTones
+                val tap = remember { SwatchTapTracker() }
+                val interaction = remember { MutableInteractionSource() }
+                LaunchedEffect(interaction) {
+                    interaction.interactions.collect { event ->
+                        if (event is PressInteraction.Press) tap.pressPosition = event.pressPosition
+                    }
+                }
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -303,7 +333,21 @@ private fun PresetSwatchRow(
                             if (isSelected) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
                         )
                         .alpha(if (enabled) 1f else 0.4f)
-                        .clickable(enabled = enabled) { onPick(preset.name) }
+                        .onGloballyPositioned { tap.nodeOrigin = it.positionInRoot() }
+                        // 自带 interactionSource 是为了拿到"手指按在色板的哪一点"：
+                        // 涟漪要从那一点长出来，而不是从色板中心。indication 仍取本地的，
+                        // 观感与别的可点区域保持一致
+                        .clickable(
+                            interactionSource = interaction,
+                            indication = LocalIndication.current,
+                            enabled = enabled,
+                        ) {
+                            ripple.play(
+                                color = if (dark) preset.dark.primary else preset.light.primary,
+                                originInRoot = tap.tapPointInRoot(),
+                            )
+                            onPick(preset.name)
+                        }
                         .padding(vertical = 7.dp),
                 ) {
                     Canvas(Modifier.size(30.dp)) {
@@ -339,6 +383,20 @@ private fun PresetSwatchRow(
             }
         }
     }
+}
+
+/**
+ * 色板按下点的记录器。
+ *
+ * 存普通字段而不是 MutableState：这两个值只在"抬手真正切换"那一刻读一次，
+ * 写它们不该触发重组。[nodeOrigin] 是色板节点在 root 里的位置，[pressPosition] 是
+ * 手指落在节点内的位置，两者相加才是涟漪需要的坐标。
+ */
+private class SwatchTapTracker {
+    var nodeOrigin: Offset = Offset.Zero
+    var pressPosition: Offset = Offset.Zero
+
+    fun tapPointInRoot(): Offset = nodeOrigin + pressPosition
 }
 
 /** 备份文件名带上时间：一天导第二次时，SAF 默认名撞车会让人以为没导成功 */

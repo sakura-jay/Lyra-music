@@ -11,6 +11,8 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 | `0.1.0` – `0.8.0` | M0 – M7 | 本文件下方各节（历史） |
 | `0.9.0` | M8 | [`docs/releases/v0.9.0/`](docs/releases/v0.9.0/) · [计划](docs/releases/v0.9.0/PLAN.md) · [变更](docs/releases/v0.9.0/CHANGELOG.md) · [审查记录](docs/releases/v0.9.0/REVIEW.md) |
 | `0.9.1` | M8 补丁 | [`docs/releases/v0.9.1/`](docs/releases/v0.9.1/) · [计划](docs/releases/v0.9.1/PLAN.md) · [变更](docs/releases/v0.9.1/CHANGELOG.md) |
+| `0.9.2` | M9 | 开发中 · [`docs/releases/v0.9.2/`](docs/releases/v0.9.2/) · [计划](docs/releases/v0.9.2/PLAN.md) · [实现提示词](docs/releases/v0.9.2/PROMPTS.md) · [ADR-0009](docs/adr/0009-动效语言自建缩放与层级表.md) |
+| `0.9.3` | M10 | 未开工 · [计划](docs/releases/v0.9.3/PLAN.md) · [ADR-0010](docs/adr/0010-共享元素转场.md) |
 
 > **约定**：自 `v0.9.0` 起，每个版本的变更记录写在 `docs/releases/vX.Y.Z/CHANGELOG.md`；本文件只保留总索引与 M0–M7 历史。一个里程碑一个 minor，`1.0` 保留给"全部完善"的终点里程碑；分支与提交约定见 `CONTEXT.md`。
 

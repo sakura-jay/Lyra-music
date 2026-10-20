@@ -78,6 +78,10 @@ fun LyraTheme(
         else -> preset.light
     }
 
+    // 这里刻意**不**换 Shapes 也不换 Typography：一换就要重走逐屏截图的回归面。
+    // 弹簧常量抄在 LyraMotion 里而不是走 MaterialTheme.motionScheme——本版锁的
+    // material3 1.4.0 里 MotionScheme 与 MaterialTheme(motionScheme=…) 重载都是
+    // internal，公开面上拿不到（见 ADR-0009）。
     MaterialTheme(
         colorScheme = colorScheme,
         typography = LyraTypography,

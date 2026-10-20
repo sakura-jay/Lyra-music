@@ -25,10 +25,11 @@ android {
         // ADR-0005：minSdk 31 换取 RenderEffect 模糊与 Material 3 动态取色的单一路径
         minSdk = 31
         targetSdk = 36
-        // 与"已收口的里程碑"对齐：M8 = v0.9.0，其审查修订批次作为补丁版 0.9.1 发布。
+        // 与"已收口的里程碑"对齐：M8 = v0.9.0（审查修订批次作为补丁版 0.9.1），
+        // M9 = v0.9.2（动效语言与微交互）。
         // 版本权威仍是 tag，这里只给"设置→关于"和一个可辨识的安装包用。
-        versionCode = 6
-        versionName = "0.9.1"
+        versionCode = 7
+        versionName = "0.9.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -90,6 +91,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.kotlinx.coroutines.android)
@@ -103,6 +105,16 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    // androidTest 里要跑 Compose 的动画断言（MotionScaleProvider(0f) 下必须秒到终态）。
+    // ui-test-manifest 走 debug 而不是 androidTest：它带的是那个宿主 ComponentActivity，
+    // 而 Activity 必须出现在**被测应用**的清单里才有得启动——测试 APK 自己的清单不算。
+    // release 两个都拿不到，包体与行为都不受影响
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    // 只是为了把 ui-test 传递进来的 espresso 3.5.0 顶到 3.7.0：3.5.0 在 API 37 上
+    // 连 onIdle 都进不去（见 libs.versions.toml 里的说明）
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)

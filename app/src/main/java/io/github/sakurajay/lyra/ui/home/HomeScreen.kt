@@ -32,6 +32,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
+import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 
 /**
@@ -78,6 +79,8 @@ fun HomeScreen(
                     onOpen = onOpenPlaylist,
                     onOpenSquare = onOpenPlaylistSquare,
                     onToggleFavorite = viewModel::togglePlaylistFavorite,
+                    // 两排依次出现：先歌单、再榜单（40ms 错峰，见 LyraReveal）
+                    modifier = Modifier.lyraReveal(index = 0),
                 )
             }
 
@@ -86,6 +89,7 @@ fun HomeScreen(
                     boards = state.boards,
                     onOpenBoard = onOpenBoard,
                     onOpenSquare = onOpenLeaderboardSquare,
+                    modifier = Modifier.lyraReveal(index = 1),
                 )
             }
         }
@@ -105,8 +109,9 @@ private fun PlaylistSection(
     onOpen: (String) -> Unit,
     onOpenSquare: () -> Unit,
     onToggleFavorite: (PlaylistSummary) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column {
+    Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -153,8 +158,13 @@ private fun PlaylistSection(
 
 /** 榜单预览：每个来源前几张，"更多"进榜单广场。卡片与歌单同一张，不另做一套。 */
 @Composable
-private fun BoardSection(boards: List<Board>, onOpenBoard: (String) -> Unit, onOpenSquare: () -> Unit) {
-    Column {
+private fun BoardSection(
+    boards: List<Board>,
+    onOpenBoard: (String) -> Unit,
+    onOpenSquare: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 10.dp),
             verticalAlignment = Alignment.CenterVertically,

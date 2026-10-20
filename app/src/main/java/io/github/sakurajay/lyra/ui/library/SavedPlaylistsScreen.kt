@@ -2,7 +2,6 @@ package io.github.sakurajay.lyra.ui.library
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +37,8 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.local.FavoritePlaylist
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.HeartGlyph
+import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
+import io.github.sakurajay.lyra.ui.common.lyraPressable
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
 
@@ -90,6 +91,8 @@ fun SavedPlaylistsScreen(
                         entry = entry,
                         onOpen = { onOpenPlaylist(entry.listId) },
                         onRemove = { viewModel.unfavoritePlaylist(entry) },
+                        // 移出一个歌单时下面的行让位，而不是瞬间跳上来（key 上面已经给了）
+                        modifier = lyraAnimatedItem(),
                     )
                 }
             }
@@ -98,11 +101,16 @@ fun SavedPlaylistsScreen(
 }
 
 @Composable
-private fun SavedPlaylistRow(entry: FavoritePlaylist, onOpen: () -> Unit, onRemove: () -> Unit) {
+private fun SavedPlaylistRow(
+    entry: FavoritePlaylist,
+    onOpen: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
+            .lyraPressable(onClick = onOpen)
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -142,8 +150,9 @@ private fun SavedPlaylistRow(entry: FavoritePlaylist, onOpen: () -> Unit, onRemo
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // 这一列里的心只有"已收藏"一种状态：点它是移出，所以不再走 PlaylistFavoriteButton
-        // 那层自带底色的画法——列表背景是确定的，垫一层底反而显得脏
+        // 这一列里的心只有"已收藏"一种状态：点它是移出。两种情况让这里不用 FavoriteHeartButton：
+        // 一是它没有"描边↔实心"可过渡（状态不会留在这页），二是列表背景是确定的，
+        // 垫一层底反而显得脏
         IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
             HeartGlyph(
                 modifier = Modifier.size(20.dp),
