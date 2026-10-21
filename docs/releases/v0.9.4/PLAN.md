@@ -5,8 +5,8 @@
 
 | 片 | 内容 | 来源 | 取证 |
 | --- | --- | --- | --- |
-| 015 | `BlurBackdrop` 降采样：全屏 RenderEffect 的 GPU 成本 | v0.9.3 决策 9 与「为什么本版不修」 | 真机忙帧 GPU A/B + 观感目视 |
-| 016 | 共享元素**回程**缓动：加速撞进终点 | 用户真机反馈"退出时返回原位速度观感不好（感觉是匀速）" | JVM 3 条 + 真机逐帧测速 |
+| 015 | `BlurBackdrop` 降采样：全屏 RenderEffect 的 GPU 成本 | v0.9.3 决策 9 与「为什么本版不修」 | 真机忙帧 GPU A/B（`build/blur-A` / `build/blur-after`，`scripts/analyze-framestats.ps1`）+ 观感像素差分（`build/blurab/`） |
+| 016 | 共享元素**回程**缓动：加速撞进终点 | 用户真机反馈"退出时返回原位速度观感不好（感觉是匀速）" | JVM 3 条 + 真机逐帧测速（`build/walk/r011.mp4` 前 / `build/walk/a016.mp4` 后，`build/ps/ctrace.ps1` + `ffprobe pts_time`） |
 
 ## 016 的核实结论（先给结论，再看方法）
 
