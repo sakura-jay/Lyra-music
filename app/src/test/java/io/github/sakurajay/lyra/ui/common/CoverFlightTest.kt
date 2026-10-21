@@ -97,4 +97,52 @@ class CoverFlightTest {
         val fractional = coverCropSource(500, 500, 12f, 12f)
         assertTrue(abs(fractional.width - 500) <= 1)
     }
+
+    /**
+     * 落位那一段必须比出发那一段慢。
+     *
+     * 这条断言钉的是真机反馈的那个观感缺陷：回程原来用加速曲线，封面**以最高速撞进**
+     * 来路那张卡片，用户看到的正是最后那一段。逐帧量过（PLK110 同一次采集）：
+     * 回程前 10% 时间只走 5%、后 10% 时间走 22%；去程反过来（37% / 2%）。
+     * 所以判据写成"末段位移 < 首段位移"，而不是去比对某个具体时长——时长会被
+     * 录屏帧率影响，这条比值不会。
+     */
+    private fun travelInFirstAndLastTenth(easing: androidx.compose.animation.core.Easing): Pair<Float, Float> {
+        val samples = 20
+        val values = (0..samples).map { easing.transform(it.toFloat() / samples) }
+        val head = values[samples / 10] - values[0]
+        val tail = values[samples] - values[samples - samples / 10]
+        return head to tail
+    }
+
+    @Test
+    fun bothDirectionsDecelerateIntoTheTarget() {
+        for (enter in listOf(true, false)) {
+            val (head, tail) = travelInFirstAndLastTenth(coverFlightEasing(enter))
+            assertTrue(
+                "enter=$enter 末段位移 $tail 不小于首段 $head —— 这条曲线是加速落位，会撞进终点",
+                tail < head,
+            )
+        }
+    }
+
+    @Test
+    fun returnDirectionIsNoLongerTheAcceleratingOne() {
+        // 回归护栏：改回 `FastOutLinearInEasing` 时这一条必须红
+        val (retHead, retTail) = travelInFirstAndLastTenth(coverFlightEasing(enter = false))
+        val (fwdHead, fwdTail) = travelInFirstAndLastTenth(coverFlightEasing(enter = true))
+        assertTrue("回程末段应比去程末段更收（同为减速）", retTail <= fwdTail + 0.01f)
+        assertTrue("回程首段不该快过去程首段（去程是被认可的那一条）", retHead <= fwdHead)
+        // 回程与去程必须是两条不同的曲线：写成同一条的话上面三条会一起变绿而没人发现
+        assertTrue("回程与去程的曲线不应完全相同", retHead != fwdHead)
+    }
+
+    @Test
+    fun easingEndsExactlyAtOneAndStartsAtZero() {
+        for (enter in listOf(true, false)) {
+            val easing = coverFlightEasing(enter)
+            assertEquals(0f, easing.transform(0f), 1e-6f)
+            assertEquals(1f, easing.transform(1f), 1e-6f)
+        }
+    }
 }

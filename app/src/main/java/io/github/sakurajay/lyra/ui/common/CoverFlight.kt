@@ -1,6 +1,8 @@
 package io.github.sakurajay.lyra.ui.common
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -108,6 +110,30 @@ fun coverFlightRect(from: Rect, to: Rect, fraction: Float): Rect =
 /** 圆角插值：卡片是 12dp、播放页大图是 22dp，不插值中途就会看见方角 */
 fun coverFlightCorner(fromPx: Float, toPx: Float, fraction: Float): Float =
     fromPx + (toPx - fromPx) * fraction.coerceIn(0f, 1f)
+
+/**
+ * 飞行用的缓动：两个方向都必须**减速落位**。
+ *
+ * 原来写的是 `if (enter) LinearOutSlowInEasing else FastOutLinearInEasing`，套的是
+ * Material 那套"入场减速、出场加速"的约定。但那条约定的前提是**出场的东西会消失**——
+ * 加速离开屏幕是对的，因为没人会去看它落在哪儿。共享元素的回程不消失：它要精确落回
+ * 来路上那张卡片，而卡片就在用户眼前。用加速曲线飞回程，等于**以最高速撞进终点**，
+ * 观感就是"慢慢起、越走越快、到位置一脚刹车没有"。真机逐帧量出来（PLK110，同一次采集，
+ * 帧距 16.61ms 已核实）：
+ *
+ * | 方向 | 前 10% 时间走完 | 半程 | 后 10% 时间走完 |
+ * | --- | --- | --- | --- |
+ * | 去程（卡→页头，减速） | 37% | 80% | 2% |
+ * | 回程（页头→卡，加速） | 5% | 39% | 22% |
+ *
+ * 也就是回程最后六分之一秒里还在走全程的五分之一，而这一段正是眼睛盯着的那一段。
+ *
+ * 换成 `FastOutSlowInEasing`（标准减速落位，无过冲，符合 ADR-0009 护栏一：过冲只给小元素）：
+ * 起步有一小段加速所以不像被拽走，中段最快，尾段减速落位。去程保持原曲线不动——
+ * 那是被认可的那一条，且它本来就是减速落位。
+ */
+fun coverFlightEasing(enter: Boolean): Easing =
+    if (enter) LinearOutSlowInEasing else FastOutSlowInEasing
 
 /** 源位图里要画的那一块 */
 data class CoverSourceRect(val x: Int, val y: Int, val width: Int, val height: Int)
@@ -401,7 +427,7 @@ fun CoverFlightOverlay(state: CoverFlightState, modifier: Modifier = Modifier) {
             targetValue = 1f,
             animationSpec = tween(
                 durationMillis = durationMs.coerceAtLeast(1),
-                easing = if (flight.enter) LinearOutSlowInEasing else FastOutLinearInEasing,
+                easing = coverFlightEasing(flight.enter),
             ),
         )
         state.finish(flight.id)

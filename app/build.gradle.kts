@@ -28,8 +28,8 @@ android {
         // 与"已收口的里程碑"对齐：M8 = v0.9.0（审查修订批次作为补丁版 0.9.1），
         // M9 = v0.9.2（动效语言与微交互）。
         // 版本权威仍是 tag，这里只给"设置→关于"和一个可辨识的安装包用。
-        versionCode = 8
-        versionName = "0.9.3"
+        versionCode = 9
+        versionName = "0.9.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
