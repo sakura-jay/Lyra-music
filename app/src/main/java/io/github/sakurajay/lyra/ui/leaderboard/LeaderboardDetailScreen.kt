@@ -41,7 +41,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
-import io.github.sakurajay.lyra.ui.common.LyraSkeletonListRow
+import io.github.sakurajay.lyra.ui.common.LyraSkeletonRankRow
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.lyraCoverDetail
 import io.github.sakurajay.lyra.ui.common.lyraReveal
@@ -169,7 +169,7 @@ fun LeaderboardDetailScreen(
             // 首屏骨架（018）：只在还没有任何数据时出现，数据一到让位给真行
             if (state.songs.isEmpty() && state.loading) {
                 items(8) { index ->
-                    LyraSkeletonListRow(index = index)
+                    LyraSkeletonRankRow(index = index)
                 }
             }
 

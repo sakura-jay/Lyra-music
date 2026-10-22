@@ -441,7 +441,9 @@ fun Modifier.lyraCoverAnchor(key: String, corner: Dp, artwork: ImageBitmap?): Mo
  * 时长与路由转场同档（017）：去程 280ms 对齐 `expandFromBar`，回程 240ms 对齐
  * `collapseToBar`，再乘 [LocalMotionScale]。回程（页头/大图 → 卡片）另叠
  * `FastOutSlowInEasing` 减速落位（016 验收结论），与页面加速离场的曲线差是有意的：
- * 页面要"退得干脆"，封面要"落得轻"。
+ * 页面要"退得干脆"，封面要"落得轻"。019 修的"半途淡出"不在曲线里：飞行整体画
+ * 一份位图，半途变透明的"残影感"来自长退场路由弹窗把覆盖层窗口压暗——与几何无关，
+ * 这里不做每帧 alpha 插值，落点何时可见由 019 的入场淡入收紧（60ms）保证。
  * 进度只在 `Canvas` 的绘制里读，所以整段飞行不需要重组，只需要重绘。
  */
 @Composable

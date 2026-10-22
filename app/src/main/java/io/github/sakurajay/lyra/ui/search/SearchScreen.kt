@@ -54,7 +54,7 @@ import io.github.sakurajay.lyra.player.SongPlayController
 import io.github.sakurajay.lyra.player.SongQueueLauncher
 import io.github.sakurajay.lyra.player.describe
 import io.github.sakurajay.lyra.ui.common.MoreGlyph
-import io.github.sakurajay.lyra.ui.common.LyraSkeletonListRow
+import io.github.sakurajay.lyra.ui.common.LyraSkeletonTextRow
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
@@ -206,7 +206,7 @@ fun SearchScreen(
             // 搜索骨架（018）：三行"方块+文字"占位替代转圈行；结果到点后原位替换
             if (state.searching) {
                 Column {
-                    repeat(3) { index -> LyraSkeletonListRow(index = index) }
+                    repeat(3) { index -> LyraSkeletonTextRow(index = index) }
                 }
             }
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,6 +40,7 @@ import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.FavoriteHeartButton
+import io.github.sakurajay.lyra.ui.common.LyraSkeletonRankRow
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.lyraCoverDetail
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
@@ -188,7 +190,8 @@ fun TrackListScreen(
                 }
             }
 
-            if (list != null && list.songs.isEmpty()) {
+            val loadingRows = state.loading && list == null
+            if (!loadingRows && list != null && list.songs.isEmpty()) {
                 Text(
                     text = emptyText ?: stringResource(R.string.tracklist_empty),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
@@ -206,6 +209,13 @@ fun TrackListScreen(
                 // rowFavorites 而不是路由名——只有这一页给了行内 ♥。
                 val rowKey: ((Int, Song) -> Any)? =
                     if (rowFavorites != null) { _, song -> FavoritesRepository.keyOf(song) } else null
+                // 首屏骨架（020）：歌单详情此前没有任何列表占位，只有一个页头转圈；
+                // 数据没到时给 8 行整行形状（与真实行同构：序号+两行字+右侧点）
+                if (loadingRows) {
+                    items(8) { index ->
+                        LyraSkeletonRankRow(index = index)
+                    }
+                }
                 itemsIndexed(list?.songs.orEmpty(), key = rowKey) { index, song ->
                     val more: (() -> Unit)? = onMore?.let { action -> { action(song) } }
                     val toggleRow: (() -> Unit)? = rowFavorites?.let { fav -> { fav.onToggle(song) } }

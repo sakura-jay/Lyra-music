@@ -15,6 +15,7 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 | `0.9.3` | M10 | [`docs/releases/v0.9.3/`](docs/releases/v0.9.3/) · [计划](docs/releases/v0.9.3/PLAN.md) · [变更](docs/releases/v0.9.3/CHANGELOG.md) · [工单](docs/releases/v0.9.3/tickets/) · [实现提示词](docs/releases/v0.9.3/PROMPTS.md) · [ADR-0010](docs/adr/0010-共享元素转场.md) |
 | `0.9.4` | 反馈补丁 | [`docs/releases/v0.9.4/`](docs/releases/v0.9.4/) · [计划](docs/releases/v0.9.4/PLAN.md) · [变更](docs/releases/v0.9.4/CHANGELOG.md) · [工单](docs/releases/v0.9.4/tickets/) · [实现提示词](docs/releases/v0.9.4/PROMPTS.md) |
 | `0.9.5` | 反馈补丁 | [`docs/releases/v0.9.5/`](docs/releases/v0.9.5/) · [计划](docs/releases/v0.9.5/PLAN.md) · [变更](docs/releases/v0.9.5/CHANGELOG.md) · [工单](docs/releases/v0.9.5/tickets/) · [实现提示词](docs/releases/v0.9.5/PROMPTS.md) |
+| `0.9.6` | 反馈补丁 | [`docs/releases/v0.9.6/`](docs/releases/v0.9.6/) · [计划](docs/releases/v0.9.6/PLAN.md) · [变更](docs/releases/v0.9.6/CHANGELOG.md) · [工单](docs/releases/v0.9.6/tickets/) · [实现提示词](docs/releases/v0.9.6/PROMPTS.md) |
 
 > **约定**：自 `v0.9.0` 起，每个版本的变更记录写在 `docs/releases/vX.Y.Z/CHANGELOG.md`；本文件只保留总索引与 M0–M7 历史。一个里程碑一个 minor，`1.0` 保留给"全部完善"的终点里程碑；分支与提交约定见 `CONTEXT.md`。
 

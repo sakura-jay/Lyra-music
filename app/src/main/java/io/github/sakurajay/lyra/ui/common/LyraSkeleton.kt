@@ -26,6 +26,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.sakurajay.lyra.ui.motion.LocalMotionScale
@@ -47,8 +49,15 @@ fun LyraSkeleton(
     corner: Dp = 12.dp,
 ) {
     val scale = LocalMotionScale.current
-    val base = MaterialTheme.colorScheme.surfaceContainerHighest
-    val highlight = MaterialTheme.colorScheme.surfaceContainer
+    val base = MaterialTheme.colorScheme.surfaceContainerHigh
+    // 高光不再取固定色阶：018 版 highlight = surfaceContainer 与底色只差一档、渐变带
+    // 又过宽，浅色主题下扫光基本不可见（用户原话"只有骨架，没有动画"）。改为按底色
+    // 亮度推导：浅色主题往白推 65%，深色主题推 16%，两个主题里扫光都是一道亮带。
+    val highlight = if (base.luminance() > 0.5f) {
+        lerp(base, Color.White, 0.65f)
+    } else {
+        lerp(base, Color.White, 0.16f)
+    }
     val shape = RoundedCornerShape(corner)
     val brush = if (MotionSpec.shouldAnimate(scale)) {
         val transition = rememberInfiniteTransition(label = "lyraSkeletonShimmer")
@@ -63,8 +72,10 @@ fun LyraSkeleton(
         )
         Brush.linearGradient(
             colors = listOf(base, highlight, base),
-            start = Offset(phase * 1200f, 0f),
-            end = Offset((phase + 1f) * 1200f, 600f),
+            // 渐变带收紧到 0.5 个步长：018 版 1.0 步长的"亮带"过宽，等于底色被
+            // 长时间洗白，肉眼几乎看不出在动；0.5 步长才是一道可辨的扫光
+            start = Offset(phase * 1500f, 0f),
+            end = Offset((phase + 0.5f) * 1500f, 600f),
         )
     } else {
         Brush.linearGradient(listOf(base, base))
@@ -112,9 +123,9 @@ fun LyraSkeletonGrid(modifier: Modifier = Modifier) {
     }
 }
 
-/** 榜单/搜索列表的骨架：一行"小方块 + 两行字" */
+/** 榜单列表的骨架：整行"序号 + 两行字 + 右侧小点"——榜单行没有图片（020） */
 @Composable
-fun LyraSkeletonListRow(index: Int, modifier: Modifier = Modifier) {
+fun LyraSkeletonRankRow(index: Int, modifier: Modifier = Modifier) {
     // 40ms 错峰复用层级表的 stagger 约定；骨架只在首屏 handful 行出现，cap 兜底
     val alpha by animateFloatAsState(
         targetValue = 1f,
@@ -130,13 +141,20 @@ fun LyraSkeletonListRow(index: Int, modifier: Modifier = Modifier) {
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .graphicsLayer { this.alpha = alpha },
     ) {
-        LyraSkeleton(modifier = Modifier.size(44.dp), corner = 8.dp)
-        Column(Modifier.padding(start = 12.dp).fillMaxWidth()) {
+        LyraSkeleton(modifier = Modifier.size(width = 26.dp, height = 24.dp), corner = 6.dp)
+        Column(Modifier.padding(start = 10.dp).weight(1f)) {
             LyraSkeleton(modifier = Modifier.fillMaxWidth(0.55f), corner = 6.dp)
             LyraSkeleton(
                 modifier = Modifier.padding(top = 6.dp).fillMaxWidth(0.35f),
                 corner = 6.dp,
             )
         }
+        LyraSkeleton(modifier = Modifier.padding(start = 12.dp).size(16.dp), corner = 4.dp)
     }
+}
+
+/** 搜索结果的骨架：整行"两行字"（SongRow 是纯文字行，没有图片，020） */
+@Composable
+fun LyraSkeletonTextRow(index: Int, modifier: Modifier = Modifier) {
+    LyraSkeletonRankRow(index = index, modifier = modifier)
 }

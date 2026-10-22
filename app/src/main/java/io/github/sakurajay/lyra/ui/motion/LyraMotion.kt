@@ -42,11 +42,18 @@ object LyraMotion {
     private val BOTTOM_ORIGIN = TransformOrigin(0.5f, 1f)
 
     /**
+     * tab ↔ 详情页的入场淡入基准（019）。
+     *
+     * 原值 180ms+20ms 延迟：回程封面 240ms 飞到落点时，落点卡片还没淡完，用户看见
+     * 连续几帧"封面悬在空洞上"（真机逐帧 f1315-1320）。淡入收紧到 60ms 无延迟——
+     * 页面位移照旧，透明度不再给封面落点拖后腿。
+     */
+    private const val DETAIL_FADE_MS = 60
+
+    /**
      * 路由转场的淡入淡出基准值：不是层级表里的档位，也不属于"新写的动画"，
      * 是三轮真机验收留下的数值，本版只把它们接到系统动画缩放上，数值本身不动。
      */
-    private const val ROUTE_FADE_IN_MS = 180
-    private const val ROUTE_FADE_IN_DELAY_MS = 20
     private const val ROUTE_FADE_OUT_MS = 140
     private const val PLAYER_FADE_OUT_MS = 160
     private const val PLAYER_FADE_OUT_DELAY_MS = 60
@@ -128,8 +135,7 @@ object LyraMotion {
             initialOffsetX = { if (forward) it / 10 else -it / 10 },
         ) + fadeIn(
             snapOrTween(
-                durationMs = MotionSpec.durationMsOf(ROUTE_FADE_IN_MS, scale),
-                delayMillis = MotionSpec.durationMsOf(ROUTE_FADE_IN_DELAY_MS, scale),
+                durationMs = MotionSpec.durationMsOf(DETAIL_FADE_MS, scale),
             ),
         )
     }
@@ -145,6 +151,30 @@ object LyraMotion {
         ) + fadeOut(
             snapOrTween(
                 durationMs = MotionSpec.durationMsOf(ROUTE_FADE_OUT_MS, scale),
+                easing = FastOutLinearInEasing,
+            ),
+        )
+    }
+
+    /**
+     * tab 页被详情页压住时的"轻退场"（019）。
+     *
+     * 原来这一侧是 `ExitTransition.None`（整页满 alpha 定住）。019 坐实的问题不在它，
+     * 而在详情页侧的慢淡入；本侧改成 60ms 微淡出与 `slideInto` 的 60ms 淡入对称：
+     * 两页之间不再有一层"半透明叠半透明"的长期叠影，页头在封面落地时也已可见。
+     * 位移保持原有 spring——这是真机验收过的"停住又让一点"的观感，本版不动。
+     */
+    fun slideUnderDetail(scale: Float): ExitTransition {
+        if (!MotionSpec.shouldAnimate(scale)) return ExitTransition.None
+        return slideOutHorizontally(
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = springStiffness(Spring.StiffnessMediumLow, scale),
+            ),
+            targetOffsetX = { -it / 10 },
+        ) + fadeOut(
+            snapOrTween(
+                durationMs = MotionSpec.durationMsOf(DETAIL_FADE_MS, scale),
                 easing = FastOutLinearInEasing,
             ),
         )

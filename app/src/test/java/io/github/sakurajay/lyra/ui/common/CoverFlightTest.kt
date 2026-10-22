@@ -52,6 +52,16 @@ class CoverFlightTest {
     }
 
     @Test
+    fun landingFadeCompletesBeforeFlightLands() {
+        // 019：封面回程 240ms 落地时，落点页头必须已经可见——018 版入场淡入 180ms+20ms
+        // 延迟，落地后还有 5+ 帧"封面悬在空洞上"（真机 f1315-1320）。
+        // 收紧后的 60ms 淡入（无延迟）在 240ms 封面落地前完成。
+        val flightMs = MotionSpec.durationMs(MotionTier.ROUTE, 1f, enter = false)
+        val fadeMs = 60 // LyraMotion.DETAIL_FADE_MS，在 LyraMotion 内部是 private
+        assertTrue("落点淡入必须早于封面落地完成", fadeMs < flightMs)
+    }
+
+    @Test
     fun cornerInterpolatesAndClamps() {
         assertEquals(12f, coverFlightCorner(12f, 22f, 0f), 0.001f)
         assertEquals(22f, coverFlightCorner(12f, 22f, 1f), 0.001f)

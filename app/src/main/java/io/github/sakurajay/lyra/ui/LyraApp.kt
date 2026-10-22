@@ -327,7 +327,9 @@ private fun AppContent(
                         enterTransition = { LyraMotion.slideInto(motionScale) },
                         exitTransition = {
                             // 目标页是详情页时底下的 Tab 页必须停住：两个界面同时滑是"我点错了"的错觉来源
-                            if (LyraRoutes.isDetail(targetState.destination.route)) ExitTransition.None
+                            // 019：整页定住改成 60ms 微淡出——详情页侧的淡入收紧后，
+                            // 这一层如果仍保持满 alpha，回程封面落地时落点页头会被它压在下面
+                            if (LyraRoutes.isDetail(targetState.destination.route)) LyraMotion.slideUnderDetail(motionScale)
                             else LyraMotion.slideOutOf(motionScale)
                         },
                         popEnterTransition = {
