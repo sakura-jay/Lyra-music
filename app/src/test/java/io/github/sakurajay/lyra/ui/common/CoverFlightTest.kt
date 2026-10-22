@@ -1,6 +1,8 @@
 package io.github.sakurajay.lyra.ui.common
 
 import androidx.compose.ui.geometry.Rect
+import io.github.sakurajay.lyra.ui.motion.MotionSpec
+import io.github.sakurajay.lyra.ui.motion.MotionTier
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -39,6 +41,14 @@ class CoverFlightTest {
         // 而目标边缘正是最容易被看出来的地方
         assertEquals(mini, coverFlightRect(mini, player, -0.2f))
         assertEquals(player, coverFlightRect(mini, player, 1.2f))
+    }
+
+    @Test
+    fun flightDurationFollowsRouteTierNotLarge() {
+        // 017：封面与路由转场必须同档同长（去 280 / 回 240），错位才会消失。
+        // 这条钉的是"如果有人改回 LARGE 档，测试先红"。第三条防止 ROUTE 档数值漂移。
+        assertEquals(280, MotionSpec.durationMs(MotionTier.ROUTE, 1f, enter = true))
+        assertEquals(240, MotionSpec.durationMs(MotionTier.ROUTE, 1f, enter = false))
     }
 
     @Test

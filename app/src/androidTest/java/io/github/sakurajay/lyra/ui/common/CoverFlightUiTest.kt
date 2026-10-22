@@ -75,7 +75,7 @@ class CoverFlightUiTest {
 
         rule.mainClock.autoAdvance = false
         rule.runOnUiThread { flight.flyToPlayer(1f) }
-        // 进入档是 350ms（large 层），走到一半：图只该在中间，两端的自己那份必须隐身
+        // 去程 017 起走 ROUTE 档 280ms，走到一半：图只该在中间，两端的自己那份必须隐身
         rule.mainClock.advanceTimeBy(175)
         val mid = capture()
         assertTrue("飞行中起点不能还留着那一份", !mid.isCover(mini.center))

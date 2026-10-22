@@ -32,6 +32,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
+import io.github.sakurajay.lyra.ui.common.LyraSkeletonCardRow
 import io.github.sakurajay.lyra.ui.nav.LyraRoutes
 import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
@@ -150,10 +151,8 @@ private fun PlaylistSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            loading -> CircularProgressIndicator(
-                modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp).size(18.dp),
-                strokeWidth = 2.dp,
-            )
+            // 首屏骨架（018）：卡片形状先出来，比一个转圈更像"内容在路上"
+            loading -> LyraSkeletonCardRow(count = 2)
         }
     }
 }

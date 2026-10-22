@@ -73,6 +73,7 @@ class CoverDetailFlightUiTest {
 
         rule.mainClock.autoAdvance = false
         rule.runOnUiThread { flight.flyIntoDetail("home", CARD, 1f) }
+        // 去程 017 起走 ROUTE 档 280ms，中途采样取一半
         rule.mainClock.advanceTimeBy(175)
         val mid = capture()
         assertTrue("飞行中卡片那一份必须隐身", !mid.isCover(card.center))
@@ -128,7 +129,9 @@ class CoverDetailFlightUiTest {
 
         rule.mainClock.autoAdvance = false
         rule.runOnUiThread { flight.flyOutOfDetail("home", CARD, 1f) }
-        rule.mainClock.advanceTimeBy(225)
+        // 017 起回程走 ROUTE 档 240ms：中途采样点取 1/3 处，与旧 450ms 档的
+        // "225ms=一半"同义。写 80ms 而不是再留个魔法数在断言里。
+        rule.mainClock.advanceTimeBy(80)
         val mid = capture()
         assertTrue("返回飞行中页头要隐身", !mid.isCover(header.center))
         assertTrue("返回飞行中卡片要隐身", !mid.isCover(card.center))

@@ -1,5 +1,8 @@
 package io.github.sakurajay.lyra.ui.common
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.job
+import kotlin.coroutines.coroutineContext
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -177,6 +180,11 @@ internal data class Entry(
     fun rectNow(): Rect = coordinates?.takeIf { it.isAttached }?.boundsInRoot() ?: snapshot.rect
 }
 
+/** 一场进行中的飞行：覆盖层在 `LaunchedEffect` 里挂进来的 job，接力/收尾用 */
+internal class RunningFlight {
+    var job: Job? = null
+}
+
 /** 一次飞行：起点是触发那一刻的快照，终点读目标端点的实时测量值 */
 internal data class CoverFlight(
     val id: Int,
@@ -219,6 +227,9 @@ class CoverFlightState {
 
     internal var flight: CoverFlight? by mutableStateOf(null)
         private set
+
+    /** 与 [flight] 同生命周期：非 null 表示有一场飞行还在跑 */
+    private val runningFlight = RunningFlight()
 
     /**
      * 端点每次布局报一次自己。覆盖层要的就是"现在在哪"。
@@ -279,8 +290,18 @@ class CoverFlightState {
      * 进场反过来允许落点暂时为空：目标页正在进来，覆盖层第一帧停在起点、随后跟上它的实时矩形。
      */
     private fun begin(fromKey: String, toKey: String, enter: Boolean, scale: Float) {
-        // 关掉系统动画时当帧到位：飞行本身也不该发生
+        // 飞行中途又触发一次导航（点开迷你条后立刻返回，或反之）：上一场还在半空，
+        // 从新起点的当前矩形接飞，而不是等旧的那场飞完——旧代码里 animateTo 挂起
+        // 会把这条路径挡在门外，快速往返时观感是"封面僵在半路"。接力语义与
+        // Flutter Hero 的 "redirected to its new destination" 一致（017）。
+        runningFlight.job?.cancel()
+        flight = null
+        landing = null
+        landingKey = null
+
+        // 关掉系统动画时当帧到位：飞行本身也不该发生（端点恢复可见，由上面清空完成）
         if (!MotionSpec.shouldAnimate(scale)) return
+
         val source = entries[fromKey] ?: return
         val artwork = source.snapshot.artwork ?: return
         val rect = source.rectNow()
@@ -305,7 +326,13 @@ class CoverFlightState {
             flight = null
             landing = null
             landingKey = null
+            runningFlight.job = null
         }
+    }
+
+    /** 供覆盖层挂 job；接力时由 [begin] 取消旧的 */
+    internal fun attachJob(job: Job) {
+        runningFlight.job = job
     }
 }
 
@@ -411,17 +438,21 @@ fun Modifier.lyraCoverAnchor(key: String, corner: Dp, artwork: ImageBitmap?): Mo
 /**
  * 覆盖层本体。挂在 `NavHost` 外面（页面走了它还在），不吃触摸，不参与测量。
  *
- * 时长走 large 档的进入 / 退出两值：350ms 飞过去、450ms 飞回来，再乘 [LocalMotionScale]。
+ * 时长与路由转场同档（017）：去程 280ms 对齐 `expandFromBar`，回程 240ms 对齐
+ * `collapseToBar`，再乘 [LocalMotionScale]。回程（页头/大图 → 卡片）另叠
+ * `FastOutSlowInEasing` 减速落位（016 验收结论），与页面加速离场的曲线差是有意的：
+ * 页面要"退得干脆"，封面要"落得轻"。
  * 进度只在 `Canvas` 的绘制里读，所以整段飞行不需要重组，只需要重绘。
  */
 @Composable
 fun CoverFlightOverlay(state: CoverFlightState, modifier: Modifier = Modifier) {
     val flight = state.flight ?: return
     val scale = LocalMotionScale.current
-    val durationMs = MotionSpec.durationMs(MotionTier.LARGE, scale, enter = flight.enter)
+    val durationMs = MotionSpec.durationMs(MotionTier.ROUTE, scale, enter = flight.enter)
     val progress = remember { Animatable(0f) }
 
     LaunchedEffect(flight.id) {
+        state.attachJob(coroutineContext.job)
         progress.snapTo(0f)
         progress.animateTo(
             targetValue = 1f,
