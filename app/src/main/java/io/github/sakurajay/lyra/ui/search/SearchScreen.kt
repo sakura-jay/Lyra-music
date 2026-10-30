@@ -54,7 +54,8 @@ import io.github.sakurajay.lyra.player.SongPlayController
 import io.github.sakurajay.lyra.player.SongQueueLauncher
 import io.github.sakurajay.lyra.player.describe
 import io.github.sakurajay.lyra.ui.common.MoreGlyph
-import io.github.sakurajay.lyra.ui.common.LyraSkeletonTextRow
+import io.github.sakurajay.lyra.ui.common.LyraSkeletonRow
+import io.github.sakurajay.lyra.ui.common.ProvideSkeletonShimmer
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
@@ -182,67 +183,69 @@ fun SearchScreen(
             )
         },
     ) { innerPadding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ProvideSkeletonShimmer(active = state.searching) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedTextField(
-                    value = state.query,
-                    onValueChange = viewModel::onQueryChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.search_hint)) },
-                    singleLine = true,
-                )
-                Button(onClick = viewModel::search, enabled = !state.searching) {
-                    Text(stringResource(R.string.search_action))
-                }
-            }
-
-            // 搜索骨架（018）：三行"方块+文字"占位替代转圈行；结果到点后原位替换
-            if (state.searching) {
-                Column {
-                    repeat(3) { index -> LyraSkeletonTextRow(index = index) }
-                }
-            }
-
-            if (state.groups.size > 1 || state.selectedGroup != null) {
-                GroupFilter(groups = state.groups, selected = state.selectedGroup, onSelect = viewModel::selectGroup)
-            }
-
-            if (state.groups.isEmpty() && !state.searching) {
-                Text(
-                    text = stringResource(R.string.search_idle),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.shownGroups.forEachIndexed { index, group ->
-                    item(key = "header-${group.label}") {
-                        // 一次搜索会同时冒出好几家的结果，全体同时出现像"整屏闪了一下"；
-                        // 取模式 3 只借错峰机制（step 40ms / 上限 240ms），主交互仍是普通实现
-                        GroupHeader(group, Modifier.lyraReveal(index))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = state.query,
+                        onValueChange = viewModel::onQueryChange,
+                        modifier = Modifier.weight(1f),
+                        label = { Text(stringResource(R.string.search_hint)) },
+                        singleLine = true,
+                    )
+                    Button(onClick = viewModel::search, enabled = !state.searching) {
+                        Text(stringResource(R.string.search_action))
                     }
-                    // 不传 key：同一首歌在一份结果里出现两次是合法数据（歌单重复曲目、
-                    // 平台返回同 id 的不同版本），而 LazyColumn 的 key 撞车会直接崩
-                    items(group.songs) { song ->
-                        SongRow(
-                            song = song,
-                            modifier = lyraAnimatedItem(),
-                            highlighted = "${song.source}-${song.id}" == state.playingKey,
-                            loading = song.id == state.loadingSongId,
-                            onClick = { viewModel.play(song, group.songs) },
-                            onOpenAlbum = onOpenAlbum,
-                            onLongClick = { onMore(song) },
-                            onMore = { onMore(song) },
-                        )
+                }
+
+                // 搜索骨架（021）：三行整行占位替代转圈行；结果到点后原位替换
+                if (state.searching) {
+                    repeat(3) {
+                        LyraSkeletonRow()
+                    }
+                }
+
+                if (state.groups.size > 1 || state.selectedGroup != null) {
+                    GroupFilter(groups = state.groups, selected = state.selectedGroup, onSelect = viewModel::selectGroup)
+                }
+
+                if (state.groups.isEmpty() && !state.searching) {
+                    Text(
+                        text = stringResource(R.string.search_idle),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.shownGroups.forEachIndexed { index, group ->
+                        item(key = "header-${group.label}") {
+                            // 一次搜索会同时冒出好几家的结果，全体同时出现像"整屏闪了一下"；
+                            // 取模式 3 只借错峰机制（step 40ms / 上限 240ms），主交互仍是普通实现
+                            GroupHeader(group, Modifier.lyraReveal(index))
+                        }
+                        // 不传 key：同一首歌在一份结果里出现两次是合法数据（歌单重复曲目、
+                        // 平台返回同 id 的不同版本），而 LazyColumn 的 key 撞车会直接崩
+                        items(group.songs) { song ->
+                            SongRow(
+                                song = song,
+                                modifier = lyraAnimatedItem(),
+                                highlighted = "${song.source}-${song.id}" == state.playingKey,
+                                loading = song.id == state.loadingSongId,
+                                onClick = { viewModel.play(song, group.songs) },
+                                onOpenAlbum = onOpenAlbum,
+                                onLongClick = { onMore(song) },
+                                onMore = { onMore(song) },
+                            )
+                        }
                     }
                 }
             }

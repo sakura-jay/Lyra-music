@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -33,6 +35,7 @@ import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
 import io.github.sakurajay.lyra.ui.common.LyraSkeletonCardRow
+import io.github.sakurajay.lyra.ui.common.ProvideSkeletonShimmer
 import io.github.sakurajay.lyra.ui.nav.LyraRoutes
 import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
@@ -63,36 +66,38 @@ fun HomeScreen(
             TopAppBar(
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text(stringResource(R.string.home_title)) },
-                actions = {
-                    TextButton(onClick = viewModel::reload, modifier = Modifier.padding(end = 12.dp)) {
-                        Text(stringResource(R.string.action_reload))
-                    }
-                },
             )
         },
     ) { innerPadding ->
-        LazyColumn(modifier = Modifier.fillMaxWidth().padding(innerPadding)) {
-            item {
-                PlaylistSection(
-                    playlists = state.playlists,
-                    loading = state.playlistsLoading,
-                    failed = state.playlistsFailed,
-                    favoriteIds = favoritePlaylistIds,
-                    onOpen = onOpenPlaylist,
-                    onOpenSquare = onOpenPlaylistSquare,
-                    onToggleFavorite = viewModel::togglePlaylistFavorite,
-                    // 两排依次出现：先歌单、再榜单（40ms 错峰，见 LyraReveal）
-                    modifier = Modifier.lyraReveal(index = 0),
-                )
-            }
+        // 下拉刷新（022）：重载入口从顶栏挪到这里，顶部不再留一个常驻按钮
+        PullToRefreshBox(
+            isRefreshing = state.playlistsLoading,
+            onRefresh = viewModel::reload,
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                item {
+                    PlaylistSection(
+                        playlists = state.playlists,
+                        loading = state.playlistsLoading,
+                        failed = state.playlistsFailed,
+                        favoriteIds = favoritePlaylistIds,
+                        onOpen = onOpenPlaylist,
+                        onOpenSquare = onOpenPlaylistSquare,
+                        onToggleFavorite = viewModel::togglePlaylistFavorite,
+                        // 两排依次出现：先歌单、再榜单（40ms 错峰，见 LyraReveal）
+                        modifier = Modifier.lyraReveal(index = 0),
+                    )
+                }
 
-            item {
-                BoardSection(
-                    boards = state.boards,
-                    onOpenBoard = onOpenBoard,
-                    onOpenSquare = onOpenLeaderboardSquare,
-                    modifier = Modifier.lyraReveal(index = 1),
-                )
+                item {
+                    BoardSection(
+                        boards = state.boards,
+                        onOpenBoard = onOpenBoard,
+                        onOpenSquare = onOpenLeaderboardSquare,
+                        modifier = Modifier.lyraReveal(index = 1),
+                    )
+                }
             }
         }
     }
@@ -152,7 +157,7 @@ private fun PlaylistSection(
             )
 
             // 首屏骨架（018）：卡片形状先出来，比一个转圈更像"内容在路上"
-            loading -> LyraSkeletonCardRow(count = 2)
+            loading -> ProvideSkeletonShimmer { LyraSkeletonCardRow(count = 2) }
         }
     }
 }

@@ -3,14 +3,15 @@ package io.github.sakurajay.lyra.ui.common
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.dp
 import io.github.sakurajay.lyra.ui.motion.MotionSpec
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 骨架加载（018）纯函数侧：shimmer 时长与错峰淡入都走层级表换算。
- * 观感（shimmer 是否顺眼）走真机目视，这里钉数值契约。
+ * 骨架加载（021）纯函数侧：shimmer 时长与整行骨架的几何契约。
+ * 观感（扫光是否顺眼）走真机目视，这里钉数值契约。
  */
 class LyraSkeletonTest {
 
@@ -23,11 +24,24 @@ class LyraSkeletonTest {
     }
 
     @Test
-    fun skeletonRowsStaggerWithCap() {
-        assertEquals(0, MotionSpec.staggerOffset(0))
-        assertEquals(40, MotionSpec.staggerOffset(1))
-        assertEquals(240, MotionSpec.staggerOffset(7))
-        assertTrue(MotionSpec.staggerOffset(100) <= 240)
+    fun skeletonRowMatchesTrackRowGeometry() {
+        // 骨架行与真实行同高：38dp 内容 + 12dp 行 padding（上下各 6dp）
+        assertEquals(38, TRACK_ROW_CONTENT_HEIGHT_DP)
+        assertEquals(50.dp, TRACK_ROW_CONTENT_HEIGHT_DP.dp + 12.dp)
+    }
+
+    @Test
+    fun shimmerBandScalesWithBlockWidthAndStaysOutsideAtEnds() {
+        // 带子宽度 = 块宽的 1/3，扫光带不是固定像素——两种块宽观感一致
+        val span = skeletonShimmerSpan(phase = 0.5f, widthPx = 300f)
+        val band = 100f
+        assertEquals(2f * band, span.endInclusive - span.start, 0.01f)
+        // phase=-1 时右缘贴左边界（带子还没进场）、phase=2 时左缘贴右边界（已扫出）
+        assertEquals(0f, skeletonShimmerSpan(-1f, 300f).endInclusive, 0.01f)
+        assertEquals(300f, skeletonShimmerSpan(2f, 300f).start, 0.01f)
+        // 中段：带子中心应扫过块心
+        val mid = skeletonShimmerSpan(0.5f, 300f)
+        assertTrue(mid.start < 150f && mid.endInclusive > 150f)
     }
 
     @Test

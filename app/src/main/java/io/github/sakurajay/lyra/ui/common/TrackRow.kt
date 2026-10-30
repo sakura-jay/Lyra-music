@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,6 +28,9 @@ import io.github.sakurajay.lyra.domain.model.Song
 
 /** 榜单与专辑的序号从 1 开始，前三位加重，与主流榜单一致；收藏列表没有序号 */
 private val EMPHASIZED_RANK = 3
+
+/** 骨架行要用同一份几何；这里只钉"内容高度"，骨架块的高度 = 这个 + 行 padding */
+const val TRACK_ROW_CONTENT_HEIGHT_DP = 38
 
 /**
  * 一列曲目：序号 + 曲名 + 次行信息。榜单、专辑、歌单、收藏共用，
@@ -72,7 +76,7 @@ fun TrackRow(
                 textAlign = TextAlign.Center,
             )
         }
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).height(TRACK_ROW_CONTENT_HEIGHT_DP.dp)) {
             Text(
                 text = song.name,
                 style = MaterialTheme.typography.bodyLarge,

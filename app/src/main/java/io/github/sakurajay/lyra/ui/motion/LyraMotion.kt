@@ -50,13 +50,15 @@ object LyraMotion {
      */
     private const val DETAIL_FADE_MS = 60
 
-    /**
-     * 路由转场的淡入淡出基准值：不是层级表里的档位，也不属于"新写的动画"，
-     * 是三轮真机验收留下的数值，本版只把它们接到系统动画缩放上，数值本身不动。
-     */
-    private const val ROUTE_FADE_OUT_MS = 140
     private const val PLAYER_FADE_OUT_MS = 160
     private const val PLAYER_FADE_OUT_DELAY_MS = 60
+
+    /**
+     * 播放页收起的位移/缩放时长（022）：只收 ROUTE 的一半（120ms），
+     * 淡出仍按 160ms+60ms 走。位移先到位、alpha 后收尾，迷你条快速返回时
+     * "页面还在慢慢收"的拖尾感来自 240ms 的整页位移，收紧这一段即可。
+     */
+    private const val ROUTE_MOVE_FAST_MS = 120
 
     /** 换曲文字交替的位移比例：行高的五分之一，见 [songLineSwap] */
     private const val SLIDE_FRACTION = 0.2f
@@ -122,15 +124,40 @@ object LyraMotion {
     private fun tierMs(tier: MotionTier, scale: Float, enter: Boolean = true): Int =
         MotionSpec.durationMs(tier, scale, enter)
 
-    fun slideInto(scale: Float, forward: Boolean = true): EnterTransition {
+    fun slideInto(scale: Float): EnterTransition {
         // 弹簧没有"时长"可乘，只能改刚度（见 [springStiffness]）；系统缩放为 0 时
         // 刚度已经高到"一帧到位"，但那条路径上更诚实的做法是整条转场不发。
         // 否则用户关掉系统动画之后，页面仍要靠物理弹簧滑上三百毫秒——"关掉"就成了空话
         if (!MotionSpec.shouldAnimate(scale)) return EnterTransition.None
         return slideInHorizontally(
             animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
+                dampingRatio = Spring.DampingRatioNoBouncy,
                 stiffness = springStiffness(Spring.StiffnessMediumLow, scale),
+            ),
+            initialOffsetX = { it / 10 },
+        ) + fadeIn(
+            snapOrTween(
+                durationMs = MotionSpec.durationMsOf(DETAIL_FADE_MS, scale),
+            ),
+        )
+    }
+
+    /**
+     * Tab 之间的横向切换（023）。
+     *
+     * 底层导航把"切 Tab"当一次 push+pop：被切走的旧 Tab 走的是 popExit。此前那条
+     * 路播的是详情页返回动画（右滑 + 淡出），两页交叠处的透明瞬间露出窗口白底
+     * ——用户看到的就是"切到首页闪一下白色返回动画"。这里给 Tab 切换单独一条
+     * 入场：按 Tab 序号定向滑入（去更靠右的 Tab 从右进、更靠左的从左进），被切走
+     * 的旧 Tab 在 LyraApp 里定住不动；入场带 60ms 淡入，底下始终是满 alpha 的
+     * 旧 Tab，白底没有机会露出来。
+     */
+    fun slideIntoTab(scale: Float, forward: Boolean): EnterTransition {
+        if (!MotionSpec.shouldAnimate(scale)) return EnterTransition.None
+        return slideInHorizontally(
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = springStiffness(Spring.StiffnessMedium, scale),
             ),
             initialOffsetX = { if (forward) it / 10 else -it / 10 },
         ) + fadeIn(
@@ -140,43 +167,24 @@ object LyraMotion {
         )
     }
 
-    fun slideOutOf(scale: Float, forward: Boolean = true): ExitTransition {
-        if (!MotionSpec.shouldAnimate(scale)) return ExitTransition.None
-        return slideOutHorizontally(
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = springStiffness(Spring.StiffnessMediumLow, scale),
-            ),
-            targetOffsetX = { if (forward) -it / 10 else it / 10 },
-        ) + fadeOut(
-            snapOrTween(
-                durationMs = MotionSpec.durationMsOf(ROUTE_FADE_OUT_MS, scale),
-                easing = FastOutLinearInEasing,
-            ),
-        )
-    }
-
     /**
-     * tab 页被详情页压住时的"轻退场"（019）。
+     * 详情页的返回（023）：整页向右划走，替换掉"10% 微滑 + 淡出"。
      *
-     * 原来这一侧是 `ExitTransition.None`（整页满 alpha 定住）。019 坐实的问题不在它，
-     * 而在详情页侧的慢淡入；本侧改成 60ms 微淡出与 `slideInto` 的 60ms 淡入对称：
-     * 两页之间不再有一层"半透明叠半透明"的长期叠影，页头在封面落地时也已可见。
-     * 位移保持原有 spring——这是真机验收过的"停住又让一点"的观感，本版不动。
+     * 淡出会在两页之间露出透明瞬间（浅色主题就是白底），微滑的幅度又让"返回"
+     * 读起来半途而废。整页划走的过程中底页全程可见——底页的 popEnter 是
+     * `EnterTransition.None`，定在原位——划完即返回，没有第二段动画。
+     *
+     * 时长取 ROUTE 的退出档（240ms）配加速曲线：页面带着速度离场，像被划走
+     * 而不是被拽走。刻意不带淡出。
      */
-    fun slideUnderDetail(scale: Float): ExitTransition {
+    fun slideOutToRight(scale: Float): ExitTransition {
         if (!MotionSpec.shouldAnimate(scale)) return ExitTransition.None
         return slideOutHorizontally(
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = springStiffness(Spring.StiffnessMediumLow, scale),
-            ),
-            targetOffsetX = { -it / 10 },
-        ) + fadeOut(
-            snapOrTween(
-                durationMs = MotionSpec.durationMsOf(DETAIL_FADE_MS, scale),
+            animationSpec = snapOrTween<IntOffset>(
+                durationMs = MotionSpec.durationMs(MotionTier.ROUTE, scale, enter = false),
                 easing = FastOutLinearInEasing,
             ),
+            targetOffsetX = { it },
         )
     }
 
@@ -238,12 +246,14 @@ object LyraMotion {
 
     fun collapseToBar(scale: Float): ExitTransition {
         if (!MotionSpec.shouldAnimate(scale)) return ExitTransition.None
-        val ms = tierMs(MotionTier.ROUTE, scale, enter = false)
+        // 位移与缩放收紧到 ROUTE 的一半：迷你条快速返回时"页面还在收"的那半拍
+        // 主要来自 240ms 的整页位移，先到迷你条附近再一起淡出，观感更干脆
+        val moveMs = MotionSpec.durationMsOf(ROUTE_MOVE_FAST_MS, scale)
         return slideOutVertically(
-            animationSpec = snapOrTween<IntOffset>(ms, easing = FastOutLinearInEasing),
+            animationSpec = snapOrTween<IntOffset>(moveMs, easing = FastOutLinearInEasing),
             targetOffsetY = { it / 4 },
         ) + scaleOut(
-            animationSpec = snapOrTween<Float>(ms, easing = FastOutLinearInEasing),
+            animationSpec = snapOrTween<Float>(moveMs, easing = FastOutLinearInEasing),
             targetScale = 0.9f,
             transformOrigin = BOTTOM_ORIGIN,
         ) + fadeOut(

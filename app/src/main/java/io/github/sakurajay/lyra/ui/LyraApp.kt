@@ -13,6 +13,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.ui.layout.ContentScale
@@ -27,9 +33,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -136,9 +139,14 @@ private fun NavGraphBuilder.lyraDetailRoute(
         route = route,
         arguments = arguments,
         enterTransition = { LyraMotion.slideInto(motionScale) },
-        exitTransition = { LyraMotion.slideOutOf(motionScale, forward = false) },
-        popEnterTransition = { LyraMotion.slideInto(motionScale, forward = false) },
-        popExitTransition = { LyraMotion.slideOutOf(motionScale, forward = false) },
+        exitTransition = { LyraMotion.slideOutToRight(motionScale) },
+        popEnterTransition = {
+            // 从详情页退回本页时它本来就在原位：再播一次入场就是歌单广场 → 具体
+            // 歌单 → 返回时看到的"两页都在动"。023 起退回一律是"详情页划走、
+            // 底页定住"，popEnter 在任何来路下都不再播
+            EnterTransition.None
+        },
+        popExitTransition = { LyraMotion.slideOutToRight(motionScale) },
     ) { entry ->
         // 封面共享需要的"我是哪一页 / 这一页的页头封面是哪条路径"由注册处给一次：
         // 页面自己（以及它里面那张 96dp 的页头）不必再穿这些参数，参数本来就在路由里
@@ -159,8 +167,6 @@ fun LyraApp() {
     val picker: PlaylistPickerViewModel = viewModel(factory = PlaylistPickerViewModel.Factory)
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val topRoutes = TopDestination.entries.map { it.route }
-    val onTopLevelDestination = currentRoute in topRoutes
     // 转场的 lambda 不是 @Composable，读不到 LocalMotionScale，所以在这里取一次带进去
     val motionScale = LocalMotionScale.current
     // 封面共享：两端各自把矩形报到这一份状态里，覆盖层按进度重画（ADR-0010）
@@ -206,7 +212,6 @@ fun LyraApp() {
             picker = picker,
             navController = navController,
             currentRoute = currentRoute,
-            onTopLevelDestination = onTopLevelDestination,
             motionScale = motionScale,
             coverFlight = coverFlight,
         )
@@ -251,7 +256,6 @@ private fun AppContent(
     picker: PlaylistPickerViewModel,
     navController: NavHostController,
     currentRoute: String?,
-    onTopLevelDestination: Boolean,
     motionScale: Float,
     coverFlight: CoverFlightState,
 ) {
@@ -259,6 +263,9 @@ private fun AppContent(
     // 否则在浅色主题下压深色封面时状态栏图标会看不见
     val darkScheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val view = LocalView.current
+    // 迷你播放条只属于三个 Tab（023）：详情页没有导航栏与迷你条，返回时
+    // 自然不存在"条蹦出来"的问题；播放页占满整屏也不需要条
+    val showBottomBar = LyraRoutes.isTab(currentRoute)
     SideEffect {
         val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
         val controller = WindowCompat.getInsetsController(window, view)
@@ -270,48 +277,19 @@ private fun AppContent(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
-                // 播放页占满整屏不需要条；其余页面（含详情页）都要能一眼跳回正在播的那首。
-                // 之前只在顶层 Tab 显示，结果在专辑/歌单页点了歌就没有任何入口回到播放页。
-                if (currentRoute != LyraRoutes.PLAYER) {
-                    // 顶层 Tab 下 NavigationBar 自己会吃系统安全区；详情页只剩播放条，
-                    // 不垫上就会被手势条与大力角切掉一半（真机反馈）
-                    Column(
-                        modifier = if (onTopLevelDestination) Modifier
-                        else Modifier.windowInsetsPadding(WindowInsets.navigationBars),
-                    ) {
-                        MiniPlayerBar(
-                            viewModel = playerViewModel,
-                            onOpen = { navController.navigate(LyraRoutes.PLAYER) },
-                        )
-                        if (onTopLevelDestination) {
-                            NavigationBar {
-                                TopDestination.entries.forEach { destination ->
-                                    NavigationBarItem(
-                                        selected = currentRoute == destination.route,
-                                        onClick = {
-                                            navController.navigate(destination.route) {
-                                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                                launchSingleTop = true
-                                                restoreState = true
-                                            }
-                                        },
-                                        icon = {
-                                            DestinationIcon(
-                                                destination = destination,
-                                                tint = if (currentRoute == destination.route) {
-                                                    MaterialTheme.colorScheme.primary
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                                },
-                                            )
-                                        },
-                                        label = { Text(stringResource(destination.labelRes)) },
-                                    )
-                                }
-                            }
+                BottomBarWithTransitions(
+                    visible = showBottomBar,
+                    currentRoute = currentRoute,
+                    playerViewModel = playerViewModel,
+                    onOpenPlayer = { navController.navigate(LyraRoutes.PLAYER) },
+                    onOpenDestination = { destination ->
+                        navController.navigate(destination.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                    }
-                }
+                    },
+                )
             },
         ) { innerPadding ->
             // 内边距按目的地给：播放页的背景要铺到状态栏与底部手势条后面，
@@ -324,20 +302,26 @@ private fun AppContent(
                 TopDestination.entries.forEach { destination ->
                     composable(
                         destination.route,
-                        enterTransition = { LyraMotion.slideInto(motionScale) },
+                        enterTransition = {
+                            // Tab 切换（023）：底层导航把切换当 push+pop，旧 Tab 走
+                            // popExit；新 Tab 按 Tab 序号定向滑入（首页=0、搜索=1、
+                            // 音乐库=2，去更靠右的从右进）。popEnter 那条路（退回 Tab）
+                            // 不再播入场——底页定住原位是返回动画的一半
+                            val forward = TopDestination.entries.indexOfFirst { it.route == targetState.destination.route } >=
+                                TopDestination.entries.indexOfFirst { it.route == initialState.destination.route }
+                            LyraMotion.slideIntoTab(motionScale, forward)
+                        },
                         exitTransition = {
-                            // 目标页是详情页时底下的 Tab 页必须停住：两个界面同时滑是"我点错了"的错觉来源
-                            // 019：整页定住改成 60ms 微淡出——详情页侧的淡入收紧后，
-                            // 这一层如果仍保持满 alpha，回程封面落地时落点页头会被它压在下面
-                            if (LyraRoutes.isDetail(targetState.destination.route)) LyraMotion.slideUnderDetail(motionScale)
-                            else LyraMotion.slideOutOf(motionScale)
+                            // Tab 被任何一页压住时定住：详情页整页划走时露出的就是
+                            // 这个满 alpha 的 Tab 页，两个界面同时滑是"我点错了"的错觉来源
+                            ExitTransition.None
                         },
-                        popEnterTransition = {
-                            // 从详情页退回 Tab 时，底下的 Tab 页本来就在原位，再播一次入场就是用户看到的"错误动画"
-                            if (LyraRoutes.isDetail(initialState.destination.route)) EnterTransition.None
-                            else LyraMotion.slideInto(motionScale, forward = false)
+                        popEnterTransition = { EnterTransition.None },
+                        popExitTransition = {
+                            // 被切走的旧 Tab（底层导航把它当 pop）：定住，不播任何
+                            // 退出动画——入场页从它上面淡入，白底没有露出的机会
+                            ExitTransition.None
                         },
-                        popExitTransition = { LyraMotion.slideOutOf(motionScale, forward = false) },
                     ) {
                         // Tab 页也是卡片的来路（首页推荐排、榜预览），所以身份一样要给
                         CoverPageHost(destination.route, null) {
@@ -488,6 +472,58 @@ private fun AppContent(
     }
 
     PlaylistPickerSheet(picker)
+}
+
+/**
+ * bottomBar：mini 条 + 导航栏，只在三个 Tab 显示（023）。
+ *
+ * 详情页不再有 mini 条：Tab 页被详情页压住时（详情页整页划走）这一层始终
+ * 挂着但藏在 Tab 页之下，详情页划走时它随 Tab 页一起重新露出——"条蹦出来"
+ * 从结构上消失。进播放页时（详情页从 Tab 长出来的那套观感）淡出/滑下，
+ * 返回时同轨淡入/滑回。
+ */
+@Composable
+private fun BottomBarWithTransitions(
+    visible: Boolean,
+    currentRoute: String?,
+    playerViewModel: PlayerViewModel,
+    onOpenPlayer: () -> Unit,
+    onOpenDestination: (TopDestination) -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 160)) +
+            slideInVertically(animationSpec = tween(durationMillis = 160)) { it / 3 },
+        exit = fadeOut(animationSpec = tween(durationMillis = 120)) +
+            slideOutVertically(animationSpec = tween(durationMillis = 120)) { it / 3 },
+    ) {
+        // NavigationBar 自己吃系统安全区，整列不需要再垫
+        Column {
+            MiniPlayerBar(
+                viewModel = playerViewModel,
+                onOpen = onOpenPlayer,
+            )
+            NavigationBar {
+                TopDestination.entries.forEach { destination ->
+                    NavigationBarItem(
+                        selected = currentRoute == destination.route,
+                        onClick = { onOpenDestination(destination) },
+                        icon = {
+                            DestinationIcon(
+                                destination = destination,
+                                tint = if (currentRoute == destination.route) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                        label = { Text(stringResource(destination.labelRes)) },
+                    )
+                }
+            }
+        }
+    }
 }
 
 /** 迷你条上封面块的边长与圆角：共享元素的起点，覆盖层拿它当飞出去的那一端 */

@@ -40,7 +40,8 @@ import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.FavoriteHeartButton
-import io.github.sakurajay.lyra.ui.common.LyraSkeletonRankRow
+import io.github.sakurajay.lyra.ui.common.LyraSkeletonRow
+import io.github.sakurajay.lyra.ui.common.ProvideSkeletonShimmer
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.lyraCoverDetail
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
@@ -122,117 +123,118 @@ fun TrackListScreen(
             )
         },
     ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
-                        // 共享元素的另一头：路径由注册处给（见 LyraApp 的 CoverPageHost），
-                        // 卡片那头按同一张卡的目的地算，两边各自推导却必然相等
-                        .lyraCoverDetail(12.dp, state.artwork?.asImageBitmap()),
-                    contentAlignment = Alignment.Center,
+        ProvideSkeletonShimmer(active = state.loading && list == null) {
+            Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    state.artwork?.let {
-                        Image(
-                            bitmap = it.asImageBitmap(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)),
-                        )
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+                            // 共享元素的另一头：路径由注册处给（见 LyraApp 的 CoverPageHost），
+                            // 卡片那头按同一张卡的目的地算，两边各自推导却必然相等
+                            .lyraCoverDetail(12.dp, state.artwork?.asImageBitmap()),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        state.artwork?.let {
+                            Image(
+                                bitmap = it.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)),
+                            )
+                        }
+                        if (state.loading && state.artwork == null) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else if (state.artwork == null) {
+                            // 自建歌单没有封面，给个占位符比一块纯色更像"这里是一堆歌"
+                            Text(
+                                text = "♪",
+                                style = MaterialTheme.typography.displaySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
                     }
-                    if (state.loading && state.artwork == null) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else if (state.artwork == null) {
-                        // 自建歌单没有封面，给个占位符比一块纯色更像"这里是一堆歌"
-                        Text(
-                            text = "♪",
-                            style = MaterialTheme.typography.displaySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        list?.subtitle?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        // 空列表不报"共 0 首"：工单 012 对音乐库卡片定的这条规矩同样适用于页头，
+                        // 而且下面空态已经说了"还没有…"，再来一个 0 只是自相矛盾
+                        list?.takeIf { it.songCount > 0 }?.let {
+                            Text(
+                                text = if (it.playCountLabel.isBlank()) {
+                                    stringResource(R.string.tracklist_count, it.songCount)
+                                } else {
+                                    stringResource(R.string.tracklist_count_with_play, it.songCount, it.playCountLabel)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        list?.description?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    list?.subtitle?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    // 空列表不报"共 0 首"：工单 012 对音乐库卡片定的这条规矩同样适用于页头，
-                    // 而且下面空态已经说了"还没有…"，再来一个 0 只是自相矛盾
-                    list?.takeIf { it.songCount > 0 }?.let {
-                        Text(
-                            text = if (it.playCountLabel.isBlank()) {
-                                stringResource(R.string.tracklist_count, it.songCount)
-                            } else {
-                                stringResource(R.string.tracklist_count_with_play, it.songCount, it.playCountLabel)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    list?.description?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
 
-            val loadingRows = state.loading && list == null
-            if (!loadingRows && list != null && list.songs.isEmpty()) {
-                Text(
-                    text = emptyText ?: stringResource(R.string.tracklist_empty),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            LazyColumn {
-                // 默认不传 key：同一首歌在一份列表里出现两次是合法数据（歌单重复曲目），
-                // 而 LazyColumn 的 key 撞车会直接崩。
-                //
-                // 「我喜欢」是唯一例外：那一页点行内 ♥ 会把这一行**移出列表**，让位动画需要
-                // 认出"少的就是这一行"，而收藏的 key（source:id）天然唯一。判据用
-                // rowFavorites 而不是路由名——只有这一页给了行内 ♥。
-                val rowKey: ((Int, Song) -> Any)? =
-                    if (rowFavorites != null) { _, song -> FavoritesRepository.keyOf(song) } else null
-                // 首屏骨架（020）：歌单详情此前没有任何列表占位，只有一个页头转圈；
-                // 数据没到时给 8 行整行形状（与真实行同构：序号+两行字+右侧点）
-                if (loadingRows) {
-                    items(8) { index ->
-                        LyraSkeletonRankRow(index = index)
-                    }
-                }
-                itemsIndexed(list?.songs.orEmpty(), key = rowKey) { index, song ->
-                    val more: (() -> Unit)? = onMore?.let { action -> { action(song) } }
-                    val toggleRow: (() -> Unit)? = rowFavorites?.let { fav -> { fav.onToggle(song) } }
-                    TrackRow(
-                        rank = if (showRank) index + 1 else null,
-                        song = song,
-                        // 移出一首之后，下面的行滑上来补位，而不是瞬间跳到新位置
-                        modifier = lyraAnimatedItem(),
-                        highlighted = song.id == state.playingSongId,
-                        loading = song.id == state.loadingSongId,
-                        onClick = { onPlay(song) },
-                        onOpenAlbum = onOpenAlbum,
-                        favorite = rowFavorites?.isFavorite?.invoke(song) == true,
-                        onToggleFavorite = toggleRow,
-                        onLongClick = more,
-                        onMore = more,
+                val loadingRows = state.loading && list == null
+                if (!loadingRows && list != null && list.songs.isEmpty()) {
+                    Text(
+                        text = emptyText ?: stringResource(R.string.tracklist_empty),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+
+                LazyColumn {
+                    // 默认不传 key：同一首歌在一份列表里出现两次是合法数据（歌单重复曲目），
+                    // 而 LazyColumn 的 key 撞车会直接崩。
+                    //
+                    // 「我喜欢」是唯一例外：那一页点行内 ♥ 会把这一行**移出列表**，让位动画需要
+                    // 认出"少的就是这一行"，而收藏的 key（source:id）天然唯一。判据用
+                    // rowFavorites 而不是路由名——只有这一页给了行内 ♥。
+                    val rowKey: ((Int, Song) -> Any)? =
+                        if (rowFavorites != null) { _, song -> FavoritesRepository.keyOf(song) } else null
+                    // 首屏骨架（021）：整行一块 + 页级同步扫光，数据没到时占位；数据一到让位
+                    if (loadingRows) {
+                        items(8) {
+                            LyraSkeletonRow()
+                        }
+                    }
+                    itemsIndexed(list?.songs.orEmpty(), key = rowKey) { index, song ->
+                        val more: (() -> Unit)? = onMore?.let { action -> { action(song) } }
+                        val toggleRow: (() -> Unit)? = rowFavorites?.let { fav -> { fav.onToggle(song) } }
+                        TrackRow(
+                            rank = if (showRank) index + 1 else null,
+                            song = song,
+                            // 移出一首之后，下面的行滑上来补位，而不是瞬间跳到新位置
+                            modifier = lyraAnimatedItem(),
+                            highlighted = song.id == state.playingSongId,
+                            loading = song.id == state.loadingSongId,
+                            onClick = { onPlay(song) },
+                            onOpenAlbum = onOpenAlbum,
+                            favorite = rowFavorites?.isFavorite?.invoke(song) == true,
+                            onToggleFavorite = toggleRow,
+                            onLongClick = more,
+                            onMore = more,
+                        )
+                    }
                 }
             }
         }

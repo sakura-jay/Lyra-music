@@ -36,6 +36,7 @@
     <string name="tracklist_empty">这个列表没有返回曲目。</string>
     <string name="search_title">搜索</string>
     <string name="library_title">音乐库</string>
+    <string name="library_settings_subtitle">主题、音质与音源管理</string>
     <string name="library_open_sources">音源管理</string>
     <string name="library_empty">还没有喜欢的歌。在播放页点 &#x2665;&#xFE0E; 把当前这首歌收进来。</string>
     <string name="library_liked_none">还没有喜欢的歌</string>

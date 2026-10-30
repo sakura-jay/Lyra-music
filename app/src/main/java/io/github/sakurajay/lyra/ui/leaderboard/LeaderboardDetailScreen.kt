@@ -41,7 +41,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.domain.model.Song
 import io.github.sakurajay.lyra.ui.common.BackGlyph
-import io.github.sakurajay.lyra.ui.common.LyraSkeletonRankRow
+import io.github.sakurajay.lyra.ui.common.LyraSkeletonRow
+import io.github.sakurajay.lyra.ui.common.ProvideSkeletonShimmer
 import io.github.sakurajay.lyra.ui.common.TrackRow
 import io.github.sakurajay.lyra.ui.common.lyraCoverDetail
 import io.github.sakurajay.lyra.ui.common.lyraReveal
@@ -104,98 +105,100 @@ fun LeaderboardDetailScreen(
             )
         },
     ) { innerPadding ->
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        // 头部先来一步，列表与页脚随后（40ms 错峰）
-                        .lyraReveal(index = 0),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    val artwork = rememberRemoteArtwork(state.board.coverUrl, maxEdgePx = 320)
-                    Box(
+        ProvideSkeletonShimmer(active = state.songs.isEmpty() && state.loading) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                item {
+                    Row(
                         modifier = Modifier
-                            .size(96.dp)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
-                            // 共享元素的另一头，见 TrackListScreen 里同一处注释
-                            .lyraCoverDetail(12.dp, artwork?.asImageBitmap()),
-                        contentAlignment = Alignment.Center,
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            // 头部先来一步，列表与页脚随后（40ms 错峰）
+                            .lyraReveal(index = 0),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        if (artwork != null) {
-                            Image(
-                                bitmap = artwork.asImageBitmap(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)),
-                            )
-                        } else {
-                            Text(
-                                text = "♪",
-                                style = MaterialTheme.typography.displaySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
+                        val artwork = rememberRemoteArtwork(state.board.coverUrl, maxEdgePx = 320)
+                        Box(
+                            modifier = Modifier
+                                .size(96.dp)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+                                // 共享元素的另一头，见 TrackListScreen 里同一处注释
+                                .lyraCoverDetail(12.dp, artwork?.asImageBitmap()),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (artwork != null) {
+                                Image(
+                                    bitmap = artwork.asImageBitmap(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)),
+                                )
+                            } else {
+                                Text(
+                                    text = "♪",
+                                    style = MaterialTheme.typography.displaySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                            }
                         }
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(text = state.board.name, style = MaterialTheme.typography.titleMedium)
-                        state.total?.let { total ->
-                            Text(
-                                text = stringResource(R.string.home_total, total),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (state.loading) {
-                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(text = state.board.name, style = MaterialTheme.typography.titleMedium)
+                            state.total?.let { total ->
+                                Text(
+                                    text = stringResource(R.string.home_total, total),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (state.loading) {
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            }
                         }
                     }
                 }
-            }
 
-            // 空榜与"取数失败"是两回事：失败的那一支由页脚给原因和重试，这里只说真的没歌
-            if (state.songs.isEmpty() && !state.loading && state.failed == null) {
-                item {
-                    Text(
-                        text = stringResource(R.string.leaderboard_detail_empty),
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // 空榜与"取数失败"是两回事：失败的那一支由页脚给原因和重试，这里只说真的没歌
+                if (state.songs.isEmpty() && !state.loading && state.failed == null) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.leaderboard_detail_empty),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                // 首屏骨架（021）：整行一块，页面级同步扫光；数据一到让位给真行
+                if (state.songs.isEmpty() && state.loading) {
+                    items(8) {
+                        LyraSkeletonRow()
+                    }
+                }
+
+                itemsIndexed(state.songs) { index, song ->
+                    TrackRow(
+                        rank = index + 1,
+                        song = song,
+                        highlighted = song.id == state.playingSongId,
+                        loading = song.id == state.loadingSongId,
+                        onClick = { viewModel.play(song) },
+                        onOpenAlbum = onOpenAlbum,
+                        onLongClick = { onMore(song) },
+                        onMore = { onMore(song) },
                     )
                 }
-            }
 
-            // 首屏骨架（018）：只在还没有任何数据时出现，数据一到让位给真行
-            if (state.songs.isEmpty() && state.loading) {
-                items(8) { index ->
-                    LyraSkeletonRankRow(index = index)
+                item {
+                    ListFooter(
+                        loading = state.loadingMore,
+                        failed = state.failed,
+                        noMore = state.noMore,
+                        count = state.songs.size,
+                        total = state.total,
+                        onRetry = viewModel::reload,
+                        modifier = Modifier.lyraReveal(index = 2),
+                    )
                 }
-            }
-
-            itemsIndexed(state.songs) { index, song ->
-                TrackRow(
-                    rank = index + 1,
-                    song = song,
-                    highlighted = song.id == state.playingSongId,
-                    loading = song.id == state.loadingSongId,
-                    onClick = { viewModel.play(song) },
-                    onOpenAlbum = onOpenAlbum,
-                    onLongClick = { onMore(song) },
-                    onMore = { onMore(song) },
-                )
-            }
-
-            item {
-                ListFooter(
-                    loading = state.loadingMore,
-                    failed = state.failed,
-                    noMore = state.noMore,
-                    count = state.songs.size,
-                    total = state.total,
-                    onRetry = viewModel::reload,
-                    modifier = Modifier.lyraReveal(index = 2),
-                )
             }
         }
     }

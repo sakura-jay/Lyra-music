@@ -84,12 +84,6 @@ fun LibraryScreen(
             TopAppBar(
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text(stringResource(R.string.library_title)) },
-                actions = {
-                    // 音源管理原来只在空态里出现，喜欢一首之后就再也没有入口——设置页放这儿
-                    TextButton(onClick = onOpenSettings, modifier = Modifier.padding(end = 12.dp)) {
-                        Text(stringResource(R.string.settings_title))
-                    }
-                },
             )
         },
     ) { innerPadding ->
@@ -157,6 +151,17 @@ fun LibraryScreen(
                             permissionLauncher.launch(LocalMusicRepository.requiredPermission)
                         }
                     },
+                )
+            }
+            item {
+                // 设置入口（022）：从顶栏挪到列表里，样式与其它入口卡一致；
+                // 顶栏只留页面标题，二级页从这一张卡进
+                LibraryEntryCard(
+                    title = stringResource(R.string.settings_title),
+                    subtitle = stringResource(R.string.library_settings_subtitle),
+                    coverUrl = null,
+                    fallbackIcon = R.drawable.ic_tune,
+                    onClick = onOpenSettings,
                 )
             }
         }

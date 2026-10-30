@@ -43,6 +43,7 @@ import io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.ui.common.BackGlyph
 import io.github.sakurajay.lyra.ui.common.LyraSkeletonGrid
+import io.github.sakurajay.lyra.ui.common.ProvideSkeletonShimmer
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
 import io.github.sakurajay.lyra.ui.nav.LyraRoutes
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
@@ -116,7 +117,7 @@ fun PlaylistSquareScreen(
 
             when {
                 // 首屏骨架（018）：双列卡片形状先出来，比一个转圈更像"内容在路上"
-                state.loading -> LyraSkeletonGrid()
+                state.loading -> ProvideSkeletonShimmer { LyraSkeletonGrid() }
 
                 state.items.isEmpty() && state.failed != null -> MessageWithRetry(
                     message = state.failed.orEmpty(),

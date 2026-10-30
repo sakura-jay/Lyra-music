@@ -82,6 +82,9 @@ object LyraRoutes {
     /** 详情页之间互跳、或 Tab 被详情页压住时，底下的那一页不能跟着动 */
     fun isDetail(route: String?): Boolean = kindOf(route) == RouteKind.DETAIL
 
+    /** Tab 之间方向感知的切换、以及"谁压在谁上面"的判断用（023） */
+    fun isTab(route: String?): Boolean = kindOf(route) == RouteKind.TAB
+
     /** 实际跳转用的路径（把参数拼进去） */
     fun album(albumId: String) = "album/$albumId"
     fun playlist(listId: String) = "playlist/$listId"

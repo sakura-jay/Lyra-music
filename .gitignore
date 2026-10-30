@@ -11,6 +11,7 @@ local.properties
 .idea/
 *.iml
 .DS_Store
+.archify/
 
 # 调试与性能抓取（体积大，可能含设备信息）
 *.hprof

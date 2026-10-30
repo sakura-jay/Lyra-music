@@ -47,7 +47,8 @@ fun PlaylistCard(
     coverPath: String? = null,
 ) {
     // 封面在卡片这一层取一次：既要给 Image 画，也要报给共享元素当端点位图
-    val artwork = rememberRemoteArtwork(coverUrl, maxEdgePx = 320)
+    val artworkState = rememberRemoteArtworkState(coverUrl, maxEdgePx = 320)
+    val artwork = artworkState.artwork
     Column(
         // 形变挂在这一层（整张卡一起缩），点击与涟漪跟着走
         modifier = modifier.lyraPressable(onClick = onClick),
@@ -63,13 +64,20 @@ fun PlaylistCard(
                     .lyraCoverSource(coverPath, 12.dp, artwork?.asImageBitmap()),
                 contentAlignment = Alignment.Center,
             ) {
-                if (artwork != null) {
-                    Image(
-                        bitmap = artwork.asImageBitmap(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+                when {
+                    // 封面骨架（022）：图在路上时给整块 shimmer，不是死板的纯色
+                    artworkState.loading -> LyraSkeletonShape(
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(12.dp),
                     )
+                    artwork != null -> {
+                        Image(
+                            bitmap = artwork.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+                        )
+                    }
                 }
             }
             if (onToggleFavorite != null) {
