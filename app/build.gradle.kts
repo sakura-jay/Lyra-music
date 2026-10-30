@@ -26,11 +26,12 @@ android {
         minSdk = 31
         targetSdk = 36
         // 与"已收口的里程碑"对齐：M8 = v0.9.0（审查修订批次作为补丁版 0.9.1），
-        // M9 = v0.9.2（动效语言与微交互），M10 = v0.9.3；0.9.4–0.9.7 为反馈补丁。
+        // M9 = v0.9.2（动效语言与微交互），M10 = v0.9.3，M11 = v0.10.0；
+        // 0.9.4–0.9.7 为反馈补丁。
         // 版本权威仍是 tag，这里只给"设置→关于"和一个可辨识的安装包用。
         // versionCode 必须单调递增：CI 的 Version guard 会与历史 tag 比较并拦截漏改。
-        versionCode = 12
-        versionName = "0.9.7"
+        versionCode = 13
+        versionName = "0.10.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -102,10 +103,14 @@ dependencies {
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.session)
+    implementation(libs.androidx.work.runtime)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    // 生产代码用系统 org.json；JVM 单测里 android.jar 的 org.json 只是桩，补一份真实实现
+    testImplementation(libs.json)
+    testImplementation(libs.mockwebserver)
     // androidTest 里要跑 Compose 的动画断言（MotionScaleProvider(0f) 下必须秒到终态）。
     // ui-test-manifest 走 debug 而不是 androidTest：它带的是那个宿主 ComponentActivity，
     // 而 Activity 必须出现在**被测应用**的清单里才有得启动——测试 APK 自己的清单不算。

@@ -94,7 +94,34 @@
     <string name="settings_data">数据</string>
     <string name="settings_export_backup">导出备份</string>
     <string name="settings_import_backup">导入备份</string>
-    <string name="settings_version">Lyra %1$s</string>
+    <string name="settings_about_update">关于与更新</string>
+    <string name="settings_current_version">当前版本 %1$s</string>
+    <string name="settings_auto_update">启动时自动检查更新</string>
+    <string name="settings_check_update">检查更新</string>
+    <string name="settings_recheck_update">重新检查</string>
+    <string name="settings_view_update">查看更新</string>
+    <string name="settings_checking_update">正在检查更新…</string>
+    <string name="settings_up_to_date">已是最新版本</string>
+    <string name="settings_update_available">有新版本 v%1$s</string>
+    <string name="settings_check_failed">检查失败：%1$s</string>
+    <string name="settings_download_failed">下载失败：%1$s</string>
+    <string name="settings_update_idle">自动检测失败不会打扰；也可以随时手动检查。</string>
+    <string name="settings_downloading">正在下载 %1$d%%</string>
+
+    <string name="update_dialog_title">发现新版本</string>
+    <string name="update_dialog_target">%1$s → %2$s</string>
+    <string name="update_dialog_notes_empty">这个版本没有写更新说明。</string>
+    <string name="update_action_download">更新</string>
+    <string name="update_action_later">关闭</string>
+    <string name="update_action_ignore">忽略此版本</string>
+    <string name="update_action_cancel">取消下载</string>
+    <string name="update_action_retry">重试下载</string>
+    <string name="update_action_install">安装</string>
+    <string name="update_downloading">%1$d%%</string>
+    <string name="update_downloading_unknown">正在下载…</string>
+    <string name="update_failed">下载失败：%1$s</string>
+    <string name="update_ready">下载完成，等待安装</string>
+    <string name="update_ignore_hint">忽略后只抑制这个版本的自动提示；手动检查仍会显示。</string>
 
     <string name="mini_player_idle">未在播放</string>
     <string name="mini_player_idle_hint">导入音源后即可播放</string>

@@ -12,6 +12,7 @@ import io.github.sakurajay.lyra.core.source.SwitchingPlayUseCase
 import io.github.sakurajay.lyra.core.source.RuntimeLoader
 import io.github.sakurajay.lyra.core.source.repo.SourceRepository
 import io.github.sakurajay.lyra.core.source.runtime.SourceRuntime
+import io.github.sakurajay.lyra.core.update.UpdateClient
 import io.github.sakurajay.lyra.data.provider.builtin.KuGouLeaderboardProvider
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoLeaderboardProvider
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoSearchProvider
@@ -183,6 +184,15 @@ object ServiceLocator {
             NetEaseLeaderboardProvider(),
         )
     }
+
+    @Volatile
+    private var updateClient: UpdateClient? = null
+
+    /** 更新检测共用一个 OkHttp 连接池；客户端自身无状态。 */
+    fun updateClient(): UpdateClient = updateClient
+        ?: synchronized(this) {
+            updateClient ?: UpdateClient().also { updateClient = it }
+        }
 
     @Volatile
     private var albumProvider: io.github.sakurajay.lyra.data.provider.builtin.KuwoAlbumProvider? = null

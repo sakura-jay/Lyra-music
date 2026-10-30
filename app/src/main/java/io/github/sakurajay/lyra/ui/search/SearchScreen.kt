@@ -1,13 +1,13 @@
 package io.github.sakurajay.lyra.ui.search
 
 import android.app.Application
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,11 +23,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -54,11 +50,16 @@ import io.github.sakurajay.lyra.player.SongPlayController
 import io.github.sakurajay.lyra.player.SongQueueLauncher
 import io.github.sakurajay.lyra.player.describe
 import io.github.sakurajay.lyra.ui.common.MoreGlyph
+import io.github.sakurajay.lyra.ui.common.GlassScaffold
+import io.github.sakurajay.lyra.ui.common.LocalBottomBarContentPadding
 import io.github.sakurajay.lyra.ui.common.LyraSkeletonRow
 import io.github.sakurajay.lyra.ui.common.ProvideSkeletonShimmer
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.lyraReveal
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
+import io.github.sakurajay.lyra.ui.theme.LyraPrimaryButton
+import io.github.sakurajay.lyra.ui.theme.LyraTextField
+import io.github.sakurajay.lyra.ui.theme.rememberGlassPalette
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -170,22 +171,15 @@ fun SearchScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Scaffold(
-        // 外层 Scaffold 已把状态栏高度算进 innerPadding；内层再叠一次 windowInsets
-        // 会把标题顶下去整整一个状态栏高度（真机反馈的"字体下沉、不贴顶栏"）
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    GlassScaffold(
+        title = stringResource(R.string.search_title),
+        // 输入行与结果列表顺序占位，没有内容从顶栏后面经过；不付采样成本
+        blurBackdrop = false,
         snackbarHost = { SnackbarHost(rememberMessageHost(state.message, state.loadingSongId != null, viewModel::clearMessage)) },
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                title = { Text(stringResource(R.string.search_title)) },
-                // 播放顺序只在播放详情页下部提供，这里不再重复
-            )
-        },
-    ) { innerPadding ->
+    ) { padding ->
         ProvideSkeletonShimmer(active = state.searching) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(
@@ -193,14 +187,14 @@ fun SearchScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    OutlinedTextField(
+                    LyraTextField(
                         value = state.query,
                         onValueChange = viewModel::onQueryChange,
                         modifier = Modifier.weight(1f),
                         label = { Text(stringResource(R.string.search_hint)) },
                         singleLine = true,
                     )
-                    Button(onClick = viewModel::search, enabled = !state.searching) {
+                    LyraPrimaryButton(onClick = viewModel::search, enabled = !state.searching) {
                         Text(stringResource(R.string.search_action))
                     }
                 }
@@ -225,7 +219,11 @@ fun SearchScreen(
                     )
                 }
 
-                LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(bottom = LocalBottomBarContentPadding.current),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     state.shownGroups.forEachIndexed { index, group ->
                         item(key = "header-${group.label}") {
                             // 一次搜索会同时冒出好几家的结果，全体同时出现像"整屏闪了一下"；
@@ -315,11 +313,13 @@ private fun SongRow(
     onLongClick: () -> Unit,
     onMore: (() -> Unit)? = null,
 ) {
+    val palette = rememberGlassPalette()
     Card(
         modifier = modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = CardDefaults.cardColors(
-            containerColor = if (highlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = if (highlighted) MaterialTheme.colorScheme.primaryContainer else palette.panelTop,
         ),
+        border = BorderStroke(1.dp, palette.border),
         shape = RoundedCornerShape(16.dp),
     ) {
         Row(

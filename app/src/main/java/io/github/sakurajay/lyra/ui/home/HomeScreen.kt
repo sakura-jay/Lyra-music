@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,14 +13,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -33,6 +32,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.Board
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
+import io.github.sakurajay.lyra.ui.common.GlassScaffold
+import io.github.sakurajay.lyra.ui.common.GlassTopBarHeight
+import io.github.sakurajay.lyra.ui.common.LocalBottomBarContentPadding
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
 import io.github.sakurajay.lyra.ui.common.LyraSkeletonCardRow
 import io.github.sakurajay.lyra.ui.common.ProvideSkeletonShimmer
@@ -58,24 +60,32 @@ fun HomeScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val favoritePlaylistIds by viewModel.favoritePlaylistIds.collectAsStateWithLifecycle()
 
-    Scaffold(
-        // 外层 Scaffold 已经把状态栏算进 innerPadding，内层不能再叠一次
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    val pullState = rememberPullToRefreshState()
+    GlassScaffold(
+        title = stringResource(R.string.home_title),
         snackbarHost = { SnackbarHost(rememberMessageHost(state.message, sticky = false, onShown = viewModel::clearMessage)) },
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                title = { Text(stringResource(R.string.home_title)) },
-            )
-        },
-    ) { innerPadding ->
+    ) { padding ->
         // 下拉刷新（022）：重载入口从顶栏挪到这里，顶部不再留一个常驻按钮
         PullToRefreshBox(
             isRefreshing = state.playlistsLoading,
             onRefresh = viewModel::reload,
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
+            state = pullState,
+            indicator = {
+                PullToRefreshDefaults.Indicator(
+                    state = pullState,
+                    isRefreshing = state.playlistsLoading,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = GlassTopBarHeight),
+                )
+            },
         ) {
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(
+                    top = padding.calculateTopPadding(),
+                    bottom = LocalBottomBarContentPadding.current,
+                ),
+            ) {
                 item {
                     PlaylistSection(
                         playlists = state.playlists,

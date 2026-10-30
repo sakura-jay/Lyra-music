@@ -3,7 +3,6 @@ package io.github.sakurajay.lyra.ui.sources
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,20 +14,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,9 +35,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.GlassScaffold
 import io.github.sakurajay.lyra.ui.common.lyraPressScale
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.core.source.repo.StoredSource
+import io.github.sakurajay.lyra.ui.theme.GlassSurface
+import io.github.sakurajay.lyra.ui.theme.LyraPrimaryButton
+import io.github.sakurajay.lyra.ui.theme.LyraSecondaryButton
+import io.github.sakurajay.lyra.ui.theme.LyraTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,36 +60,37 @@ fun SourcesScreen(
 
     var urlInput by remember { mutableStateOf("") }
 
-    Scaffold(
-        // 同 SearchScreen：外层 Scaffold 已经处理过状态栏，内层再叠一次会把顶栏顶下去
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                title = { Text(stringResource(R.string.sources_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        BackGlyph(
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            label = stringResource(R.string.action_back),
-                        )
-                    }
-                },
-                actions = {
-                    OutlinedButton(onClick = { filePicker.launch(arrayOf("*/*")) }, modifier = Modifier.padding(end = 12.dp)) {
-                        Text(stringResource(R.string.sources_import_file))
-                    }
-                },
-            )
+    GlassScaffold(
+        title = stringResource(R.string.sources_title),
+        // 表单与列表各自占位，没有内容从顶栏后面经过；退回玻璃材质即可
+        blurBackdrop = false,
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                BackGlyph(
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    label = stringResource(R.string.action_back),
+                )
+            }
         },
-    ) { innerPadding ->
+        actions = {
+            LyraSecondaryButton(
+                onClick = { filePicker.launch(arrayOf("*/*")) },
+                modifier = Modifier.padding(end = 12.dp),
+            ) {
+                Text(stringResource(R.string.sources_import_file))
+            }
+        },
+    ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding())
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                LyraTextField(
                     value = urlInput,
                     onValueChange = { urlInput = it },
                     modifier = Modifier.weight(1f),
@@ -101,7 +98,7 @@ fun SourcesScreen(
                     singleLine = true,
                     enabled = !state.busy,
                 )
-                Button(
+                LyraPrimaryButton(
                     onClick = { viewModel.importUrl(urlInput.trim()) },
                     enabled = !state.busy && urlInput.isNotBlank(),
                 ) {
@@ -158,9 +155,8 @@ private fun SourceCard(
     // 整张卡本来没有点击（点卡片什么也不做），所以卡片的按压形变接的是它上面那两个控件的
     // 按压状态：按开关或删除时整张卡 2% 下压，回答"我按的是这一张卡"
     val interaction = remember { MutableInteractionSource() }
-    Card(
+    GlassSurface(
         modifier = modifier.fillMaxWidth().lyraPressScale(interaction),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         shape = RoundedCornerShape(18.dp),
     ) {
         Row(
@@ -198,12 +194,15 @@ private fun SourceCard(
                 onCheckedChange = onToggle,
                 interactionSource = interaction,
             )
-            FilledTonalButton(
+            LyraSecondaryButton(
                 onClick = onDelete,
                 modifier = Modifier.padding(start = 8.dp),
                 interactionSource = interaction,
             ) {
-                Text(stringResource(R.string.action_delete))
+                Text(
+                    text = stringResource(R.string.action_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

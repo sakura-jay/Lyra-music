@@ -17,7 +17,9 @@ quickjs = "3.2.3"
 okhttp = "4.12.0"
 # media3 1.11.1 要求 minCompileSdk=36，正好在天花板内
 media3 = "1.11.1"
+work = "2.10.5"
 junit = "4.13.2"
+json = "20260814"
 androidxTestJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
 # ui-test 1.11.4 自己带的是 espresso-core 3.5.0，它构造 UiController 时走
@@ -53,8 +55,10 @@ androidx-media3-common = { group = "androidx.media3", name = "media3-common", ve
 androidx-media3-datasource = { group = "androidx.media3", name = "media3-datasource", version.ref = "media3" }
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
+androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+json = { group = "org.json", name = "json", version.ref = "json" }
 androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestJunit" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

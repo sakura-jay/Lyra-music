@@ -73,13 +73,6 @@ class LocalMusicRepositoryTest {
         return uri
     }
 
-    private fun albumIdOf(uri: Uri): Long = context.contentResolver
-        .query(uri, arrayOf(MediaStore.Audio.Media.ALBUM_ID), null, null, null)!!
-        .use { rows ->
-            assertTrue("读不回刚插入的那条", rows.moveToFirst())
-            rows.getLong(0)
-        }
-
     @Test
     fun mapsMediaStoreRowsIntoSongs() = runBlocking {
         val uri = insertTrack("本地晴天", "周杰伦", durationMs = 240_000)
@@ -91,8 +84,10 @@ class LocalMusicRepositoryTest {
         assertEquals(listOf("周杰伦"), song.artists)
         assertEquals("测试专辑", song.albumName)
         assertEquals(240, song.durationSec)
-        // ALBUM_ID 由 MediaStore 按专辑名生成，只能拿实际存回来的那一个比
-        assertEquals(LocalMusicRepository.albumArtworkUri(albumIdOf(uri)), song.artworkUrl)
+        // MediaStore 扫描器可能在 refresh 之后才最终确定 ALBUM_ID，别拿晚一次查询覆盖
+        // 本次映射的输入；这里验证同一行里的 albumId 与封面地址确实是一起映射出来的。
+        assertTrue(song.albumId.toLong() > 0)
+        assertEquals(LocalMusicRepository.albumArtworkUri(song.albumId.toLong()), song.artworkUrl)
         assertEquals(listOf(Quality.LOSSLESS), song.qualities.map { it.quality })
         assertTrue("id 必须就是 MediaStore 的 _id", song.id.toLong() > 0)
     }

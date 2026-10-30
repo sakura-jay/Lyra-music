@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,10 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -36,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.local.FavoritePlaylist
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.GlassScaffold
 import io.github.sakurajay.lyra.ui.common.HeartGlyph
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.lyraPressable
@@ -58,26 +57,23 @@ fun SavedPlaylistsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val savedPlaylists by viewModel.savedPlaylists.collectAsStateWithLifecycle()
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(rememberMessageHost(state.message, false, viewModel::clearMessage)) },
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                title = { Text(stringResource(R.string.library_favorite_playlists)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        BackGlyph(
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            label = stringResource(R.string.action_back),
-                        )
-                    }
-                },
-            )
+    GlassScaffold(
+        title = stringResource(R.string.library_favorite_playlists),
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                BackGlyph(
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    label = stringResource(R.string.action_back),
+                )
+            }
         },
-    ) { innerPadding ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        snackbarHost = { SnackbarHost(rememberMessageHost(state.message, false, viewModel::clearMessage)) },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = padding.calculateTopPadding()),
+        ) {
             if (savedPlaylists.isEmpty()) {
                 item {
                     Text(

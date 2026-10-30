@@ -22,8 +22,11 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,14 +44,18 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -67,10 +74,12 @@ import io.github.sakurajay.lyra.ui.common.CoverFlightOverlay
 import io.github.sakurajay.lyra.ui.common.CoverPageHost
 import io.github.sakurajay.lyra.ui.common.CoverFlightState
 import io.github.sakurajay.lyra.ui.common.CoverKeys
+import io.github.sakurajay.lyra.ui.common.LocalBottomBarContentPadding
 import io.github.sakurajay.lyra.ui.common.PlayPauseButton
 import io.github.sakurajay.lyra.ui.common.LyraSongLines
 import io.github.sakurajay.lyra.ui.common.lyraCoverAnchor
 import io.github.sakurajay.lyra.ui.common.lyraPressable
+import io.github.sakurajay.lyra.ui.common.glassBackdropSource
 import io.github.sakurajay.lyra.ui.common.rememberCoverFlightState
 import io.github.sakurajay.lyra.ui.home.HomeScreen
 import io.github.sakurajay.lyra.ui.leaderboard.LeaderboardDetailScreen
@@ -90,6 +99,9 @@ import io.github.sakurajay.lyra.ui.playlist.PlaylistSquareScreen
 import io.github.sakurajay.lyra.ui.search.SearchScreen
 import io.github.sakurajay.lyra.ui.settings.CacheScreen
 import io.github.sakurajay.lyra.ui.settings.SettingsScreen
+import io.github.sakurajay.lyra.ui.settings.UpdateDialog
+import io.github.sakurajay.lyra.ui.settings.UpdateViewModel
+import io.github.sakurajay.lyra.ui.theme.GlassSurface
 import io.github.sakurajay.lyra.ui.sources.SourcesScreen
 import io.github.sakurajay.lyra.ui.tracklist.AlbumRoute
 import io.github.sakurajay.lyra.ui.tracklist.LikedRoute
@@ -98,6 +110,7 @@ import io.github.sakurajay.lyra.ui.tracklist.LocalMusicRoute
 import io.github.sakurajay.lyra.ui.tracklist.PlaylistRoute
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.geometry.Offset
@@ -107,6 +120,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 private enum class TopDestination(
     val route: String,
@@ -163,6 +177,14 @@ fun LyraApp() {
     // 迷你条与播放页共用一个 VM：两处各连一个控制器各自轮询，显示就会互相打架
     val playerViewModel: PlayerViewModel = viewModel(factory = PlayerViewModel.Factory)
     LaunchedEffect(Unit) { playerViewModel.connect() }
+    val updateViewModel: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory)
+    // 冷启动首屏可交互后再查一次；自动失败静默，页面切换/回前台不重复触发
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        delay(700)
+        updateViewModel.startAutoCheck()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { updateViewModel.onResume() }
     // 长按任意曲目时的"放去哪儿"选择器：一份状态挂在应用级，四个列表页共用
     val picker: PlaylistPickerViewModel = viewModel(factory = PlaylistPickerViewModel.Factory)
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -214,6 +236,7 @@ fun LyraApp() {
             currentRoute = currentRoute,
             motionScale = motionScale,
             coverFlight = coverFlight,
+            updateViewModel = updateViewModel,
         )
     }
 }
@@ -258,6 +281,7 @@ private fun AppContent(
     currentRoute: String?,
     motionScale: Float,
     coverFlight: CoverFlightState,
+    updateViewModel: UpdateViewModel,
 ) {
     // 播放页背景是封面模糊，深浅不可预测；状态栏与手势条图标跟着当前配色走，
     // 否则在浅色主题下压深色封面时状态栏图标会看不见
@@ -266,6 +290,9 @@ private fun AppContent(
     // 迷你播放条只属于三个 Tab（023）：详情页没有导航栏与迷你条，返回时
     // 自然不存在"条蹦出来"的问题；播放页占满整屏也不需要条
     val showBottomBar = LyraRoutes.isTab(currentRoute)
+    val pageBackdrop = rememberGraphicsLayer()
+    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
+    val bottomBarContentPadding = with(LocalDensity.current) { bottomBarHeightPx.toDp() }
     SideEffect {
         val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
         val controller = WindowCompat.getInsetsController(window, view)
@@ -274,24 +301,16 @@ private fun AppContent(
     }
 
     Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            bottomBar = {
-                BottomBarWithTransitions(
-                    visible = showBottomBar,
-                    currentRoute = currentRoute,
-                    playerViewModel = playerViewModel,
-                    onOpenPlayer = { navController.navigate(LyraRoutes.PLAYER) },
-                    onOpenDestination = { destination ->
-                        navController.navigate(destination.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                )
-            },
-        ) { innerPadding ->
+        // 只有 Tab 页的底部浮层会采样这份图层；详情页不付整页录制的成本。
+        Box(
+            Modifier
+                .fillMaxSize()
+                .then(if (showBottomBar) Modifier.glassBackdropSource(pageBackdrop) else Modifier),
+        ) {
+            CompositionLocalProvider(
+                LocalBottomBarContentPadding provides if (showBottomBar) bottomBarContentPadding else 0.dp,
+            ) {
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             // 内边距按目的地给：播放页的背景要铺到状态栏与底部手势条后面，
             // 所以它自己处理 insets，不在这里被统一裁掉
             NavHost(
@@ -371,6 +390,7 @@ private fun AppContent(
                         onBack = { navController.popBackStack() },
                         onOpenSources = { navController.navigate(LyraRoutes.SOURCES) },
                         onOpenCache = { navController.navigate(LyraRoutes.CACHE) },
+                        updateViewModel = updateViewModel,
                     )
                 }
                 lyraDetailRoute(LyraRoutes.CACHE, motionScale, innerPadding) {
@@ -466,12 +486,39 @@ private fun AppContent(
                 }
             }
         }
+            }
+        }
+
+        // 底部条盖在页面图层上，不占 Scaffold 的布局槽位。页面滚动到浮层后面时，
+        // GlassSurface 按自身在 root 里的位置采样同一份页面图层。
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .onSizeChanged { bottomBarHeightPx = it.height },
+        ) {
+            BottomBarWithTransitions(
+                visible = showBottomBar,
+                currentRoute = currentRoute,
+                playerViewModel = playerViewModel,
+                backdrop = pageBackdrop,
+                onOpenPlayer = { navController.navigate(LyraRoutes.PLAYER) },
+                onOpenDestination = { destination ->
+                    navController.navigate(destination.route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+            )
+        }
 
         // 封面共享的覆盖层：必须挂在 NavHost 外面，才能跨导航动画存活（ADR-0010）
         CoverFlightOverlay(coverFlight, Modifier.matchParentSize())
     }
 
     PlaylistPickerSheet(picker)
+    UpdateDialog(updateViewModel)
 }
 
 /**
@@ -487,6 +534,7 @@ private fun BottomBarWithTransitions(
     visible: Boolean,
     currentRoute: String?,
     playerViewModel: PlayerViewModel,
+    backdrop: GraphicsLayer,
     onOpenPlayer: () -> Unit,
     onOpenDestination: (TopDestination) -> Unit,
 ) {
@@ -502,24 +550,30 @@ private fun BottomBarWithTransitions(
             MiniPlayerBar(
                 viewModel = playerViewModel,
                 onOpen = onOpenPlayer,
+                backdrop = backdrop,
             )
-            NavigationBar {
-                TopDestination.entries.forEach { destination ->
-                    NavigationBarItem(
-                        selected = currentRoute == destination.route,
-                        onClick = { onOpenDestination(destination) },
-                        icon = {
-                            DestinationIcon(
-                                destination = destination,
-                                tint = if (currentRoute == destination.route) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        },
-                        label = { Text(stringResource(destination.labelRes)) },
-                    )
+            GlassSurface(
+                shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+                backdrop = backdrop,
+            ) {
+                NavigationBar(containerColor = Color.Transparent) {
+                    TopDestination.entries.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentRoute == destination.route,
+                            onClick = { onOpenDestination(destination) },
+                            icon = {
+                                DestinationIcon(
+                                    destination = destination,
+                                    tint = if (currentRoute == destination.route) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            },
+                            label = { Text(stringResource(destination.labelRes)) },
+                        )
+                    }
                 }
             }
         }
@@ -535,20 +589,20 @@ private val MINI_COVER_CORNER = 12.dp
 private fun MiniPlayerBar(
     viewModel: PlayerViewModel,
     onOpen: () -> Unit,
+    backdrop: GraphicsLayer,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val song = state.song
     val artwork = state.artwork?.asImageBitmap()
 
-    Surface(
+    GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp, vertical = 6.dp)
-            // 形变挂在 Surface 的底色外面：整条一起缩，而不是只有里面的字在缩
+            // 形变挂在玻璃容器外面：整条一起缩，而不是只有里面的字在缩
             .lyraPressable(onClick = onOpen),
         shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 3.dp,
+        backdrop = backdrop,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(10.dp),

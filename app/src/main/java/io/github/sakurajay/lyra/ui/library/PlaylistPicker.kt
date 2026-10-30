@@ -11,12 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +36,8 @@ import io.github.sakurajay.lyra.data.local.FavoritesRepository
 import io.github.sakurajay.lyra.data.local.PlaylistRepository
 import io.github.sakurajay.lyra.di.ServiceLocator
 import io.github.sakurajay.lyra.domain.model.Song
+import io.github.sakurajay.lyra.ui.theme.LyraPrimaryButton
+import io.github.sakurajay.lyra.ui.theme.LyraTextField
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -197,14 +197,14 @@ fun PlaylistPickerSheet(viewModel: PlaylistPickerViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                OutlinedTextField(
+                LyraTextField(
                     value = name,
                     onValueChange = { name = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     label = { Text(stringResource(R.string.library_new_playlist)) },
                 )
-                Button(
+                LyraPrimaryButton(
                     onClick = {
                         viewModel.createAndAdd(name)
                         name = ""

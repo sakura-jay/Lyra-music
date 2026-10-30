@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,11 +20,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +39,7 @@ import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.provider.builtin.KuwoPlaylistProvider
 import io.github.sakurajay.lyra.data.provider.builtin.PlaylistSummary
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.GlassScaffold
 import io.github.sakurajay.lyra.ui.common.LyraSkeletonGrid
 import io.github.sakurajay.lyra.ui.common.ProvideSkeletonShimmer
 import io.github.sakurajay.lyra.ui.common.PlaylistCard
@@ -76,31 +74,31 @@ fun PlaylistSquareScreen(
             }
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    GlassScaffold(
+        title = stringResource(R.string.playlist_square_title),
+        // 筛选行固定在顶栏下方，网格没有从顶栏后面经过的路径；这里不付采样成本
+        blurBackdrop = false,
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                BackGlyph(
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    label = stringResource(R.string.action_back),
+                )
+            }
+        },
+        actions = {
+            TextButton(onClick = viewModel::reload) { Text(stringResource(R.string.action_reload)) }
+        },
         snackbarHost = {
             SnackbarHost(rememberMessageHost(state.message, sticky = false, onShown = viewModel::clearMessage))
         },
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                title = { Text(stringResource(R.string.playlist_square_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        BackGlyph(
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            label = stringResource(R.string.action_back),
-                        )
-                    }
-                },
-                actions = {
-                    TextButton(onClick = viewModel::reload) { Text(stringResource(R.string.action_reload)) }
-                },
-            )
-        },
-    ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding()),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
