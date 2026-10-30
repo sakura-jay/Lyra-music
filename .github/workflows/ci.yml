@@ -318,7 +318,17 @@ jobs:
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          printf '%s' "$KEYSTORE_BASE64" | base64 -d > release.jks
+          # secret 常从 Windows 文本框粘贴，带 CRLF 或行内空格；GNU base64 只忽略
+          # \n，遇到 \r 直接报 "invalid input"，所以先在脚本里剔除空白字符
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 -d > release.jks
+          # 解出来必须是一个能打开的 keystore：解出 0 字节或截断时立刻失败，
+          # 不要等到 Gradle 签名阶段才报一个看不出根因的错误
+          if [ ! -s release.jks ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 解码后为空，请确认粘贴的是完整 base64。"
+            exit 1
+          fi
+          head -c 4 release.jks | od -An -tx1 | tr -d ' \n' | grep -qx 'feedfeed' \
+            || echo "::warning::解码结果不是 JKS 文件头（feedfeed），若为 PKCS12 可忽略。"
           # Properties 里反斜杠是转义符，口令含 \ 时必须写两次才不会读错
           {
             printf 'storeFile=release.jks\n'
