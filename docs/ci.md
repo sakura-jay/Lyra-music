@@ -63,22 +63,38 @@
 
 | Secret | 内容 |
 | --- | --- |
-| `RELEASE_KEYSTORE_BASE64` | `local-release.jks` 的 base64 文本 |
+| `RELEASE_KEYSTORE_BASE64` | `local-release.jks` 的 base64 文本，**2980 字符单行** |
 | `RELEASE_STORE_PASSWORD` | keystore 口令（本机 `keystore.properties` 的 `storePassword`） |
 | `RELEASE_KEY_ALIAS` | 密钥别名（本机为 `lyra`） |
 | `RELEASE_KEY_PASSWORD` | 密钥口令（本机 `keystore.properties` 的 `keyPassword`） |
 
-生成 base64（PowerShell，用 `-NoNewline` 得到单行无换行）：
+只加 **Repository secrets**：workflow 里的 job 没有声明 `environment:`，读不到
+Environment secrets；加错层级不会报错，只会拿到空值。
+
+生成 base64（PowerShell）：
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes('local-release.jks'))
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes('local-release.jks'))
+$b64.Length                      # v0.9.7 时为 2980
+$b64.Substring(0, 12)            # /u3+7QAAAAIA
+$b64.Substring($b64.Length - 12) # UOfbDBsa8Tj3
+Set-Clipboard -Value $b64        # 直接粘到 GitHub，不会有换行
 ```
 
 在 Linux/macOS 上：
 
 ```bash
-base64 -w0 local-release.jks
+base64 -w0 local-release.jks   # -w0 是必须的，否则会折行
 ```
+
+**v0.9.7 首次发布踩过的坑**：secret 里填了错误的 base64，`base64 -d` 报
+`invalid input`。常见来源是用在线工具或 `base64` 不带 `-w0` 生成了多行文本、
+给值加了 `data:...;base64,` 前缀、或把 `+`／`/` 删掉。粘完后核对长度与前缀
+两项，比肉眼检查整串可靠。
+
+workflow 侧已经容错：`Restore keystore` 会先 `tr -d '\r\n\t '` 剔除空白，所以
+CRLF 不再致命；但**内容本身错**（长度不对、字符被替换）仍会在
+`Assemble signed release` 之前的 `[ ! -s release.jks ]` 或签名阶段暴露。
 
 密钥只落到 runner 的 workspace，用完随机器销毁；`release.jks` 与 `keystore.properties`
 都在 `.gitignore` 里，不会被提交。**keystore 一旦丢失就无法给已发布版本做增量更新**，
