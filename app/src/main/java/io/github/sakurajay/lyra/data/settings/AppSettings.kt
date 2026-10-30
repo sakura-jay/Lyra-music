@@ -75,6 +75,26 @@ class AppSettings(context: Context) {
         prefs.edit { putBoolean(KEY_AUTO_SWITCH, enabled) }
     }
 
+    /** 自动更新检测默认开启；手动检测不受这个开关和忽略版本影响。 */
+    private val _autoUpdateCheck = MutableStateFlow(prefs.getBoolean(KEY_AUTO_UPDATE, true))
+    val autoUpdateCheck: StateFlow<Boolean> = _autoUpdateCheck.asStateFlow()
+
+    private val _ignoredVersion = MutableStateFlow(prefs.getString(KEY_IGNORED_VERSION, null))
+    val ignoredVersion: StateFlow<String?> = _ignoredVersion.asStateFlow()
+
+    fun setAutoUpdateCheck(enabled: Boolean) {
+        _autoUpdateCheck.value = enabled
+        prefs.edit { putBoolean(KEY_AUTO_UPDATE, enabled) }
+    }
+
+    /** 存精确版本号；更高版本与它不相等，自然会重新提示。 */
+    fun setIgnoredVersion(version: String?) {
+        _ignoredVersion.value = version
+        prefs.edit {
+            if (version == null) remove(KEY_IGNORED_VERSION) else putString(KEY_IGNORED_VERSION, version)
+        }
+    }
+
     /**
      * 播放缓存上限（字节）。
      *
@@ -116,5 +136,7 @@ class AppSettings(context: Context) {
         private const val KEY_QUALITY = "requested_quality"
         private const val KEY_AUTO_SWITCH = "auto_switch_source"
         private const val KEY_CACHE_LIMIT = "cache_limit_bytes"
+        private const val KEY_AUTO_UPDATE = "auto_update_check"
+        private const val KEY_IGNORED_VERSION = "ignored_update_version"
     }
 }

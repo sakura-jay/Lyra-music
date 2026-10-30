@@ -2,6 +2,7 @@ package io.github.sakurajay.lyra.ui.common
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.sakurajay.lyra.R
+import io.github.sakurajay.lyra.ui.theme.rememberGlassPalette
 
 /**
  * 一张歌单卡：封面 + 名称 +（可选）一行统计。
@@ -49,6 +51,7 @@ fun PlaylistCard(
     // 封面在卡片这一层取一次：既要给 Image 画，也要报给共享元素当端点位图
     val artworkState = rememberRemoteArtworkState(coverUrl, maxEdgePx = 320)
     val artwork = artworkState.artwork
+    val palette = rememberGlassPalette()
     Column(
         // 形变挂在这一层（整张卡一起缩），点击与涟漪跟着走
         modifier = modifier.lyraPressable(onClick = onClick),
@@ -60,6 +63,7 @@ fun PlaylistCard(
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+                    .border(1.dp, palette.border, RoundedCornerShape(12.dp))
                     // 登记在底色之后、内容之前：矩形就是这块封面框自己，飞行时它原地隐身
                     .lyraCoverSource(coverPath, 12.dp, artwork?.asImageBitmap()),
                 contentAlignment = Alignment.Center,

@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -12,21 +13,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,9 +42,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.local.LocalMusicRepository
+import io.github.sakurajay.lyra.ui.common.GlassScaffold
+import io.github.sakurajay.lyra.ui.common.GlassTopBarHeight
+import io.github.sakurajay.lyra.ui.common.LocalBottomBarContentPadding
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
 import io.github.sakurajay.lyra.ui.common.rememberRemoteArtwork
 import io.github.sakurajay.lyra.ui.common.lyraPressScale
+import io.github.sakurajay.lyra.ui.theme.GlassSurface
+import io.github.sakurajay.lyra.ui.theme.rememberGlassPalette
 
 /**
  * 音乐库：四张入口卡片，各自点进列表页。
@@ -54,7 +57,6 @@ import io.github.sakurajay.lyra.ui.common.lyraPressScale
  * 以前我喜欢是内联的曲目长列表、我的歌单与收藏的歌单是内联行——收藏一多就把别的挤到屏幕外。
  * 现在四段统一成卡片：库里只负责"去哪儿"，具体列表在各页里。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     onOpenSettings: () -> Unit,
@@ -77,17 +79,17 @@ fun LibraryScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) viewModel.scanLocal() }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    GlassScaffold(
+        title = stringResource(R.string.library_title),
         snackbarHost = { SnackbarHost(rememberMessageHost(state.message, false, viewModel::clearMessage)) },
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                title = { Text(stringResource(R.string.library_title)) },
-            )
-        },
-    ) { innerPadding ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                top = padding.calculateTopPadding(),
+                bottom = 12.dp + LocalBottomBarContentPadding.current,
+            ),
+        ) {
             // 封面取各段"第一行"那张图：我喜欢按收藏时间倒序，first() 就是最近添加的那首
             item {
                 LibraryEntryCard(
@@ -184,64 +186,70 @@ private fun LibraryEntryCard(
     onAction: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    Row(
+    val palette = rememberGlassPalette()
+    GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             // 形变挂在底色**外面**（整张卡一起缩），点击留在底色**里面**
             // （涟漪画在底色之上、并被圆角裁住）——两个位置隔着 clip/background
-            .lyraPressScale(interaction)
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(
-                interactionSource = interaction,
-                indication = LocalIndication.current,
-                onClick = onClick,
-            )
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .lyraPressScale(interaction),
+        shape = RoundedCornerShape(16.dp),
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            val artwork = rememberRemoteArtwork(coverUrl, maxEdgePx = 160)
-            if (artwork != null) {
-                Image(
-                    bitmap = artwork.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)),
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = interaction,
+                    indication = LocalIndication.current,
+                    onClick = onClick,
                 )
-            } else {
-                Icon(
-                    painter = painterResource(fallbackIcon),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp),
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
+                    .border(1.dp, palette.border, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                val artwork = rememberRemoteArtwork(coverUrl, maxEdgePx = 160)
+                if (artwork != null) {
+                    Image(
+                        bitmap = artwork.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)),
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(fallbackIcon),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (onAction != null && actionLabel != null) {
-            TextButton(onClick = onAction) { Text(actionLabel) }
+            if (onAction != null && actionLabel != null) {
+                TextButton(onClick = onAction) { Text(actionLabel) }
+            }
         }
     }
 }

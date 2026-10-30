@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,19 +24,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,9 +59,13 @@ import io.github.sakurajay.lyra.data.settings.DarkMode
 import io.github.sakurajay.lyra.domain.lyric.LyricTextSize
 import io.github.sakurajay.lyra.domain.model.Quality
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.GlassScaffold
 import io.github.sakurajay.lyra.ui.common.ThemeRippleOverlay
 import io.github.sakurajay.lyra.ui.common.ThemeRippleState
 import io.github.sakurajay.lyra.ui.common.rememberThemeRippleState
+import io.github.sakurajay.lyra.ui.theme.GlassSurface
+import io.github.sakurajay.lyra.ui.theme.LyraPrimaryButton
+import io.github.sakurajay.lyra.ui.theme.LyraSecondaryButton
 import io.github.sakurajay.lyra.ui.theme.PresetTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -78,6 +77,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenSources: () -> Unit,
     onOpenCache: () -> Unit,
+    updateViewModel: UpdateViewModel,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
@@ -89,6 +89,11 @@ fun SettingsScreen(
     val cacheBytes by viewModel.cacheBytes.collectAsStateWithLifecycle()
     val cacheLimit by viewModel.cacheLimit.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val updateState by updateViewModel.checkState.collectAsStateWithLifecycle()
+    val autoUpdate by updateViewModel.autoUpdateCheck.collectAsStateWithLifecycle()
+    val currentVersion by updateViewModel.currentVersionName.collectAsStateWithLifecycle()
+    val download by updateViewModel.download.collectAsStateWithLifecycle()
+    val updateNotice by updateViewModel.notice.collectAsStateWithLifecycle()
 
     // 备份读写都走 SAF：应用没有写公共目录的权限了，让用户自己挑文件比偷偷塞进
     // Downloads 更诚实，也不会因为厂商的存储策略差异而失败
@@ -113,27 +118,22 @@ fun SettingsScreen(
 
     // 涟漪覆盖层要盖在 topBar 与 snackbar 之上：所以它是 Scaffold 的兄弟，不是它的孩子
     Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            topBar = {
-                TopAppBar(
-                    windowInsets = WindowInsets(0, 0, 0, 0),
-                    title = { Text(stringResource(R.string.settings_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            BackGlyph(
-                                modifier = Modifier.size(22.dp),
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                label = stringResource(R.string.action_back),
-                            )
-                        }
-                    },
-                )
+        GlassScaffold(
+            title = stringResource(R.string.settings_title),
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    BackGlyph(
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        label = stringResource(R.string.action_back),
+                    )
+                }
             },
-        ) { innerPadding ->
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { padding ->
             Column(
-                modifier = Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState())
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                    .padding(top = padding.calculateTopPadding())
                     .padding(bottom = 24.dp),
             ) {
                 Section(R.string.settings_appearance) {
@@ -202,22 +202,22 @@ fun SettingsScreen(
                         TextButton(onClick = onOpenCache) {
                             Text(stringResource(R.string.settings_cache_detail))
                         }
-                        OutlinedButton(onClick = viewModel::clearCache) {
+                        LyraSecondaryButton(onClick = viewModel::clearCache) {
                             Text(stringResource(R.string.settings_clear_cache))
                         }
                     }
                 }
 
                 Section(R.string.settings_data) {
-                    Button(onClick = onOpenSources, modifier = Modifier.padding(vertical = 4.dp)) {
+                    LyraPrimaryButton(onClick = onOpenSources, modifier = Modifier.padding(vertical = 4.dp)) {
                         Text(stringResource(R.string.library_open_sources))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(
+                        LyraSecondaryButton(
                             onClick = { exportLauncher.launch(backupFileName()) },
                             modifier = Modifier.padding(vertical = 4.dp),
                         ) { Text(stringResource(R.string.settings_export_backup)) }
-                        OutlinedButton(
+                        LyraSecondaryButton(
                             onClick = {
                                 importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
                             },
@@ -226,12 +226,63 @@ fun SettingsScreen(
                     }
                 }
 
-                Text(
-                    text = stringResource(R.string.settings_version, versionName()),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Section(R.string.settings_about_update) {
+                    Text(
+                        text = stringResource(R.string.settings_current_version, currentVersion),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    SwitchRow(
+                        label = stringResource(R.string.settings_auto_update),
+                        checked = autoUpdate,
+                        onChecked = updateViewModel::setAutoUpdateCheck,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = updateStatusText(updateState, download),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = when (updateState) {
+                                is UpdateCheckState.Failed -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                        val checking = updateState is UpdateCheckState.Checking
+                        LyraSecondaryButton(
+                            onClick = {
+                                when {
+                                    download is UpdateDownloadState.Ready -> updateViewModel.installNow()
+                                    updateState is UpdateCheckState.Available -> updateViewModel.showDialog()
+                                    else -> updateViewModel.checkNow()
+                                }
+                            },
+                            enabled = !checking,
+                        ) {
+                            Text(
+                                stringResource(
+                                    when {
+                                        download is UpdateDownloadState.Ready -> R.string.update_action_install
+                                        download is UpdateDownloadState.Downloading -> R.string.settings_view_update
+                                        updateState is UpdateCheckState.Available -> R.string.settings_view_update
+                                        updateState is UpdateCheckState.UpToDate -> R.string.settings_recheck_update
+                                        updateState is UpdateCheckState.Failed -> R.string.action_retry
+                                        else -> R.string.settings_check_update
+                                    },
+                                ),
+                            )
+                        }
+                    }
+                    updateNotice?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
         ThemeRippleOverlay(ripple)
@@ -240,13 +291,18 @@ fun SettingsScreen(
 
 @Composable
 private fun Section(labelRes: Int, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(
-            text = stringResource(labelRes),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
-        content()
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Text(
+                text = stringResource(labelRes),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+            content()
+        }
     }
 }
 
@@ -404,9 +460,18 @@ private fun backupFileName(): String =
     "lyra-backup-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.getDefault()).format(Date()) + ".json"
 
 @Composable
-private fun versionName(): String {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    return runCatching {
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "—"
-    }.getOrDefault("—")
+private fun updateStatusText(
+    state: UpdateCheckState,
+    download: UpdateDownloadState,
+): String = when {
+    download is UpdateDownloadState.Downloading && download.total > 0 ->
+        stringResource(R.string.settings_downloading, (download.bytes * 100 / download.total).toInt())
+    download is UpdateDownloadState.Downloading -> stringResource(R.string.update_downloading_unknown)
+    download is UpdateDownloadState.Ready -> stringResource(R.string.update_ready)
+    download is UpdateDownloadState.Failed -> stringResource(R.string.settings_download_failed, download.message)
+    state is UpdateCheckState.Checking -> stringResource(R.string.settings_checking_update)
+    state is UpdateCheckState.UpToDate -> stringResource(R.string.settings_up_to_date)
+    state is UpdateCheckState.Available -> stringResource(R.string.settings_update_available, state.release.version.toString())
+    state is UpdateCheckState.Failed -> stringResource(R.string.settings_check_failed, state.message)
+    else -> stringResource(R.string.settings_update_idle)
 }

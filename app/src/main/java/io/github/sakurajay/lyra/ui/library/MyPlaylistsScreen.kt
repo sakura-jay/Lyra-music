@@ -3,23 +3,19 @@ package io.github.sakurajay.lyra.ui.library
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,8 +33,11 @@ import io.github.sakurajay.lyra.ui.common.lyraPressable
 import io.github.sakurajay.lyra.R
 import io.github.sakurajay.lyra.data.local.UserPlaylist
 import io.github.sakurajay.lyra.ui.common.BackGlyph
+import io.github.sakurajay.lyra.ui.common.GlassScaffold
+import io.github.sakurajay.lyra.ui.common.GlassDialog
 import io.github.sakurajay.lyra.ui.common.lyraAnimatedItem
 import io.github.sakurajay.lyra.ui.common.rememberMessageHost
+import io.github.sakurajay.lyra.ui.theme.LyraTextField
 
 /**
  * 「我的歌单」列表页。
@@ -58,31 +57,28 @@ fun MyPlaylistsScreen(
     var showCreate by rememberSaveable { mutableStateOf(false) }
     var managed by remember { mutableStateOf<UserPlaylist?>(null) }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(rememberMessageHost(state.message, false, viewModel::clearMessage)) },
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                title = { Text(stringResource(R.string.library_my_playlists)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        BackGlyph(
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            label = stringResource(R.string.action_back),
-                        )
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { showCreate = true }, modifier = Modifier.padding(end = 12.dp)) {
-                        Text(stringResource(R.string.library_new_playlist))
-                    }
-                },
-            )
+    GlassScaffold(
+        title = stringResource(R.string.library_my_playlists),
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                BackGlyph(
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    label = stringResource(R.string.action_back),
+                )
+            }
         },
-    ) { innerPadding ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        actions = {
+            TextButton(onClick = { showCreate = true }, modifier = Modifier.padding(end = 12.dp)) {
+                Text(stringResource(R.string.library_new_playlist))
+            }
+        },
+        snackbarHost = { SnackbarHost(rememberMessageHost(state.message, false, viewModel::clearMessage)) },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = padding.calculateTopPadding()),
+        ) {
             if (playlists.isEmpty()) {
                 item {
                     Text(
@@ -168,24 +164,22 @@ private fun PlaylistRow(
 @Composable
 private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var text by remember { mutableStateOf(initial) }
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
+        title = title,
+        content = {
+            LyraTextField(
                 value = text,
                 onValueChange = { text = it },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
         },
-        confirmButton = {
+        buttons = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) {
                 Text(stringResource(R.string.action_confirm))
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -201,17 +195,15 @@ private fun PlaylistManageDialog(playlist: UserPlaylist, onDismiss: () -> Unit, 
             onConfirm = onRename,
         )
     } else {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = onDismiss,
-            title = { Text(playlist.name) },
-            text = { Text(stringResource(R.string.library_manage_hint, playlist.songCount)) },
-            confirmButton = {
-                TextButton(onClick = { renaming = true }) { Text(stringResource(R.string.library_rename)) }
-            },
-            dismissButton = {
+            title = playlist.name,
+            content = { Text(stringResource(R.string.library_manage_hint, playlist.songCount)) },
+            buttons = {
                 TextButton(onClick = onDelete) {
                     Text(stringResource(R.string.library_delete_playlist), color = MaterialTheme.colorScheme.error)
                 }
+                TextButton(onClick = { renaming = true }) { Text(stringResource(R.string.library_rename)) }
             },
         )
     }

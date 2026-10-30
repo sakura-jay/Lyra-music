@@ -17,6 +17,7 @@ Lyra 的变更记录。格式遵循 [Keep a Changelog](https://keepachangelog.co
 | `0.9.5` | 反馈补丁 | [`docs/releases/v0.9.5/`](docs/releases/v0.9.5/) · [计划](docs/releases/v0.9.5/PLAN.md) · [变更](docs/releases/v0.9.5/CHANGELOG.md) · [工单](docs/releases/v0.9.5/tickets/) · [实现提示词](docs/releases/v0.9.5/PROMPTS.md) |
 | `0.9.6` | 反馈补丁 | [`docs/releases/v0.9.6/`](docs/releases/v0.9.6/) · [计划](docs/releases/v0.9.6/PLAN.md) · [变更](docs/releases/v0.9.6/CHANGELOG.md) · [工单](docs/releases/v0.9.6/tickets/) · [实现提示词](docs/releases/v0.9.6/PROMPTS.md) |
 | `0.9.7` | 反馈补丁 | [`docs/releases/v0.9.7/`](docs/releases/v0.9.7/) · [计划](docs/releases/v0.9.7/PLAN.md) · [变更](docs/releases/v0.9.7/CHANGELOG.md) · [工单](docs/releases/v0.9.7/tickets/) |
+| `0.10.0` | M11 | [`docs/releases/v0.10.0/`](docs/releases/v0.10.0/) · [计划](docs/releases/v0.10.0/PLAN.md) · [变更](docs/releases/v0.10.0/CHANGELOG.md) · [工单](docs/releases/v0.10.0/tickets/) · [ADR-0011](docs/adr/0011-玻璃材质与局部背景模糊.md) |
 
 > **约定**：自 `v0.9.0` 起，每个版本的变更记录写在 `docs/releases/vX.Y.Z/CHANGELOG.md`；本文件只保留总索引与 M0–M7 历史。一个里程碑一个 minor，`1.0` 保留给"全部完善"的终点里程碑；分支与提交约定见 `CONTEXT.md`。
 
