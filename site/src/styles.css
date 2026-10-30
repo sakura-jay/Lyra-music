@@ -255,7 +255,7 @@ h1 { font-size: clamp(52px, 5.6vw, 82px); line-height: 1.17; letter-spacing: -4p
 .update-icon { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; border-radius: 13px; background: #b8f2d112; color: var(--mint); }
 .update-note strong { font-size: 13px; font-weight: 600; }
 .update-note p { color: #80968a; font-size: 11px; line-height: 1.7; margin: 6px 0 0; }
-.dev-label { margin-left: auto; flex-shrink: 0; color: #8bb49e; font-size: 9px; border: 1px solid #3b5447; border-radius: 5px; padding: 4px 7px; }
+.release-label { margin-left: auto; flex-shrink: 0; display: flex; align-items: center; gap: 4px; color: var(--mint); font-size: 9px; border: 1px solid #3b5447; border-radius: 5px; padding: 4px 7px; }
 
 .faq { display: grid; grid-template-columns: .9fr 1.1fr; gap: 90px; }
 .faq .section-intro { margin: 0; }
@@ -363,7 +363,7 @@ footer > span { padding-left: 24px; border-left: 1px solid #29372f; }
   .new-copy h2 { font-size: 39px; }
   .glass-window { width: 255px; }
   .update-note { align-items: flex-start; }
-  .dev-label { display: none; }
+  .release-label { display: none; }
   .closing h2 { font-size: 39px; }
   footer > div { gap: 13px; }
 }

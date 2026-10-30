@@ -62,9 +62,9 @@ function App() {
 
         <section className="whats-new section" id="whats-new">
           <div className="new-panel">
-            <div className="new-copy"><div className="version-pill"><Sparkles size={14} />V0.10.0 · 正在开发</div><h2>更通透，<br />也更省心。</h2><p>玻璃材质让内容自然浮现，应用内更新让每次进步轻松抵达。</p><a href={`${repository}/tree/main/docs/releases/v0.10.0`} target="_blank" rel="noreferrer">查看开发计划<ArrowRight size={15} /></a></div>
+            <div className="new-copy"><div className="version-pill"><Sparkles size={14} />V0.10.0 · 全新上线</div><h2>更通透，<br />也更省心。</h2><p>玻璃材质让内容自然浮现，应用内更新让每次进步轻松抵达。</p><a href={`${repository}/blob/main/docs/releases/v0.10.0/CHANGELOG.md`} target="_blank" rel="noreferrer">查看更新内容<ArrowRight size={15} /></a></div>
             <div className="glass-preview"><div className="glass-preview-bg"><span /><span /><span /></div><div className="glass-window"><div className="glass-window-top"><AudioLines size={18} /><span>发现音乐</span><SearchIcon /></div><div className="glass-window-body"><div><small>为你推荐</small><strong>今天，想听点什么？</strong></div><div className="glass-covers"><i /><i /><i /></div></div><div className="glass-player"><div className="mini-art" /><span>晚风来信<small>正在播放</small></span><AudioLines size={20} /></div></div></div>
-            <div className="update-note"><span className="update-icon"><ArrowDownToLine size={22} /></span><div><strong>更新，不必再到处找</strong><p>自动检测 GitHub 新版本，应用内下载并校验 APK，再交由系统确认安装。</p></div><span className="dev-label">开发中</span></div>
+            <div className="update-note"><span className="update-icon"><ArrowDownToLine size={22} /></span><div><strong>更新，不必再到处找</strong><p>自动检测 GitHub 新版本，应用内下载并校验 APK，再交由系统确认安装。</p></div><span className="release-label"><Check size={12} />现已支持</span></div>
           </div>
         </section>
 
